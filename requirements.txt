@@ -1,0 +1,11 @@
+# Core dependencies
+neo4j>=5.0.0,<6.0.0  # Neo4j Python driver
+pydantic>=2.0.0,<3.0.0  # Data validation
+python-dotenv>=1.0.0,<2.0.0  # Environment variable management
+
+# MCP Server dependencies
+# Placeholder for MCP SDK (pending details from Jeffery)
+
+# Development dependencies
+pytest>=7.0.0,<8.0.0
+pytest-cov>=4.0.0,<5.0.0

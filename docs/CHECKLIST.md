@@ -3,12 +3,12 @@
 ## Project Setup
 
 - [ ] Initialize project structure
-  - [ ] Create necessary directories (src, tests, etc.)
-  - [ ] Create virtual environment
-  - [ ] Set up requirements.txt or pyproject.toml
-- [ ] Set up logging configuration
-  - [ ] Ensure log directory exists
-  - [ ] Configure logging based on environment variables
+  - [x] Create necessary directories (src, tests, etc.)
+  - [x] Create virtual environment
+  - [x] Set up requirements.txt _and_ pyproject.toml
+- [x] Set up logging configuration
+  - [x] Ensure log directory exists
+  - [x] Configure logging based on environment variables
 - [ ] Configure Neo4j connection
   - [ ] Test connectivity to Neo4j database
   - [ ] Set up connection handling and retry logic
