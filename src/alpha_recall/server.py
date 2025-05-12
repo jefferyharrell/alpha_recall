@@ -80,7 +80,7 @@ MODE = os.environ.get("MODE", "").lower()
 
 # Advanced tool: Delete an entity (only register if MODE=advanced)
 if MODE == "advanced":
-    @mcp.tool(name="testing_delete_entity")
+    @mcp.tool(name="delete_entity")
     async def delete_entity(ctx: Context, entity: str) -> Dict[str, Any]:
         """
         Delete an entity and all its relationships (and attached observations) from the knowledge graph.
@@ -110,7 +110,7 @@ if MODE == "advanced":
             return {"error": f"Error deleting entity: {str(e)}", "success": False}
 
 
-@mcp.tool(name="testing_recall")
+@mcp.tool(name="recall")
 async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
     """
     Retrieve information about an entity from the knowledge graph.
@@ -180,7 +180,7 @@ async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> 
         }
 
 
-@mcp.tool(name="testing_remember")
+@mcp.tool(name="remember")
 async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None, observation: Optional[str] = None) -> Dict[str, Any]:
     """
     Create or update an entity in the knowledge graph with optional observations.
@@ -241,7 +241,7 @@ async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None,
         }
 
 
-@mcp.tool(name="testing_relate")
+@mcp.tool(name="relate")
 async def relate(ctx: Context, entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
     """
     Create a relationship between two entities in the knowledge graph.
