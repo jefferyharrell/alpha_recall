@@ -133,3 +133,18 @@ class GraphDatabase(ABC):
             or None if the entity doesn't exist
         """
         pass
+
+    @abstractmethod
+    async def delete_entity(
+        self,
+        name: str
+    ) -> Dict[str, Any]:
+        """
+        Delete an entity and all its relationships (and attached observations) from the graph.
+        
+        Args:
+            name: Name of the entity to delete
+        Returns:
+            Dictionary containing the deletion status and details
+        """
+        pass

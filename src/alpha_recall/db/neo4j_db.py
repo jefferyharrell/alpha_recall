@@ -30,6 +30,52 @@ class Neo4jDatabase(GraphDatabase):
     """
     Neo4j implementation of the graph database interface.
     """
+
+    async def delete_entity(self, name: str) -> Dict[str, Any]:
+        """
+        Delete an entity and all its relationships (and attached observations) from the Neo4j graph.
+        Args:
+            name: Name of the entity to delete
+        Returns:
+            Dictionary containing the deletion status and details
+        """
+        if not self.driver:
+            logger.error("Not connected to Neo4j")
+            return {"success": False, "error": "Not connected to Neo4j"}
+        try:
+            async with self.driver.session() as session:
+                # First, detach delete the entity and all relationships (including observations)
+                # Remove attached observations
+                obs_query = """
+                MATCH (e:Entity {name: $name})-[:HAS_OBSERVATION]->(o:Observation)
+                DETACH DELETE o
+                """
+                await session.run(obs_query, {"name": name})
+                # Now delete the entity and all its relationships
+                del_query = """
+                MATCH (e:Entity {name: $name})
+                DETACH DELETE e
+                """
+                result = await session.run(del_query, {"name": name})
+                summary = await result.consume()
+                logger.info(f"Deleted entity '{name}' and its relationships. Counters: {summary.counters}")
+                
+                # Convert counters to a dictionary with the relevant stats
+                counters_dict = {
+                    "nodes_deleted": summary.counters.nodes_deleted,
+                    "relationships_deleted": summary.counters.relationships_deleted
+                }
+                
+                return {
+                    "entity": name,
+                    "deleted": True,
+                    "counters": counters_dict,
+                    "success": True
+                }
+        except Exception as e:
+            logger.error(f"Error deleting entity '{name}': {str(e)}")
+            return {"success": False, "error": str(e), "entity": name}
+
     
     def __init__(
         self,

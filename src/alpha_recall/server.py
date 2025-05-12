@@ -75,6 +75,40 @@ async def server_lifespan(mcp_server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
 # Create MCP server with lifespan management
 mcp = FastMCP(SERVER_NAME, lifespan=server_lifespan)
 
+# Determine mode (advanced tools exposed only if MODE=advanced)
+MODE = os.environ.get("MODE", "").lower()
+
+# Advanced tool: Delete an entity (only register if MODE=advanced)
+if MODE == "advanced":
+    @mcp.tool(name="testing_delete_entity")
+    async def delete_entity(ctx: Context, entity: str) -> Dict[str, Any]:
+        """
+        Delete an entity and all its relationships (and attached observations) from the knowledge graph.
+        Args:
+            ctx: The request context containing lifespan resources
+            entity: The name of the entity to delete
+        Returns:
+            Dictionary containing the deletion status and details
+        """
+        logger.info(f"[ADVANCED] Delete entity tool called: entity='{entity}'")
+        db = None
+        if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+            db = ctx.lifespan_context.db
+        elif hasattr(ctx, 'db'):
+            db = ctx.db
+        elif hasattr(mcp, 'db'):
+            db = mcp.db
+        if db is None:
+            logger.error("Database connection not available for delete_entity")
+            return {"error": "Database connection not available", "success": False}
+        try:
+            result = await db.delete_entity(entity)
+            logger.info(f"[ADVANCED] Entity deletion result: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Error deleting entity: {str(e)}")
+            return {"error": f"Error deleting entity: {str(e)}", "success": False}
+
 
 @mcp.tool(name="testing_recall")
 async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:

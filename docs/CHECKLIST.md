@@ -44,26 +44,26 @@
 
 ## Advanced Features
 
-- [ ] Implement debug mode
-  - [ ] Add advanced tools (create_entities, add_observations, etc.)
-  - [ ] Add enhanced logging for debug mode
-- [ ] Implement progressive enhancement approach
-  - [ ] Store observations linked to entities
-  - [ ] Support entity creation with observations
+- [x] Implement advanced mode
+  - [x] Add advanced tools (delete_entity)
+  - [ ] Add more advanced tools (create_entities, add_observations, etc.)
+- [x] Implement progressive enhancement approach
+  - [x] Store observations linked to entities
+  - [x] Support entity creation with observations
 
 ## Remember Tool
-- [ ] Implement entity creation/update logic
-  - [ ] Handle entity creation with optional type
-  - [ ] Handle entity update
-  - [ ] Handle observation addition
-  - [ ] Implement validation for input parameters
+- [x] Implement entity creation/update logic
+  - [x] Handle entity creation with optional type
+  - [x] Handle entity update
+  - [x] Handle observation addition
+  - [x] Implement validation for input parameters
 
 ## Relate Tool
-- [ ] Implement relationship creation logic
-  - [ ] Verify both entities exist before creating relationship
-  - [ ] Create relationship with specified type
-  - [ ] Handle edge cases (self-relationships, duplicate relationships)
-  - [ ] Implement validation for input parameters
+- [x] Implement relationship creation logic
+  - [x] Verify both entities exist before creating relationship
+  - [x] Create relationship with specified type
+  - [x] Handle edge cases (self-relationships, duplicate relationships)
+  - [x] Implement validation for input parameters
 
 ## Testing and Documentation
 
