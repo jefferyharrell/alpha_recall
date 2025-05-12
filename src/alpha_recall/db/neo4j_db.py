@@ -332,21 +332,23 @@ class Neo4jDatabase(GraphDatabase):
         else:
             # Get the entity, its observations, and relationships up to the specified depth
             # This is a more complex query that uses variable-length path matching
-            query = """
-            MATCH (e:Entity {name: $name})
+            # Note: We need to use string formatting for the path length since Neo4j doesn't allow
+            # parameter substitution in relationship patterns
+            query = f"""
+            MATCH (e:Entity {{name: $name}})
             OPTIONAL MATCH (e)-[:HAS_OBSERVATION]->(o:Observation)
-            OPTIONAL MATCH path = (e)-[r*1..$depth]-(related)
+            WITH e, collect(DISTINCT o) as observations
+            OPTIONAL MATCH path = (e)-[r*1..{depth}]-(related)
             WHERE related:Entity
-            OPTIONAL MATCH (related)-[:HAS_OBSERVATION]->(related_obs:Observation)
             RETURN 
                 e, 
-                collect(DISTINCT o) as observations,
-                collect(DISTINCT [path, related, collect(DISTINCT related_obs)]) as relationships
+                observations,
+                collect(DISTINCT [type(r[-1]), startNode(r[-1]).name, endNode(r[-1]).name]) as relationships
             """
             
             parameters = {
-                "name": entity_name,
-                "depth": depth
+                "name": entity_name
+                # depth is now directly in the query string
             }
         
         results = await self.execute_query(query, parameters)
@@ -360,24 +362,23 @@ class Neo4jDatabase(GraphDatabase):
         if depth > 0:
             # Process relationships
             relationships = []
-            for path_data in results[0]["relationships"]:
-                if not path_data[0]:  # Skip if no path
-                    continue
-                
-                path = path_data[0]
-                related_entity = path_data[1]
-                related_observations = path_data[2]
-                
-                # Extract relationship data from the path
-                for segment in path:
-                    if hasattr(segment, "type") and hasattr(segment, "start_node") and hasattr(segment, "end_node"):
-                        # This is a relationship
-                        rel_data = {
-                            "type": segment.type,
-                            "source": segment.start_node["name"],
-                            "target": segment.end_node["name"]
-                        }
-                        relationships.append(rel_data)
+            for rel_data in results[0]["relationships"]:
+                # Each relationship is a list with [type, source_name, target_name]
+                if len(rel_data) == 3:
+                    rel_type = rel_data[0]
+                    source_name = rel_data[1]
+                    target_name = rel_data[2]
+                    
+                    # Create a structured relationship object
+                    relationship = {
+                        "type": rel_type,
+                        "source": source_name,
+                        "target": target_name
+                    }
+                    
+                    # Only add if it's not already in the list
+                    if relationship not in relationships:
+                        relationships.append(relationship)
             
             entity_data["relationships"] = relationships
         

@@ -96,23 +96,54 @@ async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> 
     """
     logger.info(f"Recall tool called: entity='{entity}', depth={depth}")
     
-    # For debugging purposes, log the context object structure
-    logger.debug(f"Context object: {type(ctx).__name__}")
-    logger.debug(f"Context attributes: {dir(ctx)}")
+    # Try to get the database connection from various places
+    db = None
     
-    # Create a mock response for testing
-    # This allows us to verify the tool is working even without database access
-    mock_response = {
-        "entity": entity or "NEXUS",
-        "type": "Entity",
-        "observations": ["This is a mock observation for testing purposes."],
-        "relationships": [],
-        "success": True,
-        "note": "This is a mock response for testing. Database connection not available."
-    }
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, 'db'):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, 'db'):
+        db = mcp.db
     
-    # Return the mock response for now
-    return mock_response
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available")
+        return {
+            "error": "Database connection not available",
+            "success": False
+        }
+    
+    try:
+        # Empty query returns important entities (bootstrap mode)
+        if not entity or entity.strip() == "":
+            bootstrap_node = os.environ.get("BOOTSTRAP_NODE", "NEXUS")
+            logger.info(f"Bootstrap mode activated, returning {bootstrap_node}")
+            result = await db.get_entity(bootstrap_node, depth)
+        else:
+            # Get the entity with the specified depth
+            result = await db.get_entity(entity, depth)
+        
+        # If entity not found, return a meaningful error
+        if not result:
+            logger.warning(f"Entity not found: {entity}")
+            return {
+                "error": f"Entity '{entity}' not found",
+                "success": False
+            }
+        
+        # Return the result
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error retrieving entity: {str(e)}")
+        return {
+            "error": f"Error retrieving entity: {str(e)}",
+            "success": False
+        }
 
 
 @mcp.tool(name="testing_remember")
@@ -131,22 +162,49 @@ async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None,
     """
     logger.info(f"Remember tool called: entity='{entity}', type='{entity_type}', observation='{observation}'")
     
-    # For debugging purposes, log the context object structure
-    logger.debug(f"Context object: {type(ctx).__name__}")
-    logger.debug(f"Context attributes: {dir(ctx)}")
+    # Try to get the database connection from various places
+    db = None
     
-    # Create a mock response for testing
-    # This allows us to verify the tool is working even without database access
-    mock_response = {
-        "entity": entity,
-        "type": entity_type or "Entity",
-        "observation": observation,
-        "success": True,
-        "note": "This is a mock response for testing. Database connection not available."
-    }
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, 'db'):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, 'db'):
+        db = mcp.db
     
-    # Return the mock response for now
-    return mock_response
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available")
+        return {
+            "error": "Database connection not available",
+            "success": False
+        }
+    
+    try:
+        # Create or update the entity
+        entity_result = await db.create_entity(entity, entity_type)
+        
+        # Add observation if provided
+        if observation:
+            await db.add_observation(entity, observation)
+        
+        # Return the result
+        return {
+            "entity": entity,
+            "type": entity_type or "Entity",
+            "observation": observation,
+            "success": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating/updating entity: {str(e)}")
+        return {
+            "error": f"Error creating/updating entity: {str(e)}",
+            "success": False
+        }
 
 
 @mcp.tool(name="testing_relate")
@@ -165,22 +223,45 @@ async def relate(ctx: Context, entity: str, to_entity: str, as_type: str) -> Dic
     """
     logger.info(f"Relate tool called: entity='{entity}', to_entity='{to_entity}', as_type='{as_type}'")
     
-    # For debugging purposes, log the context object structure
-    logger.debug(f"Context object: {type(ctx).__name__}")
-    logger.debug(f"Context attributes: {dir(ctx)}")
+    # Try to get the database connection from various places
+    db = None
     
-    # Create a mock response for testing
-    # This allows us to verify the tool is working even without database access
-    mock_response = {
-        "entity": entity,
-        "to_entity": to_entity,
-        "as_type": as_type,
-        "success": True,
-        "note": "This is a mock response for testing. Database connection not available."
-    }
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, 'db'):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, 'db'):
+        db = mcp.db
     
-    # Return the mock response for now
-    return mock_response
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available")
+        return {
+            "error": "Database connection not available",
+            "success": False
+        }
+    
+    try:
+        # Create the relationship
+        result = await db.create_relationship(entity, to_entity, as_type)
+        
+        # Return the result
+        return {
+            "entity": entity,
+            "to_entity": to_entity,
+            "as_type": as_type,
+            "success": True
+        }
+        
+    except Exception as e:
+        logger.error(f"Error creating relationship: {str(e)}")
+        return {
+            "error": f"Error creating relationship: {str(e)}",
+            "success": False
+        }
 
 
 async def main():
