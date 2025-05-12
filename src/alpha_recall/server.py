@@ -2,7 +2,8 @@
 MCP server implementation for alpha_recall.
 
 This module implements the Model Context Protocol (MCP) server for alpha_recall,
-providing a structured memory system through Neo4j.
+providing a structured memory system through Neo4j with semantic search capabilities
+via Qdrant and sentence-transformers.
 """
 
 import asyncio
@@ -78,7 +79,7 @@ mcp = FastMCP(SERVER_NAME, lifespan=server_lifespan)
 # Determine mode (advanced tools exposed only if MODE=advanced)
 MODE = os.environ.get("MODE", "").lower()
 
-# Advanced tool: Delete an entity (only register if MODE=advanced)
+# Advanced tools (only register if MODE=advanced)
 if MODE == "advanced":
     @mcp.tool(name="delete_entity")
     async def delete_entity(ctx: Context, entity: str) -> Dict[str, Any]:
@@ -108,6 +109,61 @@ if MODE == "advanced":
         except Exception as e:
             logger.error(f"Error deleting entity: {str(e)}")
             return {"error": f"Error deleting entity: {str(e)}", "success": False}
+            
+    @mcp.tool(name="semantic_search")
+    async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Search for observations semantically similar to the query.
+        
+        Args:
+            ctx: The request context containing lifespan resources
+            query: The natural language query to search for
+            limit: Maximum number of results to return
+            entity: Optional entity name to filter results
+            
+        Returns:
+            Dictionary containing the search results
+        """
+        logger.info(f"[ADVANCED] Semantic search tool called: query='{query}', entity='{entity}', limit={limit}")
+        
+        # Try to get the database connection from various places
+        db = None
+        if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+            db = ctx.lifespan_context.db
+        elif hasattr(ctx, 'db'):
+            db = ctx.db
+        elif hasattr(mcp, 'db'):
+            db = mcp.db
+            
+        # If we couldn't get a database connection, return a meaningful error
+        if db is None:
+            logger.error("Database connection not available for semantic_search")
+            return {
+                "error": "Database connection not available",
+                "success": False
+            }
+            
+        try:
+            # Check if db has semantic_search method (CompositeDatabase)
+            if hasattr(db, 'semantic_search'):
+                results = await db.semantic_search(query=query, limit=limit, entity_name=entity)
+                return {
+                    "query": query,
+                    "results": results,
+                    "success": True
+                }
+            else:
+                logger.error("Database does not support semantic search")
+                return {
+                    "error": "Database does not support semantic search",
+                    "success": False
+                }
+        except Exception as e:
+            logger.error(f"Error performing semantic search: {str(e)}")
+            return {
+                "error": f"Error performing semantic search: {str(e)}",
+                "success": False
+            }
 
 
 @mcp.tool(name="recall")
