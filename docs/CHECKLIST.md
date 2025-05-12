@@ -26,21 +26,21 @@
 
 ## MCP Server Implementation
 
-- [ ] Set up basic MCP server structure
-  - [ ] Initialize MCP SDK (pending details from Jeffery)
-  - [ ] Configure stdio input/output handling
-  - [ ] Set up error handling and response formatting
-- [ ] Implement data models
-  - [ ] Define entity model with validation
-  - [ ] Define relationship model with validation
-  - [ ] Define observation model with validation
+- [x] Set up basic MCP server structure
+  - [x] Initialize MCP SDK (pending details from Jeffery)
+  - [x] Configure stdio input/output handling
+  - [x] Set up error handling and response formatting
+- [x] Implement data models
+  - [x] Define entity model with validation
+  - [x] Define relationship model with validation
+  - [x] Define observation model with validation
 
 ## Recall Tool
-- [ ] Implement entity retrieval logic
-  - [ ] Retrieve entity with observations
-  - [ ] Implement depth parameter for relationship traversal
-  - [ ] Format response according to specifications
-  - [ ] Implement validation for input parameters
+- [x] Implement entity retrieval logic
+  - [x] Retrieve entity with observations
+  - [x] Implement depth parameter for relationship traversal
+  - [x] Format response according to specifications
+  - [x] Implement validation for input parameters
 
 ## Advanced Features
 
