@@ -167,24 +167,31 @@ async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Opt
 
 
 @mcp.tool(name="recall")
-async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
+async def recall(ctx: Context, query: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
     """
     Retrieve information about an entity from the knowledge graph.
     
-    If no entity is provided, returns a list of important entities.
+    This enhanced version accepts a query parameter that can be either:
+    1. An entity name - Returns the entity with its relationships
+    2. A semantic search query - Returns semantically similar observations
+    3. Both - Returns the entity and semantically similar observations
+    
+    If no query is provided, returns a list of important entities.
     
     Args:
         ctx: The request context containing lifespan resources
-        entity: Optional name of the entity to retrieve
-        depth: How many relationship hops to include
+        query: Optional query string (entity name or semantic search query)
+        depth: How many relationship hops to include for entity matches
             0: Only the entity itself
             1: Entity and direct relationships
             2+: Entity and extended network
             
     Returns:
-        Dictionary containing the entity information and relationships
+        Dictionary containing:
+        - exact_match: Entity information if query matches an entity name
+        - semantic_results: Top semantically similar observations
     """
-    logger.info(f"Recall tool called: entity='{entity}', depth={depth}")
+    logger.info(f"Enhanced recall tool called: query='{query}', depth={depth}")
     
     # Try to get the database connection from various places
     db = None
@@ -208,30 +215,58 @@ async def recall(ctx: Context, entity: Optional[str] = None, depth: int = 1) -> 
         }
     
     try:
+        exact_match = None
+        semantic_results = []
+        
         # Empty query returns important entities (bootstrap mode)
-        if not entity or entity.strip() == "":
+        if not query or query.strip() == "":
             bootstrap_node = os.environ.get("BOOTSTRAP_NODE", "NEXUS")
             logger.info(f"Bootstrap mode activated, returning {bootstrap_node}")
-            result = await db.get_entity(bootstrap_node, depth)
+            exact_match = await db.get_entity(bootstrap_node, depth)
         else:
-            # Get the entity with the specified depth
-            result = await db.get_entity(entity, depth)
+            # First, try to get an exact entity match
+            exact_match = await db.get_entity(query, depth)
+            
+            # Next, perform semantic search regardless of whether we found an exact match
+            # Determine the number of semantic results to include
+            semantic_limit = 5  # Default number of semantic results
+            
+            # Check if db has semantic_search method (CompositeDatabase)
+            if hasattr(db, 'semantic_search'):
+                semantic_results = await db.semantic_search(query=query, limit=semantic_limit)
+            else:
+                logger.warning("Database does not support semantic search")
         
-        # If entity not found, return a meaningful error
-        if not result:
-            logger.warning(f"Entity not found: {entity}")
+        # Construct the combined response
+        response = {
+            "query": query,
+            "success": True
+        }
+        
+        # Add exact match if found
+        if exact_match:
+            response["exact_match"] = exact_match
+        
+        # Add semantic results if available
+        if semantic_results:
+            response["semantic_results"] = semantic_results
+        
+        # If neither exact match nor semantic results, return an error
+        if not exact_match and not semantic_results:
+            logger.warning(f"No results found for query: {query}")
             return {
-                "error": f"Entity '{entity}' not found",
+                "query": query,
+                "error": f"No results found for query: '{query}'",
                 "success": False
             }
         
-        # Return the result
-        return result
+        return response
         
     except Exception as e:
-        logger.error(f"Error retrieving entity: {str(e)}")
+        logger.error(f"Error in enhanced recall: {str(e)}")
         return {
-            "error": f"Error retrieving entity: {str(e)}",
+            "query": query,
+            "error": f"Error in enhanced recall: {str(e)}",
             "success": False
         }
 
