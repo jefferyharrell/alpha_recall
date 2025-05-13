@@ -123,12 +123,20 @@ class VectorStore(SemanticSearch):
             if metadata:
                 payload.update(metadata)
             
+            # Convert string ID to integer for Qdrant (which expects unsigned int or UUID)
+            try:
+                # Try to convert to integer first
+                point_id = int(observation_id)
+            except ValueError:
+                # If it's not a valid integer, use it as is (might be UUID)
+                point_id = observation_id
+                
             # Store in Qdrant
             self.client.upsert(
                 collection_name=self.collection_name,
                 points=[
                     models.PointStruct(
-                        id=observation_id,
+                        id=point_id,  # Use the converted ID
                         vector=embedding.tolist(),
                         payload=payload,
                     )

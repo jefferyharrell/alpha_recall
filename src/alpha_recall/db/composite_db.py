@@ -32,7 +32,7 @@ class CompositeDatabase:
             semantic_search: Implementation of SemanticSearch
         """
         self.graph_db = graph_db
-        self.semantic_search = semantic_search
+        self.search_engine = semantic_search
     
     async def create_entity(
         self, 
@@ -74,7 +74,7 @@ class CompositeDatabase:
         entity_id = result["entity"]["id"]
         
         # Store in vector database for semantic search
-        await self.semantic_search.store_observation(
+        await self.search_engine.store_observation(
             observation_id=observation_id,
             text=observation,
             entity_id=entity_id,
@@ -143,7 +143,7 @@ class CompositeDatabase:
         entity_id = entity["id"]
         
         # Delete from vector store
-        vector_result = await self.semantic_search.delete_entity_observations(entity_id)
+        vector_result = await self.search_engine.delete_entity_observations(entity_id)
         
         # Delete from graph database
         graph_result = await self.graph_db.delete_entity(name)
@@ -177,7 +177,7 @@ class CompositeDatabase:
             if entity:
                 entity_id = entity["id"]
         
-        return await self.semantic_search.search_observations(
+        return await self.search_engine.search_observations(
             query=query,
             limit=limit,
             entity_id=entity_id

@@ -266,7 +266,7 @@ class Neo4jDatabase(GraphDatabase):
         MATCH (e:Entity {name: $entity_name})
         CREATE (o:Observation {content: $content, created_at: $timestamp})
         CREATE (e)-[:HAS_OBSERVATION]->(o)
-        RETURN e, o
+        RETURN e, o, ID(e) AS entity_id, ID(o) AS observation_id
         """
         
         parameters = {
@@ -281,8 +281,15 @@ class Neo4jDatabase(GraphDatabase):
         
         # Return the entity with the new observation
         return {
-            "entity": results[0]["e"],
-            "observation": results[0]["o"]
+            "entity": {
+                "id": str(results[0]["entity_id"]),  # Convert to string for compatibility
+                "data": results[0]["e"]
+            },
+            "observation": {
+                "id": str(results[0]["observation_id"]),  # Convert to string for compatibility
+                "content": results[0]["o"]["content"],
+                "created_at": results[0]["o"]["created_at"]
+            }
         }
     
     async def create_relationship(
