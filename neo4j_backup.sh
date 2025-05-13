@@ -30,8 +30,7 @@ echo "Stopping Neo4j database..."
 # Perform backup
 echo "Creating backup of Neo4j database..."
 "${NEO4J_HOME}/bin/neo4j-admin" database dump \
-    --to-path="${BACKUP_DIR}" \
-    neo4j \
+    --to-stdout neo4j > "${BACKUP_DIR}/${BACKUP_NAME}" \
     || error_exit "Backup failed"
 
 # Backup successful message
