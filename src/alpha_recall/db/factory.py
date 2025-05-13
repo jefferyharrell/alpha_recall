@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from alpha_recall.db.base import GraphDatabase
 from alpha_recall.db.neo4j_db import Neo4jDatabase
+from alpha_recall.db.memgraph_db import MemgraphDatabase
 from alpha_recall.db.semantic_search import SemanticSearch
 from alpha_recall.db.vector_store import VectorStore
 from alpha_recall.db.composite_db import CompositeDatabase
@@ -43,10 +44,9 @@ async def create_graph_db() -> GraphDatabase:
     if GRAPH_DB_TYPE == "neo4j":
         logger.info("Creating Neo4j database instance")
         db = Neo4jDatabase()
-    # Future database types can be added here
-    # elif GRAPH_DB_TYPE == "memgraph":
-    #     logger.info("Creating Memgraph database instance")
-    #     db = MemgraphDatabase()
+    elif GRAPH_DB_TYPE == "memgraph":
+        logger.info("Creating Memgraph database instance")
+        db = MemgraphDatabase()
     else:
         logger.error(f"Unsupported database type: {GRAPH_DB_TYPE}")
         raise ValueError(f"Unsupported database type: {GRAPH_DB_TYPE}")

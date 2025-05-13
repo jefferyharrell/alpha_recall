@@ -167,7 +167,7 @@ async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Opt
 
 
 @mcp.tool(name="recall")
-async def recall(ctx: Context, query: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
+async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
     """
     Retrieve information about an entity from the knowledge graph.
     
@@ -191,7 +191,11 @@ async def recall(ctx: Context, query: Optional[str] = None, depth: int = 1) -> D
         - exact_match: Entity information if query matches an entity name
         - semantic_results: Top semantically similar observations
     """
-    logger.info(f"Enhanced recall tool called: query='{query}', depth={depth}")
+    logger.info(f"Enhanced recall tool called: query='{query}', entity='{entity}', depth={depth}")
+    
+    # If entity is provided but query is not, use entity as the query
+    if entity and not query:
+        query = entity
     
     # Try to get the database connection from various places
     db = None
@@ -429,7 +433,10 @@ async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None,
         
         # Add observation if provided
         if observation:
-            await db.add_observation(entity, observation)
+            observation_result = await db.add_observation(entity, observation)
+            if not observation_result.get("success", False):
+                # If adding observation failed, return the error
+                return observation_result
         
         # Return the result
         return {

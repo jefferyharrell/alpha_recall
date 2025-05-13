@@ -1,5 +1,6 @@
 # Core dependencies
 neo4j>=5.0.0,<6.0.0  # Neo4j Python driver
+gqlalchemy>=1.2.0,<2.0.0  # Memgraph Python client library (GQLAlchemy)
 pydantic>=2.0.0,<3.0.0  # Data validation
 python-dotenv>=1.0.0,<2.0.0  # Environment variable management
 numpy>=1.24.0,<2.0.0  # Array and vector operations
