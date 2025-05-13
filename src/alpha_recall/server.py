@@ -219,8 +219,9 @@ async def recall(ctx: Context, query: Optional[str] = None, depth: int = 1) -> D
         semantic_results = []
         
         # Empty query returns important entities (bootstrap mode)
+        # This behavior is maintained for backward compatibility
         if not query or query.strip() == "":
-            bootstrap_node = os.environ.get("BOOTSTRAP_NODE", "NEXUS")
+            bootstrap_node = os.environ.get("BOOTSTRAP_NODE", "Alpha")
             logger.info(f"Bootstrap mode activated, returning {bootstrap_node}")
             exact_match = await db.get_entity(bootstrap_node, depth)
         else:
@@ -267,6 +268,120 @@ async def recall(ctx: Context, query: Optional[str] = None, depth: int = 1) -> D
         return {
             "query": query,
             "error": f"Error in enhanced recall: {str(e)}",
+            "success": False
+        }
+
+
+@mcp.tool(name="refresh")
+async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
+    """
+    Implements the two-tiered bootstrap process as described in ADR-008.
+    
+    This function loads:
+    1. Tier 1: Core identity information (essential bootstrap entity)
+    2. Tier 2: Contextually relevant memories based on the user's greeting
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        query: The user's greeting or first message (used for semantic search)
+        
+    Returns:
+        Dictionary containing:
+        - core_identity: The core identity entity (Tier 1)
+        - relevant_memories: Semantically relevant observations based on the query (Tier 2)
+    """
+    logger.info(f"Refresh tool called with query: '{query}'")
+    
+    # Try to get the database connection from various places
+    db = None
+    
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, 'db'):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, 'db'):
+        db = mcp.db
+    
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available for refresh")
+        return {
+            "error": "Database connection not available",
+            "success": False
+        }
+    
+    try:
+        # Initialize response structure
+        response = {
+            "query": query,
+            "success": True
+        }
+        
+        # TIER 1: Load core identity information
+        core_identity_node = os.environ.get("CORE_IDENTITY_NODE", "Alpha")
+        logger.info(f"Loading core identity: {core_identity_node}")
+        
+        # Get the core identity with minimal depth (just the entity itself)
+        core_identity = await db.get_entity(core_identity_node, depth=0)
+        
+        if core_identity:
+            response["core_identity"] = core_identity
+        else:
+            logger.warning(f"Core identity node '{core_identity_node}' not found")
+            # Continue anyway, as we might still get semantic results
+        
+        # TIER 2: Load contextually relevant memories based on the query
+        relevant_memories = []
+        
+        # Check if db supports semantic search
+        if hasattr(db, 'semantic_search'):
+            # Limit the query to the first 1,000 characters as specified in ADR-008
+            truncated_query = query[:1000] if len(query) > 1000 else query
+            
+            # Get the top 10 most relevant results as specified in ADR-008
+            semantic_limit = 10
+            
+            logger.info(f"Performing semantic search with truncated query: '{truncated_query[:50]}...'")
+            relevant_memories = await db.semantic_search(query=truncated_query, limit=semantic_limit)
+            
+            # Multi-level fallback logic as specified in ADR-008
+            if len(relevant_memories) < 3:
+                logger.info("Few semantic results, supplementing with recent observations")
+                # TODO: Implement retrieval of recent observations
+                # This would require a new database method
+            
+            if len(query) < 50:
+                logger.info("Short query, using default set of important memories")
+                # TODO: Implement retrieval of important memories
+                # This would require a new database method
+            
+            response["relevant_memories"] = relevant_memories
+        else:
+            logger.warning("Database does not support semantic search for contextual memories")
+            # Fall back to current approach - get the entity with relationships
+            fallback_entity = await db.get_entity(core_identity_node, depth=1)
+            if fallback_entity:
+                response["fallback_entity"] = fallback_entity
+        
+        # Check if we have any useful information to return
+        if not core_identity and not relevant_memories and "fallback_entity" not in response:
+            logger.error("No information available for refresh operation")
+            return {
+                "query": query,
+                "error": "No information available for refresh operation",
+                "success": False
+            }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in refresh: {str(e)}")
+        return {
+            "query": query,
+            "error": f"Error in refresh: {str(e)}",
             "success": False
         }
 
