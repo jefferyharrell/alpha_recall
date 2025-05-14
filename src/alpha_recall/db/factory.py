@@ -25,7 +25,7 @@ load_dotenv()
 logger = get_logger("db_factory")
 
 # Database configuration from environment
-GRAPH_DB_TYPE = os.environ.get("GRAPH_DB", "neo4j").lower()
+GRAPH_DB_TYPE = os.environ.get("GRAPH_DB", "memgraph").lower()
 VECTOR_STORE_URL = os.environ.get("VECTOR_STORE_URL", "http://localhost:6333")
 VECTOR_STORE_COLLECTION = os.environ.get("VECTOR_STORE_COLLECTION", "alpha_recall_observations")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
