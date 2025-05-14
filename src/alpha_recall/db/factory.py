@@ -29,6 +29,7 @@ GRAPH_DB_TYPE = os.environ.get("GRAPH_DB", "memgraph").lower()
 VECTOR_STORE_URL = os.environ.get("VECTOR_STORE_URL", "http://localhost:6333")
 VECTOR_STORE_COLLECTION = os.environ.get("VECTOR_STORE_COLLECTION", "alpha_recall_observations")
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_SERVER_URL = os.environ.get("EMBEDDING_SERVER_URL", "http://localhost:6004/encode")
 
 
 async def create_graph_db() -> GraphDatabase:
@@ -64,10 +65,12 @@ def create_vector_store() -> SemanticSearch:
         SemanticSearch instance
     """
     logger.info(f"Creating vector store with URL: {VECTOR_STORE_URL}")
+    logger.info(f"Using embedding server URL: {EMBEDDING_SERVER_URL}")
     return VectorStore(
         qdrant_url=VECTOR_STORE_URL,
         collection_name=VECTOR_STORE_COLLECTION,
-        model_name=EMBEDDING_MODEL
+        model_name=EMBEDDING_MODEL,
+        embedding_server_url=EMBEDDING_SERVER_URL
     )
 
 
