@@ -192,8 +192,6 @@ class VectorStore(SemanticSearch):
             formatted_results = []
             for res in results:
                 formatted_results.append({
-                    "observation_id": res.payload.get("observation_id"),
-                    "entity_id": res.payload.get("entity_id"),
                     "text": res.payload.get("text"),
                     "score": res.score,
                 })
