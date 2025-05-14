@@ -331,7 +331,13 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
         core_identity = await db.get_entity(core_identity_node, depth=1)
         
         if core_identity:
-            response["core_identity"] = core_identity
+            # Only include the desired fields in the response
+            allowed_keys = ("name", "updated_at", "observations", "relationships")
+            if isinstance(core_identity, dict):
+                filtered_core_identity = {k: v for k, v in core_identity.items() if k in allowed_keys}
+            else:
+                filtered_core_identity = {k: v for k, v in core_identity.dict().items() if k in allowed_keys}
+            response["core_identity"] = filtered_core_identity
         else:
             logger.warning(f"Core identity node '{core_identity_node}' not found")
             # Continue anyway, as we might still get semantic results
