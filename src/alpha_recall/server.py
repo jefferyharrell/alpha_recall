@@ -320,7 +320,6 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
     try:
         # Initialize response structure
         response = {
-            "query": query,
             "success": True
         }
         
@@ -374,7 +373,6 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
         if not core_identity and not relevant_memories and "fallback_entity" not in response:
             logger.error("No information available for refresh operation")
             return {
-                "query": query,
                 "error": "No information available for refresh operation",
                 "success": False
             }
@@ -384,7 +382,6 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in refresh: {str(e)}")
         return {
-            "query": query,
             "error": f"Error in refresh: {str(e)}",
             "success": False
         }
