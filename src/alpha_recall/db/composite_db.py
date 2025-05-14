@@ -12,6 +12,21 @@ logger = get_logger(__name__)
 
 
 class CompositeDatabase:
+    async def recency_search(self, limit: int = 10) -> list:
+        """
+        Return the N most recent observations within the given time span.
+        Args:
+            span: A string representing the time span (e.g., '1h', '1d')
+            limit: Maximum number of results to return (default 10)
+        Returns:
+            List of recent observations
+        """
+        if hasattr(self.graph_db, 'recency_search'):
+            return await self.graph_db.recency_search(limit)
+        else:
+            logger.error('recency_search not implemented in graph_db backend')
+            return []
+
     """
     Composite database that combines graph database and semantic search capabilities.
     

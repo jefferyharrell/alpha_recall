@@ -81,6 +81,39 @@ MODE = os.environ.get("MODE", "").lower()
 
 # Advanced tools (only register if MODE=advanced)
 if MODE == "advanced":
+
+    @mcp.tool(name="recency_search")
+    async def recency_search(ctx: Context, limit: int = 10) -> Dict[str, Any]:
+        """
+        Return the N most recent observations.
+        Args:
+            ctx: The request context containing lifespan resources
+            limit: Maximum number of results to return (default 10)
+        Returns:
+            Dictionary containing the most recent observations
+        """
+        logger.info(f"Recency search called: limit={limit}")
+        db = None
+        if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+            db = ctx.lifespan_context.db
+        elif hasattr(ctx, 'db'):
+            db = ctx.db
+        elif hasattr(mcp, 'db'):
+            db = mcp.db
+        if db is None:
+            logger.error("Database connection not available for recency_search")
+            return {"error": "Database connection not available", "success": False}
+        if hasattr(db, 'recency_search'):
+            try:
+                results = await db.recency_search(limit=limit)
+                return {"results": results, "success": True}
+            except Exception as e:
+                logger.error(f"Error in recency_search: {str(e)}")
+                return {"error": f"Error in recency_search: {str(e)}", "success": False}
+        else:
+            logger.error("recency_search not implemented in database backend")
+            return {"error": "recency_search not implemented in database backend", "success": False}
+
     @mcp.tool(name="delete_entity")
     async def delete_entity(ctx: Context, entity: str) -> Dict[str, Any]:
         """

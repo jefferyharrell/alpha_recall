@@ -28,6 +28,33 @@ class MemgraphDatabase(GraphDatabase):
     """
     Memgraph implementation of the graph database interface using GQLAlchemy.
     """
+
+    async def recency_search(self, limit: int = 10) -> list:
+        """
+        Return the N most recent observations within the given time span.
+        Args:
+            span: A string representing the time span (e.g., '1h', '1d')
+            limit: Maximum number of results to return (default 10)
+        Returns:
+            List of recent observations
+        """
+        if not self.memgraph:
+            logger.error("Not connected to Memgraph")
+            return []
+        try:
+            # Query for recent observations
+            query = (
+                "MATCH (o:Observation) "
+                "RETURN o "
+                "ORDER BY coalesce(o.updated_at, o.created_at) DESC "
+                f"LIMIT {limit}"
+            )
+            results = self.memgraph.execute_and_fetch(query)
+            return [dict(r["o"]) for r in results]
+        except Exception as e:
+            logger.error(f"Error in recency_search: {str(e)}")
+            return []
+
     
     def __init__(
         self,

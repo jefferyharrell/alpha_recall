@@ -31,6 +31,34 @@ class Neo4jDatabase(GraphDatabase):
     Neo4j implementation of the graph database interface.
     """
 
+    async def recency_search(self, limit: int = 10) -> list:
+        """
+        Return the N most recent observations within the given time span.
+        Args:
+            span: A string representing the time span (e.g., '1h', '1d')
+            limit: Maximum number of results to return (default 10)
+        Returns:
+            List of recent observations
+        """
+        if not self.driver:
+            logger.error("Not connected to Neo4j")
+            return []
+        try:
+            # Query for recent observations
+            query = """
+            MATCH (o:Observation)
+            RETURN o
+            ORDER BY coalesce(o.updated_at, o.created_at) DESC
+            LIMIT $limit
+            """
+            parameters = {"limit": limit}
+            results = await self.execute_query(query, parameters)
+            return [dict(r["o"]) for r in results]
+        except Exception as e:
+            logger.error(f"Error in recency_search: {str(e)}")
+            return []
+
+
     async def delete_entity(self, name: str) -> Dict[str, Any]:
         """
         Delete an entity and all its relationships (and attached observations) from the Neo4j graph.

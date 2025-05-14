@@ -148,3 +148,18 @@ class GraphDatabase(ABC):
             Dictionary containing the deletion status and details
         """
         pass
+
+    @abstractmethod
+    async def recency_search(
+        self,
+        limit: int = 10
+    ) -> list:
+        """
+        Return the N most recent observations within the given time span.
+        Args:
+            span: A string representing the time span (e.g., '1h', '1d')
+            limit: Maximum number of results to return (default 10)
+        Returns:
+            List of recent observations
+        """
+        pass
