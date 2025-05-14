@@ -1,11 +1,3 @@
-#!/usr/bin/env python
-"""
-Alpha-Recall MCP Server Entry Point
-
-This script serves as the main entry point for the Alpha-Recall MCP server.
-It sets up the Python path correctly and starts the server.
-"""
-
 import asyncio
 import os
 import sys

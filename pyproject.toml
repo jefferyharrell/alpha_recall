@@ -1,23 +1,19 @@
 [project]
-name = "alpha-recall-mcp-server"
+name = "alpha-recall"
 version = "0.1.0"
-description = "MCP server for alpha-recall: a structured memory system for Project Alpha using Neo4j."
-authors = ["Jeffery Harrell <jefferyharrell@gmail.com>"]
-requires-python = ">=3.11,<3.13"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-cov"
+description = "alpha-recall is the memory server component of Project Alpha"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "gqlalchemy>=1.2.0,<2.0.0",
+    "httpx>=0.25.0,<1.0.0",
+    "mcp>=1.0.0,<2.0.0",
+    "neo4j>=5.0.0,<6.0.0",
+    "numpy>=1.24.0,<2.0.0",
+    "pydantic>=2.0.0,<3.0.0",
+    "pytest>=7.0.0,<8.0.0",
+    "pytest-cov>=4.0.0,<5.0.0",
+    "python-dotenv>=1.0.0,<2.0.0",
+    "qdrant-client>=1.7.0,<2.0.0",
+    "sentence-transformers>=2.2.0,<3.0.0",
 ]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "--cov=src"
