@@ -327,8 +327,8 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
         core_identity_node = os.environ.get("CORE_IDENTITY_NODE", "Alpha")
         logger.info(f"Loading core identity: {core_identity_node}")
         
-        # Get the core identity with minimal depth (just the entity itself)
-        core_identity = await db.get_entity(core_identity_node, depth=0)
+        # Get the core identity with depth=1 to include observations and relationships
+        core_identity = await db.get_entity(core_identity_node, depth=1)
         
         if core_identity:
             response["core_identity"] = core_identity
