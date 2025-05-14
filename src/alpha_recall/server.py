@@ -434,23 +434,22 @@ async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None,
         # Add observation if provided
         if observation:
             observation_result = await db.add_observation(entity, observation)
-            if not observation_result.get("success", False):
-                # If adding observation failed, return the error
-                return observation_result
-        
-        # Return the result
+            # Only treat as error if success=False is explicitly set
+            if isinstance(observation_result, dict) and observation_result.get("success") is False:
+                return {
+                    "success": False,
+                    "message": observation_result.get("error", "Failed to add observation.")
+                }
+        # Always return success if no error above
         return {
-            "entity": entity,
-            "type": entity_type or "Entity",
-            "observation": observation,
             "success": True
         }
         
     except Exception as e:
         logger.error(f"Error creating/updating entity: {str(e)}")
         return {
-            "error": f"Error creating/updating entity: {str(e)}",
-            "success": False
+            "success": False,
+            "message": f"Error creating/updating entity: {str(e)}"
         }
 
 
