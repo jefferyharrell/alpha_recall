@@ -422,10 +422,10 @@ class Neo4jDatabase(GraphDatabase):
                     source_name = rel_data[1]
                     target_name = rel_data[2]
                     
-                    # Create a structured relationship object
+                    # Create a structured relationship object with desired order
                     relationship = {
-                        "type": rel_type,
                         "source": source_name,
+                        "type": rel_type,
                         "target": target_name
                     }
                     

@@ -537,18 +537,19 @@ class MemgraphDatabase(GraphDatabase):
             
             for record in rel_results:
                 record_dict = dict(record)
-                relationship = {
-                    "type": record_dict.get("type").lower().replace("_", " ")
-                }
-                
-                # With the new query structure, we need to check which field is not null
+                # Build relationship dict with order: source, type, target
                 if record_dict["source"] is not None:
-                    relationship["source"] = record_dict["source"]
-                    relationship["target"] = entity_name
+                    relationship = {
+                        "source": record_dict["source"],
+                        "type": record_dict.get("type").lower().replace("_", " "),
+                        "target": entity_name
+                    }
                 else:
-                    relationship["source"] = entity_name
-                    relationship["target"] = record_dict["target"]
-                
+                    relationship = {
+                        "source": entity_name,
+                        "type": record_dict.get("type").lower().replace("_", " "),
+                        "target": record_dict["target"]
+                    }
                 formatted_entity["relationships"].append(relationship)
             
             # If depth > 1, recursively get related entities
