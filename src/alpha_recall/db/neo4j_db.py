@@ -44,16 +44,21 @@ class Neo4jDatabase(GraphDatabase):
             logger.error("Not connected to Neo4j")
             return []
         try:
-            # Query for recent observations
+            # Query for recent observations with their connected entities
             query = """
-            MATCH (o:Observation)
-            RETURN o
+            MATCH (e:Entity)-[:HAS_OBSERVATION]->(o:Observation)
+            RETURN o, e.name as entity_name
             ORDER BY coalesce(o.updated_at, o.created_at) DESC
             LIMIT $limit
             """
             parameters = {"limit": limit}
             results = await self.execute_query(query, parameters)
-            return [dict(r["o"]) for r in results]
+            observations = []
+            for r in results:
+                obs_dict = dict(r["o"])
+                obs_dict["entity_name"] = r["entity_name"]
+                observations.append(obs_dict)
+            return observations
         except Exception as e:
             logger.error(f"Error in recency_search: {str(e)}")
             return []

@@ -377,6 +377,7 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
         
         # TIER 2: Load contextually relevant memories based on the query
         relevant_memories = []
+        recent_observations = []
         
         # Check if db supports semantic search
         if hasattr(db, 'semantic_search'):
@@ -388,6 +389,16 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
             
             logger.info(f"Performing semantic search with truncated query: '{truncated_query[:50]}...'")
             relevant_memories = await db.semantic_search(query=truncated_query, limit=semantic_limit)
+            
+            # Also get the most recent N observations
+            if hasattr(db, 'recency_search'):
+                try:
+                    recent_observations = await db.recency_search(limit=semantic_limit)
+                except Exception as e:
+                    logger.error(f"Error in recency_search during refresh: {str(e)}")
+                    recent_observations = []
+            else:
+                logger.info("recency_search not implemented in db for refresh")
             
             # Multi-level fallback logic as specified in ADR-008
             if len(relevant_memories) < 3:
@@ -401,6 +412,16 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
                 # This would require a new database method
             
             response["relevant_memories"] = relevant_memories
+            # Only include 'created_at' and 'content' in each recent observation
+            filtered_recent = [
+                {
+                    "created_at": obs.get("created_at"),
+                    "entity_name": obs.get("entity_name") if "entity_name" in obs else obs.get("entity") if "entity" in obs else None,
+                    "content": obs.get("content"),
+                }
+                for obs in recent_observations
+            ]
+            response["recent_observations"] = filtered_recent
         else:
             logger.warning("Database does not support semantic search for contextual memories")
             # Fall back to current approach - get the entity with relationships
