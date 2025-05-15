@@ -1,11 +1,15 @@
 """
-Composite database that combines graph database and semantic search capabilities.
+Composite database that combines graph database, semantic search, and short-term memory capabilities.
 """
 
+import os
+import platform
+import socket
 from typing import Any, Dict, List, Optional, Union
 
 from alpha_recall.db.base import GraphDatabase
 from alpha_recall.db.semantic_search import SemanticSearch
+from alpha_recall.db.redis_db import RedisShortTermMemory
 from alpha_recall.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -37,7 +41,8 @@ class CompositeDatabase:
     def __init__(
         self,
         graph_db: GraphDatabase,
-        semantic_search: SemanticSearch
+        semantic_search: SemanticSearch,
+        shortterm_memory: Optional[RedisShortTermMemory] = None
     ):
         """
         Initialize the composite database.
@@ -45,9 +50,11 @@ class CompositeDatabase:
         Args:
             graph_db: Implementation of GraphDatabase
             semantic_search: Implementation of SemanticSearch
+            shortterm_memory: Optional Redis-based short-term memory implementation
         """
         self.graph_db = graph_db
         self.search_engine = semantic_search
+        self.shortterm_memory = shortterm_memory
     
     async def create_entity(
         self, 
@@ -197,3 +204,82 @@ class CompositeDatabase:
             limit=limit,
             entity_id=entity_id
         )
+        
+    async def remember_shortterm(
+        self,
+        content: str,
+        client_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Store a short-term memory with automatic TTL expiration.
+        
+        Args:
+            content: The memory content to store
+            client_info: Optional information about the client/source
+            
+        Returns:
+            Dictionary containing information about the stored memory
+        """
+        if not self.shortterm_memory:
+            logger.warning("Short-term memory storage not configured")
+            return {"success": False, "error": "Short-term memory storage not configured"}
+            
+        try:
+            # If client_info is not provided, try to detect it
+            if not client_info:
+                client_info = self._detect_client()
+                
+            # Store the memory
+            return await self.shortterm_memory.store_memory(content, client_info)
+        except Exception as e:
+            logger.error(f"Failed to store short-term memory: {str(e)}")
+            return {"success": False, "error": str(e)}
+    
+    async def get_shortterm_memories(
+        self,
+        through_the_last: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent short-term memories.
+        
+        Args:
+            through_the_last: Optional time window (e.g., '2h', '1d')
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of recent memories, newest first
+        """
+        if not self.shortterm_memory:
+            logger.warning("Short-term memory storage not configured")
+            return []
+            
+        try:
+            # Retrieve memories
+            return await self.shortterm_memory.get_recent_memories(
+                through_the_last=through_the_last,
+                limit=limit
+            )
+        except Exception as e:
+            logger.error(f"Failed to retrieve short-term memories: {str(e)}")
+            return []
+    
+    def _detect_client(self) -> Dict[str, str]:
+        """
+        Detect information about the current client environment.
+        
+        Returns:
+            Dict with client information
+        """
+        client_info = {
+            "hostname": socket.gethostname(),
+            "platform": platform.system(),
+            "platform_version": platform.version(),
+            "python_version": platform.python_version()
+        }
+        
+        # Try to get environment-specific information
+        client_name = os.environ.get("ALPHA_CLIENT_NAME", "unknown")
+        client_info["client_name"] = client_name
+        
+        return client_info

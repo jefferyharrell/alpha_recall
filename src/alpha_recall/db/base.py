@@ -4,6 +4,7 @@ Abstract base class for graph database operations.
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union
+from datetime import timedelta
 
 
 class GraphDatabase(ABC):
@@ -161,5 +162,41 @@ class GraphDatabase(ABC):
             limit: Maximum number of results to return (default 10)
         Returns:
             List of recent observations
+        """
+        pass
+        
+    @abstractmethod
+    async def remember_shortterm(
+        self,
+        content: str,
+        client_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Store a short-term memory with automatic TTL expiration.
+        
+        Args:
+            content: The memory content to store
+            client_info: Optional information about the client/source
+            
+        Returns:
+            Dictionary containing information about the stored memory
+        """
+        pass
+        
+    @abstractmethod
+    async def get_shortterm_memories(
+        self,
+        through_the_last: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent short-term memories.
+        
+        Args:
+            through_the_last: Optional time window (e.g., '2h', '1d')
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of recent memories, newest first
         """
         pass

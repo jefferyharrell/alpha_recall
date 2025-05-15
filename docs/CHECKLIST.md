@@ -11,14 +11,14 @@
 
 ## 2. Database Interface Updates
 
-- [ ] Update `base.py` with short-term memory interface
-  - [ ] Add `remember_shortterm(content)` method to abstract base class
-  - [ ] Add `get_shortterm_memories(through_the_last=None)` method to abstract base class
+- [x] Update `base.py` with short-term memory interface
+  - [x] Add `remember_shortterm(content)` method to abstract base class
+  - [x] Add `get_shortterm_memories(through_the_last=None)` method to abstract base class
 
-- [ ] Update `composite_db.py` to integrate Redis operations
-  - [ ] Implement the new short-term memory methods
-  - [ ] Add client detection functionality to track memory source
-  - [ ] Ensure proper error handling and fallback mechanisms
+- [x] Update `composite_db.py` to integrate Redis operations
+  - [x] Implement the new short-term memory methods
+  - [x] Add client detection functionality to track memory source
+  - [x] Ensure proper error handling and fallback mechanisms
 
 ## 3. MCP Tool Implementation
 
@@ -40,10 +40,10 @@
 
 ## 4. Factory Updates
 
-- [ ] Update `factory.py` to support Redis initialization
-  - [ ] Add Redis client creation function
-  - [ ] Update `create_db_instance` to include Redis in `CompositeDatabase`
-  - [ ] Load Redis connection parameters from environment variables
+- [x] Update `factory.py` to support Redis initialization
+  - [x] Add Redis client creation function
+  - [x] Update `create_db_instance` to include Redis in `CompositeDatabase`
+  - [x] Load Redis connection parameters from environment variables
 
 ## 5. Testing
 
