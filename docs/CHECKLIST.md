@@ -1,84 +1,84 @@
-# Alpha-Recall Implementation Checklist
+# Alpha-Recall Short-Term Memory Implementation Checklist
 
-## Project Setup
+## 1. Redis Database Implementation
 
-- [ ] Initialize project structure
-  - [x] Create necessary directories (src, tests, etc.)
-  - [x] Create virtual environment
-  - [x] Set up requirements.txt _and_ pyproject.toml
-- [x] Set up logging configuration
-  - [x] Ensure log directory exists
-  - [x] Configure logging based on environment variables
-- [x] Configure Neo4j connection
-  - [x] Test connectivity to Neo4j database
-  - [x] Set up connection handling and retry logic
+- [ ] Create Redis database module
+  - [ ] Implement `redis_db.py` with basic connection handling
+  - [ ] Add Redis connection parameters to `.env.example`
+  - [ ] Update environment variable loading in server startup
+  - [ ] Implement TTL (Time To Live) configuration for short-term memory items
 
-## Database Layer
+- [ ] Define short-term memory data structure
+  - [ ] Design Redis key schema (e.g., `stm:{entity_name}:{timestamp}`)
+  - [ ] Implement serialization/deserialization for observations
+  - [ ] Define expiration policy (default TTL duration)
 
-- [x] Implement Neo4j abstraction layer
-  - [x] Create session management
-  - [x] Implement transaction handling
-  - [x] Set up error handling and retries
-- [x] Create Cypher query helpers
-  - [x] Entity creation/update queries
-  - [x] Relationship creation queries
-  - [x] Entity retrieval queries with depth support
+## 2. Database Interface Updates
 
-## MCP Server Implementation
+- [ ] Update `base.py` with short-term memory interface
+  - [ ] Add `add_shortterm_observation` method to `GraphDatabase` abstract class
+  - [ ] Add `get_shortterm_observations` method to `GraphDatabase` abstract class
 
-- [x] Set up basic MCP server structure
-  - [x] Initialize MCP SDK (pending details from Jeffery)
-  - [x] Configure stdio input/output handling
-  - [x] Set up error handling and response formatting
-- [x] Implement data models
-  - [x] Define entity model with validation
-  - [x] Define relationship model with validation
-  - [x] Define observation model with validation
+- [ ] Update `composite_db.py` to support short-term memory
+  - [ ] Implement short-term memory methods in `CompositeDatabase` class
+  - [ ] Add methods to store and retrieve short-term observations
+  - [ ] Ensure proper error handling for Redis operations
 
-## Recall Tool
-- [x] Implement entity retrieval logic
-  - [x] Retrieve entity with observations
-  - [x] Implement depth parameter for relationship traversal
-  - [x] Format response according to specifications
-  - [x] Implement validation for input parameters
+## 3. MCP Tool Implementation
 
-## Advanced Features
+- [ ] Create `remember_shortterm` tool in `server.py`
+  - [ ] Define parameters (entity, observation)
+  - [ ] Implement validation logic
+  - [ ] Add proper logging
+  - [ ] Handle error cases
 
-- [x] Implement advanced mode
-  - [x] Add advanced tools (delete_entity)
-  - [ ] Add more advanced tools (create_entities, add_observations, etc.)
-- [x] Implement progressive enhancement approach
-  - [x] Store observations linked to entities
-  - [x] Support entity creation with observations
+- [ ] Update `recall` tool to support short-term memory
+  - [ ] Add optional parameter for including short-term memories
+  - [ ] Implement logic to merge short-term and long-term results
+  - [ ] Ensure proper ordering (newest short-term memories first)
 
-## Remember Tool
-- [x] Implement entity creation/update logic
-  - [x] Handle entity creation with optional type
-  - [x] Handle entity update
-  - [x] Handle observation addition
-  - [x] Implement validation for input parameters
+## 4. Factory Updates
 
-## Relate Tool
-- [x] Implement relationship creation logic
-  - [x] Verify both entities exist before creating relationship
-  - [x] Create relationship with specified type
-  - [x] Handle edge cases (self-relationships, duplicate relationships)
-  - [x] Implement validation for input parameters
+- [ ] Update `factory.py` to support Redis initialization
+  - [ ] Add Redis client creation function
+  - [ ] Update `create_db_instance` to include Redis in `CompositeDatabase`
+  - [ ] Add Redis connection parameters from environment variables
 
-## Testing and Documentation
+## 5. Testing
 
-- [ ] Create basic testing framework
-  - [ ] Set up pytest for unit tests
-  - [ ] Create test fixtures for Neo4j
-- [ ] Write documentation
-  - [ ] Add docstrings to all functions and classes
-  - [ ] Create README with setup and usage instructions
+- [ ] Create unit tests for Redis database module
+  - [ ] Test connection handling
+  - [ ] Test observation storage and retrieval
+  - [ ] Test TTL expiration behavior
 
-## Integration and Deployment
+- [ ] Test `remember_shortterm` tool
+  - [ ] Verify proper storage of observations
+  - [ ] Verify TTL application
+  - [ ] Test error handling
 
-- [ ] Test integration with chat clients
-  - [ ] Verify MCP protocol compatibility
-  - [ ] Test error reporting to AI client
-- [ ] Create deployment documentation
-  - [ ] Document environment variable requirements
-  - [ ] Provide setup instructions
+- [ ] Test `recall` with short-term memory integration
+  - [ ] Verify proper retrieval of both memory types
+  - [ ] Test ordering of results
+  - [ ] Verify filtering capabilities
+
+## 6. Documentation
+
+- [ ] Update API documentation
+  - [ ] Document `remember_shortterm` tool
+  - [ ] Document updated `recall` parameters
+
+- [ ] Update setup instructions
+  - [ ] Add Redis installation/configuration steps
+  - [ ] Document new environment variables
+
+## 7. Deployment
+
+- [ ] Update deployment configuration
+  - [ ] Add Redis to deployment stack
+  - [ ] Configure Redis persistence settings
+  - [ ] Set up monitoring for Redis
+
+- [ ] Test in production environment
+  - [ ] Verify Redis connection in production
+  - [ ] Monitor memory usage
+  - [ ] Verify TTL behavior in production
