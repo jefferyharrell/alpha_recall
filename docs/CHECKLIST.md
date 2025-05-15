@@ -1,84 +1,86 @@
-# Alpha-Recall Short-Term Memory Implementation Checklist
+# Alpha-Recall Redis-Based Short-Term Memory Implementation Checklist
 
-## 1. Redis Database Implementation
+## 1. Redis Database Module
 
-- [ ] Create Redis database module
-  - [ ] Implement `redis_db.py` with basic connection handling
-  - [ ] Add Redis connection parameters to `.env.example`
-  - [ ] Update environment variable loading in server startup
-  - [ ] Implement TTL (Time To Live) configuration for short-term memory items
-
-- [ ] Define short-term memory data structure
-  - [ ] Design Redis key schema (e.g., `stm:{entity_name}:{timestamp}`)
-  - [ ] Implement serialization/deserialization for observations
-  - [ ] Define expiration policy (default TTL duration)
+- [ ] Create `redis_db.py` for short-term memory operations
+  - [ ] Implement Redis connection handling with proper error management
+  - [ ] Add Redis connection parameters to `.env.example` (host, port, password if needed)
+  - [ ] Create key schema using `alpha:stm:<timestamp>-<random>` format
+  - [ ] Implement TTL configuration (2 minutes for testing, 72 hours for production)
+  - [ ] Add serialization/deserialization for memory content and metadata
 
 ## 2. Database Interface Updates
 
 - [ ] Update `base.py` with short-term memory interface
-  - [ ] Add `add_shortterm_observation` method to `GraphDatabase` abstract class
-  - [ ] Add `get_shortterm_observations` method to `GraphDatabase` abstract class
+  - [ ] Add `remember_shortterm(content)` method to abstract base class
+  - [ ] Add `get_shortterm_memories(through_the_last=None)` method to abstract base class
 
-- [ ] Update `composite_db.py` to support short-term memory
-  - [ ] Implement short-term memory methods in `CompositeDatabase` class
-  - [ ] Add methods to store and retrieve short-term observations
-  - [ ] Ensure proper error handling for Redis operations
+- [ ] Update `composite_db.py` to integrate Redis operations
+  - [ ] Implement the new short-term memory methods
+  - [ ] Add client detection functionality to track memory source
+  - [ ] Ensure proper error handling and fallback mechanisms
 
 ## 3. MCP Tool Implementation
 
 - [ ] Create `remember_shortterm` tool in `server.py`
-  - [ ] Define parameters (entity, observation)
-  - [ ] Implement validation logic
-  - [ ] Add proper logging
-  - [ ] Handle error cases
+  - [ ] Accept content parameter without requiring entity name
+  - [ ] Add timestamp and client information automatically
+  - [ ] Implement proper logging and error handling
 
 - [ ] Update `recall` tool to support short-term memory
-  - [ ] Add optional parameter for including short-term memories
-  - [ ] Implement logic to merge short-term and long-term results
-  - [ ] Ensure proper ordering (newest short-term memories first)
+  - [ ] Add `shortterm=True` parameter option
+  - [ ] Implement `through_the_last` duration filter (e.g., '2h', '1d')
+  - [ ] Ensure proper ordering (newest first)
+  - [ ] Handle the case when both short-term and long-term memories are requested
+
+- [ ] Enhance `refresh` function to include short-term memories
+  - [ ] Return core identity entity
+  - [ ] Include 5 most recent short-term memories
+  - [ ] Include semantic search results based on query
 
 ## 4. Factory Updates
 
 - [ ] Update `factory.py` to support Redis initialization
   - [ ] Add Redis client creation function
   - [ ] Update `create_db_instance` to include Redis in `CompositeDatabase`
-  - [ ] Add Redis connection parameters from environment variables
+  - [ ] Load Redis connection parameters from environment variables
 
 ## 5. Testing
 
 - [ ] Create unit tests for Redis database module
-  - [ ] Test connection handling
-  - [ ] Test observation storage and retrieval
-  - [ ] Test TTL expiration behavior
+  - [ ] Test connection handling and error cases
+  - [ ] Test memory storage and retrieval operations
+  - [ ] Verify TTL expiration behavior with short test durations
 
-- [ ] Test `remember_shortterm` tool
-  - [ ] Verify proper storage of observations
-  - [ ] Verify TTL application
-  - [ ] Test error handling
+- [ ] Test MCP tools with integration tests
+  - [ ] Verify `remember_shortterm` stores memories correctly
+  - [ ] Test `recall` with various parameter combinations
+  - [ ] Verify `refresh` returns the expected combined results
+  - [ ] Test the `through_the_last` time filtering functionality
 
-- [ ] Test `recall` with short-term memory integration
-  - [ ] Verify proper retrieval of both memory types
-  - [ ] Test ordering of results
-  - [ ] Verify filtering capabilities
+- [ ] Perform cross-instance testing
+  - [ ] Verify memories created in one instance are visible in another
+  - [ ] Test with multiple concurrent clients
 
 ## 6. Documentation
 
 - [ ] Update API documentation
   - [ ] Document `remember_shortterm` tool
   - [ ] Document updated `recall` parameters
+  - [ ] Document enhanced `refresh` function
 
 - [ ] Update setup instructions
-  - [ ] Add Redis installation/configuration steps
-  - [ ] Document new environment variables
+  - [ ] Document Redis configuration requirements
+  - [ ] Update environment variable documentation
 
 ## 7. Deployment
 
-- [ ] Update deployment configuration
-  - [ ] Add Redis to deployment stack
-  - [ ] Configure Redis persistence settings
-  - [ ] Set up monitoring for Redis
+- [ ] Verify Redis container in alpha-stack
+  - [ ] Confirm proper networking between Redis and API server
+  - [ ] Configure Redis persistence settings if needed
 
-- [ ] Test in production environment
-  - [ ] Verify Redis connection in production
-  - [ ] Monitor memory usage
-  - [ ] Verify TTL behavior in production
+- [ ] Implement phased rollout
+  - [ ] Start with short TTL (2 minutes) for initial testing
+  - [ ] Monitor memory usage and performance
+  - [ ] Gradually increase TTL to production value (72 hours)
+  - [ ] Monitor and refine based on actual usage patterns
