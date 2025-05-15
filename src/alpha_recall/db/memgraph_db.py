@@ -648,3 +648,48 @@ class MemgraphDatabase(GraphDatabase):
         except Exception as e:
             logger.error(f"Error deleting entity '{name}': {str(e)}")
             return {"success": False, "error": str(e), "entity": name}
+            
+    async def remember_shortterm(
+        self,
+        content: str,
+        client_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Store a short-term memory with automatic TTL expiration.
+        
+        This is a stub implementation as Memgraph doesn't support short-term memory operations.
+        Short-term memory is handled by Redis in the CompositeDatabase.
+        
+        Args:
+            content: The memory content to store
+            client_info: Optional information about the client/source
+            
+        Returns:
+            Dictionary containing information about the operation status
+        """
+        logger.warning("Short-term memory operations not supported in MemgraphDatabase")
+        return {
+            "success": False,
+            "error": "Short-term memory operations not supported in Memgraph. Use CompositeDatabase instead."
+        }
+        
+    async def get_shortterm_memories(
+        self,
+        through_the_last: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve recent short-term memories.
+        
+        This is a stub implementation as Memgraph doesn't support short-term memory operations.
+        Short-term memory is handled by Redis in the CompositeDatabase.
+        
+        Args:
+            through_the_last: Optional time window (e.g., '2h', '1d')
+            limit: Maximum number of memories to return
+            
+        Returns:
+            Empty list as Memgraph doesn't support short-term memories
+        """
+        logger.warning("Short-term memory operations not supported in MemgraphDatabase")
+        return []
