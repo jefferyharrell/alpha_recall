@@ -200,31 +200,44 @@ async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Opt
 
 
 @mcp.tool(name="recall")
-async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str] = None, depth: int = 1) -> Dict[str, Any]:
+async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str] = None, depth: int = 1, shortterm: bool = False, through_the_last: Optional[str] = None) -> Dict[str, Any]:
     """
-    Retrieve information about an entity from the knowledge graph.
+    Retrieve information from the knowledge system.
     
-    This enhanced version accepts a query parameter that can be either:
-    1. An entity name - Returns the entity with its relationships
-    2. A semantic search query - Returns semantically similar observations
-    3. Both - Returns the entity and semantically similar observations
+    This tool has two modes of operation:
     
-    If no query is provided, returns a list of important entities.
+    1. Long-term memory mode (default, shortterm=False):
+       - Accepts a query parameter that can be either:
+         a. An entity name - Returns the entity with its relationships
+         b. A semantic search query - Returns semantically similar observations
+         c. Both - Returns the entity and semantically similar observations
+       - If no query is provided, returns a list of important entities
+    
+    2. Short-term memory mode (shortterm=True):
+       - Returns only recent short-term memories
+       - Can be filtered by time using through_the_last
+       - Ignores query, entity, and depth parameters
     
     Args:
         ctx: The request context containing lifespan resources
-        query: Optional query string (entity name or semantic search query)
-        depth: How many relationship hops to include for entity matches
+        query: Optional query string for long-term memory (entity name or semantic search query)
+        entity: Optional entity name (alternative to query) for long-term memory
+        depth: How many relationship hops to include for entity matches in long-term memory
             0: Only the entity itself
             1: Entity and direct relationships
             2+: Entity and extended network
+        shortterm: When True, only returns short-term memories
+        through_the_last: Optional time window for short-term memories (e.g., '2h', '1d')
             
     Returns:
-        Dictionary containing:
+        For shortterm=False (default):
         - exact_match: Entity information if query matches an entity name
         - semantic_results: Top semantically similar observations
+        
+        For shortterm=True:
+        - shortterm_memories: Recent short-term memories
     """
-    logger.info(f"Enhanced recall tool called: query='{query}', entity='{entity}', depth={depth}")
+    logger.info(f"Enhanced recall tool called: query='{query}', entity='{entity}', depth={depth}, shortterm={shortterm}, through_the_last='{through_the_last}'")
     
     # If entity is provided but query is not, use entity as the query
     if entity and not query:
@@ -252,6 +265,46 @@ async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str
         }
     
     try:
+        # Handle short-term memory mode (shortterm=True)
+        if shortterm:
+            if hasattr(db, 'get_shortterm_memories'):
+                try:
+                    shortterm_limit = 10  # Default number of short-term memories
+                    shortterm_memories = await db.get_shortterm_memories(
+                        through_the_last=through_the_last,
+                        limit=shortterm_limit
+                    )
+                    logger.info(f"Retrieved {len(shortterm_memories)} short-term memories")
+                    
+                    # Filter short-term memories to only include essential fields
+                    filtered_shortterm = [
+                        {
+                            "content": memory.get("content"),
+                            "created_at": memory.get("created_at"),
+                            "client": memory.get("client", {})
+                        }
+                        for memory in shortterm_memories
+                    ]
+                    
+                    # Return only filtered short-term memories
+                    return {
+                        "shortterm_memories": filtered_shortterm,
+                        "success": True
+                    }
+                except Exception as e:
+                    logger.error(f"Error retrieving short-term memories: {str(e)}")
+                    return {
+                        "error": f"Error retrieving short-term memories: {str(e)}",
+                        "success": False
+                    }
+            else:
+                logger.warning("Database does not support short-term memories")
+                return {
+                    "error": "Short-term memory retrieval not supported",
+                    "success": False
+                }
+        
+        # Handle long-term memory mode (shortterm=False)
         exact_match = None
         semantic_results = []
         
@@ -275,7 +328,7 @@ async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str
             else:
                 logger.warning("Database does not support semantic search")
         
-        # Construct the combined response
+        # Construct the response for long-term memory mode
         response = {
             "query": query,
             "success": True
@@ -289,7 +342,7 @@ async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str
         if semantic_results:
             response["semantic_results"] = semantic_results
         
-        # If neither exact match nor semantic results, return an error
+        # If no results found in any category, return an error
         if not exact_match and not semantic_results:
             logger.warning(f"No results found for query: {query}")
             return {
@@ -312,11 +365,12 @@ async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str
 @mcp.tool(name="refresh")
 async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
     """
-    Implements the two-tiered bootstrap process as described in ADR-008.
+    Implements the enhanced bootstrap process as described in ADR-008 and ADR-009.
     
     This function loads:
     1. Tier 1: Core identity information (essential bootstrap entity)
-    2. Tier 2: Contextually relevant memories based on the user's greeting
+    2. Tier 2: Recent short-term memories (from Redis)
+    3. Tier 3: Contextually relevant memories based on the user's greeting
     
     Args:
         ctx: The request context containing lifespan resources
@@ -325,7 +379,8 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
     Returns:
         Dictionary containing:
         - core_identity: The core identity entity (Tier 1)
-        - relevant_memories: Semantically relevant observations based on the query (Tier 2)
+        - shortterm_memories: Recent short-term memories (Tier 2)
+        - relevant_memories: Semantically relevant observations based on the query (Tier 3)
     """
     logger.info(f"Refresh tool called with query: '{query}'")
     
@@ -375,7 +430,35 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
             logger.warning(f"Core identity node '{core_identity_node}' not found")
             # Continue anyway, as we might still get semantic results
         
-        # TIER 2: Load contextually relevant memories based on the query
+        # TIER 2: Load recent short-term memories
+        shortterm_memories = []
+        if hasattr(db, 'get_shortterm_memories'):
+            try:
+                # Get the 5 most recent short-term memories
+                shortterm_limit = 5
+                logger.info(f"Retrieving {shortterm_limit} recent short-term memories")
+                shortterm_memories = await db.get_shortterm_memories(limit=shortterm_limit)
+                logger.info(f"Retrieved {len(shortterm_memories)} short-term memories")
+                
+                # Filter short-term memories to only include essential fields
+                filtered_shortterm = [
+                    {
+                        "content": memory.get("content"),
+                        "created_at": memory.get("created_at"),
+                        "client": memory.get("client", {})
+                    }
+                    for memory in shortterm_memories
+                ]
+                
+                # Add filtered short-term memories to the response
+                response["shortterm_memories"] = filtered_shortterm
+            except Exception as e:
+                logger.error(f"Error retrieving short-term memories during refresh: {str(e)}")
+                # Continue with other retrievals even if short-term memory fails
+        else:
+            logger.info("Short-term memory retrieval not supported in the database")
+        
+        # TIER 3: Load contextually relevant memories based on the query
         relevant_memories = []
         recent_observations = []
         

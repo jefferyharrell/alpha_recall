@@ -27,16 +27,16 @@
   - [x] Add timestamp and client information automatically
   - [x] Implement proper logging and error handling
 
-- [ ] Update `recall` tool to support short-term memory
-  - [ ] Add `shortterm=True` parameter option
-  - [ ] Implement `through_the_last` duration filter (e.g., '2h', '1d')
-  - [ ] Ensure proper ordering (newest first)
-  - [ ] Handle the case when both short-term and long-term memories are requested
+- [x] Update `recall` tool to support short-term memory
+  - [x] Add `shortterm=True` parameter option
+  - [x] Implement `through_the_last` duration filter (e.g., '2h', '1d')
+  - [x] Ensure proper ordering (newest first)
+  - [x] Handle the case when both short-term and long-term memories are requested
 
-- [ ] Enhance `refresh` function to include short-term memories
-  - [ ] Return core identity entity
-  - [ ] Include 5 most recent short-term memories
-  - [ ] Include semantic search results based on query
+- [x] Enhance `refresh` function to include short-term memories
+  - [x] Return core identity entity
+  - [x] Include 5 most recent short-term memories
+  - [x] Include semantic search results based on query
 
 ## 4. Factory Updates
 
