@@ -549,10 +549,9 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
         # Store the short-term memory
         result = await db.remember_shortterm(content)
         
-        # Return success with the memory information
+        # Return simple success response
         return {
-            "success": True,
-            "memory": result
+            "success": True
         }
         
     except Exception as e:

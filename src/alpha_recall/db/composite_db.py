@@ -271,15 +271,10 @@ class CompositeDatabase:
         Returns:
             Dict with client information
         """
-        client_info = {
-            "hostname": socket.gethostname(),
-            "platform": platform.system(),
-            "platform_version": platform.version(),
-            "python_version": platform.python_version()
-        }
+        client_info = {}
         
         # Try to get environment-specific information
-        client_name = os.environ.get("ALPHA_CLIENT_NAME", "unknown")
+        client_name = os.environ.get("CLIENT_NAME", "unknown")
         client_info["client_name"] = client_name
         
         return client_info
