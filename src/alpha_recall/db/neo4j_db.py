@@ -5,7 +5,7 @@ Neo4j implementation of the graph database interface.
 import os
 import logging
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
@@ -248,7 +248,7 @@ class Neo4jDatabase(GraphDatabase):
         entity_type = entity_type or "Entity"
         
         # Current timestamp
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         query = """
         MERGE (e:Entity {name: $name})
@@ -289,7 +289,7 @@ class Neo4jDatabase(GraphDatabase):
             Dictionary representing the updated entity with the new observation
         """
         # Current timestamp
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         # First ensure the entity exists
         await self.create_entity(entity_name)
@@ -347,7 +347,7 @@ class Neo4jDatabase(GraphDatabase):
         await self.create_entity(target_entity)
         
         # Current timestamp
-        timestamp = datetime.now().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         # Create the relationship
         query = """

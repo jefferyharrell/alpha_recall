@@ -5,7 +5,7 @@ Memgraph implementation of the graph database interface using GQLAlchemy.
 import os
 import logging
 from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from dotenv import load_dotenv
@@ -204,15 +204,15 @@ class MemgraphDatabase(GraphDatabase):
                         "id": entity.get("id", str(uuid.uuid4())),
                         "name": name,
                         "type": entity_type or entity.get("type", "Entity"),
-                        "created_at": entity.get("created_at", datetime.now().isoformat()),
-                        "updated_at": datetime.now().isoformat()
+                        "created_at": entity.get("created_at", datetime.now(timezone.utc).isoformat()),
+                        "updated_at": datetime.now(timezone.utc).isoformat()
                     },
                     "created": False,
                     "success": True
                 }
             
             # Create new entity using parameter binding
-            now = datetime.now().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             entity_id = str(uuid.uuid4())
             
             # Base query with parameters
@@ -298,7 +298,7 @@ class MemgraphDatabase(GraphDatabase):
             
             # Create observation
             observation_id = str(uuid.uuid4())
-            now = datetime.now().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             
             # Create observation node and link to entity using parameter dictionary
             query = """
@@ -432,7 +432,7 @@ class MemgraphDatabase(GraphDatabase):
             results_list = list(results)
             
             # Update entities' updated_at timestamps regardless of results
-            now = datetime.now().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
             update_query = """
             MATCH (e:Entity)
             WHERE e.id = $source_id OR e.id = $target_id

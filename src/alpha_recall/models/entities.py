@@ -2,7 +2,7 @@
 Data models for alpha_recall entities and observations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 from pydantic import BaseModel, Field
@@ -13,7 +13,7 @@ class Observation(BaseModel):
     Model representing an observation about an entity.
     """
     content: str = Field(..., description="The content of the observation")
-    created_at: datetime = Field(default_factory=datetime.now, description="When the observation was created")
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When the observation was created")
 
 
 class Relationship(BaseModel):
