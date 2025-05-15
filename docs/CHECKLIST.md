@@ -2,12 +2,12 @@
 
 ## 1. Redis Database Module
 
-- [ ] Create `redis_db.py` for short-term memory operations
-  - [ ] Implement Redis connection handling with proper error management
-  - [ ] Add Redis connection parameters to `.env.example` (host, port, password if needed)
-  - [ ] Create key schema using `alpha:stm:<timestamp>-<random>` format
-  - [ ] Implement TTL configuration (2 minutes for testing, 72 hours for production)
-  - [ ] Add serialization/deserialization for memory content and metadata
+- [x] Create `redis_db.py` for short-term memory operations
+  - [x] Implement Redis connection handling with proper error management
+  - [x] Add Redis connection parameters to `.env.example` (host, port, password if needed)
+  - [x] Create key schema using `alpha:stm:<timestamp>-<random>` format
+  - [x] Implement TTL configuration (2 minutes for testing, 72 hours for production)
+  - [x] Add serialization/deserialization for memory content and metadata
 
 ## 2. Database Interface Updates
 
