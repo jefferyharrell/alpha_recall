@@ -22,10 +22,10 @@
 
 ## 3. MCP Tool Implementation
 
-- [ ] Create `remember_shortterm` tool in `server.py`
-  - [ ] Accept content parameter without requiring entity name
-  - [ ] Add timestamp and client information automatically
-  - [ ] Implement proper logging and error handling
+- [x] Create `remember_shortterm` tool in `server.py`
+  - [x] Accept content parameter without requiring entity name
+  - [x] Add timestamp and client information automatically
+  - [x] Implement proper logging and error handling
 
 - [ ] Update `recall` tool to support short-term memory
   - [ ] Add `shortterm=True` parameter option

@@ -510,6 +510,59 @@ async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None,
         }
 
 
+@mcp.tool(name="remember_shortterm")
+async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
+    """
+    Store a short-term memory with automatic TTL expiration.
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        content: The memory content to store
+        
+    Returns:
+        Dictionary containing information about the stored memory
+    """
+    logger.info(f"Remember shortterm tool called: content='{content[:50]}...' if len(content) > 50 else content")
+    
+    # Try to get the database connection from various places
+    db = None
+    
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, 'lifespan_context') and hasattr(ctx.lifespan_context, 'db'):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, 'db'):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, 'db'):
+        db = mcp.db
+    
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available")
+        return {
+            "error": "Database connection not available",
+            "success": False
+        }
+    
+    try:
+        # Store the short-term memory
+        result = await db.remember_shortterm(content)
+        
+        # Return success with the memory information
+        return {
+            "success": True,
+            "memory": result
+        }
+        
+    except Exception as e:
+        logger.error(f"Error storing short-term memory: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error storing short-term memory: {str(e)}"
+        }
+
+
 @mcp.tool(name="relate")
 async def relate(ctx: Context, entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
     """
