@@ -13,6 +13,7 @@ from gqlalchemy import Memgraph
 
 from alpha_recall.db.base import GraphDatabase
 from alpha_recall.logging_utils import get_logger
+from alpha_recall.utils.retry import async_retry
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +30,13 @@ class MemgraphDatabase(GraphDatabase):
     Memgraph implementation of the graph database interface using GQLAlchemy.
     """
 
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def recency_search(self, limit: int = 10) -> list:
         """
         Return the N most recent observations within the given time span.
@@ -167,6 +175,13 @@ class MemgraphDatabase(GraphDatabase):
             logger.error(f"Query execution failed: {str(e)}")
             raise
     
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def create_entity(
         self, 
         name: str, 
@@ -258,6 +273,13 @@ class MemgraphDatabase(GraphDatabase):
                 "success": False
             }
     
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def add_observation(
         self, 
         entity_name: str, 
@@ -374,6 +396,13 @@ class MemgraphDatabase(GraphDatabase):
                 "success": False
             }
     
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def create_relationship(
         self, 
         source_entity: str, 
@@ -489,6 +518,13 @@ class MemgraphDatabase(GraphDatabase):
                 "success": False
             }
     
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def get_entity(
         self, 
         entity_name: str, 
@@ -606,6 +642,13 @@ class MemgraphDatabase(GraphDatabase):
             logger.error(f"Failed to get entity '{entity_name}': {str(e)}")
             raise
     
+    @async_retry(
+        max_retries=3,
+        retry_delay=1.0,
+        backoff_factor=2.0,
+        max_delay=10.0,
+        error_messages_to_retry=["failed to receive chunk size"]
+    )
     async def delete_entity(
         self,
         name: str

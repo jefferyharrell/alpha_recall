@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP, Context
 from alpha_recall.db import GraphDatabase, create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.models.entities import Entity, Observation, Relationship
+from alpha_recall.utils.retry import async_retry
 
 # Load environment variables
 load_dotenv()
@@ -144,6 +145,13 @@ if MODE == "advanced":
             return {"error": f"Error deleting entity: {str(e)}", "success": False}
             
 @mcp.tool(name="semantic_search")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"]
+)
 async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Optional[str] = None) -> Dict[str, Any]:
     """
     Search for observations semantically similar to the query.
@@ -200,6 +208,13 @@ async def semantic_search(ctx: Context, query: str, limit: int = 10, entity: Opt
 
 
 @mcp.tool(name="recall")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"]
+)
 async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str] = None, depth: int = 1, shortterm: bool = False, through_the_last: Optional[str] = None) -> Dict[str, Any]:
     """
     Retrieve information from the knowledge system.
@@ -363,6 +378,13 @@ async def recall(ctx: Context, query: Optional[str] = None, entity: Optional[str
 
 
 @mcp.tool(name="refresh")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"]
+)
 async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
     """
     Implements the enhanced bootstrap process as described in ADR-008 and ADR-009.
@@ -531,6 +553,13 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name="remember")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"]
+)
 async def remember(ctx: Context, entity: str, entity_type: Optional[str] = None, observation: Optional[str] = None) -> Dict[str, Any]:
     """
     Create or update an entity in the knowledge graph with optional observations.
@@ -646,6 +675,13 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
 
 
 @mcp.tool(name="relate")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"]
+)
 async def relate(ctx: Context, entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
     """
     Create a relationship between two entities in the knowledge graph.
