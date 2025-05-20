@@ -7,19 +7,19 @@ This module provides functionality to:
 3. Perform semantic search on observations
 """
 
+import json
 import logging
 import os
-import json
 from typing import Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import httpx
+import numpy as np
+from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 
 from alpha_recall.db.semantic_search import SemanticSearch
 from alpha_recall.logging_utils import get_logger
-from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +38,7 @@ DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/encode"
 
 class VectorStore(SemanticSearch):
     """Vector store for observation embeddings using Qdrant and sentence-transformers.
-    
+
     Implements the SemanticSearch interface using Qdrant as the backend.
     """
 
@@ -61,23 +61,23 @@ class VectorStore(SemanticSearch):
         self.qdrant_url = qdrant_url
         self.collection_name = collection_name
         self.model_name = model_name
-        
+
         # Get embedding server URL from env or use default
         self.embedding_server_url = embedding_server_url or os.environ.get(
             "EMBEDDING_SERVER_URL", DEFAULT_EMBEDDING_SERVER_URL
         )
-        
+
         # Initialize Qdrant client
         self.client = QdrantClient(url=qdrant_url)
-        
+
         # Set vector size
         self.vector_size = DEFAULT_VECTOR_SIZE
-        
+
         logger.info(f"Using embedding server: {self.embedding_server_url}")
-        
+
         # Ensure collection exists
         self._ensure_collection_exists()
-    
+
     def _ensure_collection_exists(self) -> None:
         """Ensure that the collection exists, creating it if necessary."""
         if not self.client.collection_exists(self.collection_name):
@@ -89,7 +89,7 @@ class VectorStore(SemanticSearch):
                     distance=models.Distance.COSINE,
                 ),
             )
-    
+
     async def embed_text(self, text: Union[str, List[str]]) -> np.ndarray:
         """
         Generate embeddings for the given text using the HTTP embedding server.
@@ -108,27 +108,29 @@ class VectorStore(SemanticSearch):
             else:
                 payload = {"sentences": text}
                 is_single = False
-            
+
             # Make the HTTP request to the embedding server asynchronously
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     self.embedding_server_url,
                     json=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 )
-                
+
                 # Check if the request was successful
                 try:
                     response.raise_for_status()
                 except Exception as e:
                     logger.error(f"Embedding server returned error: {response.text}")
                     raise
-                
+
                 # Parse the response
                 try:
                     data = response.json()
                 except Exception as e:
-                    logger.error(f"Failed to parse embedding server response as JSON: {response.text}")
+                    logger.error(
+                        f"Failed to parse embedding server response as JSON: {response.text}"
+                    )
                     raise
                 logger.debug(f"Embedding server response: {data}")
 
@@ -145,13 +147,13 @@ class VectorStore(SemanticSearch):
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
             raise
-    
+
     async def store_observation(
-        self, 
-        observation_id: str, 
-        text: str, 
+        self,
+        observation_id: str,
+        text: str,
         entity_id: str,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Store an observation with its embedding.
@@ -168,18 +170,18 @@ class VectorStore(SemanticSearch):
         try:
             # Generate embedding
             embedding = await self.embed_text(text)
-            
+
             # Prepare payload
             payload = {
                 "observation_id": observation_id,
                 "entity_id": entity_id,
                 "text": text,
             }
-            
+
             # Add metadata if provided
             if metadata:
                 payload.update(metadata)
-            
+
             # Convert string ID to integer for Qdrant (which expects unsigned int or UUID)
             try:
                 # Try to convert to integer first
@@ -187,7 +189,7 @@ class VectorStore(SemanticSearch):
             except ValueError:
                 # If it's not a valid integer, use it as is (might be UUID)
                 point_id = observation_id
-                
+
             # Store in Qdrant
             self.client.upsert(
                 collection_name=self.collection_name,
@@ -203,12 +205,9 @@ class VectorStore(SemanticSearch):
         except Exception as e:
             logger.error(f"Error storing observation: {e}")
             return False
-    
+
     async def search_observations(
-        self, 
-        query: str, 
-        limit: int = 10, 
-        entity_id: Optional[str] = None
+        self, query: str, limit: int = 10, entity_id: Optional[str] = None
     ) -> List[Dict]:
         """
         Search for observations semantically similar to the query.
@@ -224,7 +223,7 @@ class VectorStore(SemanticSearch):
         try:
             # Generate embedding for query
             query_embedding = await self.embed_text(query)
-            
+
             # Prepare filter if entity_id is provided
             search_filter = None
             if entity_id:
@@ -236,7 +235,7 @@ class VectorStore(SemanticSearch):
                         )
                     ]
                 )
-            
+
             # Search
             results = self.client.search(
                 collection_name=self.collection_name,
@@ -244,21 +243,23 @@ class VectorStore(SemanticSearch):
                 limit=limit,
                 query_filter=search_filter,
             )
-            
+
             # Format results
             formatted_results = []
             for res in results:
-                formatted_results.append({
-                    "entity_name": res.payload.get("entity_name", ""),
-                    "text": res.payload.get("text"),
-                    "score": res.score,
-                })
-            
+                formatted_results.append(
+                    {
+                        "entity_name": res.payload.get("entity_name", ""),
+                        "text": res.payload.get("text"),
+                        "score": res.score,
+                    }
+                )
+
             return formatted_results
         except Exception as e:
             logger.error(f"Error searching observations: {e}")
             return []
-    
+
     async def delete_observation(self, observation_id: str) -> bool:
         """
         Delete an observation from the vector store.
@@ -280,7 +281,7 @@ class VectorStore(SemanticSearch):
         except Exception as e:
             logger.error(f"Error deleting observation: {e}")
             return False
-    
+
     async def delete_entity_observations(self, entity_id: str) -> bool:
         """
         Delete all observations for a given entity.

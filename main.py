@@ -17,7 +17,7 @@ def main():
         # Import and run the FastMCP server directly
         # This avoids the "Already running asyncio in this thread" error
         from alpha_recall.server import mcp
-        
+
         # Use asyncio.run() only once at the top level
         asyncio.run(mcp.run())
     except KeyboardInterrupt:

@@ -9,18 +9,18 @@ from typing import Dict, List, Optional, Union
 class SemanticSearch(ABC):
     """
     Abstract base class for semantic search functionality.
-    
+
     This class defines the interface for semantic search operations
     that can be implemented by different vector database backends.
     """
-    
+
     @abstractmethod
     async def store_observation(
-        self, 
-        observation_id: str, 
-        text: str, 
+        self,
+        observation_id: str,
+        text: str,
         entity_id: str,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Store an observation with its embedding.
@@ -35,13 +35,10 @@ class SemanticSearch(ABC):
             True if successful, False otherwise
         """
         pass
-    
+
     @abstractmethod
     async def search_observations(
-        self, 
-        query: str, 
-        limit: int = 10, 
-        entity_id: Optional[str] = None
+        self, query: str, limit: int = 10, entity_id: Optional[str] = None
     ) -> List[Dict]:
         """
         Search for observations semantically similar to the query.
@@ -55,7 +52,7 @@ class SemanticSearch(ABC):
             List of matching observations with scores
         """
         pass
-    
+
     @abstractmethod
     async def delete_observation(self, observation_id: str) -> bool:
         """
@@ -68,7 +65,7 @@ class SemanticSearch(ABC):
             True if successful, False otherwise
         """
         pass
-    
+
     @abstractmethod
     async def delete_entity_observations(self, entity_id: str) -> bool:
         """

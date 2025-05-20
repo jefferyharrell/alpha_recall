@@ -19,9 +19,10 @@ Supported verbs:
 """
 import argparse
 import asyncio
+import json
 import os
 import sys
-import json
+
 from dotenv import load_dotenv
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
@@ -29,6 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from alpha_recall.db.neo4j_db import Neo4jDatabase
 
 load_dotenv()
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="alpha-recall command-line tool")
@@ -40,12 +42,16 @@ def parse_args():
     p_create.add_argument("--type", required=False, help="Entity type")
 
     # add-observation
-    p_obs = subparsers.add_parser("add-observation", help="Add an observation to an entity")
+    p_obs = subparsers.add_parser(
+        "add-observation", help="Add an observation to an entity"
+    )
     p_obs.add_argument("--entity", required=True, help="Entity name")
     p_obs.add_argument("--observation", required=True, help="Observation text")
 
     # create-relation
-    p_rel = subparsers.add_parser("create-relation", help="Create a relationship between entities")
+    p_rel = subparsers.add_parser(
+        "create-relation", help="Create a relationship between entities"
+    )
     p_rel.add_argument("--entity", required=True, help="Source entity name")
     p_rel.add_argument("--to-entity", required=True, help="Target entity name")
     p_rel.add_argument("--as-type", required=True, help="Relationship type")
@@ -53,13 +59,18 @@ def parse_args():
     # get-entity
     p_get = subparsers.add_parser("get-entity", help="Get entity and relationships")
     p_get.add_argument("--entity", required=True, help="Entity name")
-    p_get.add_argument("--depth", type=int, default=1, help="Relationship depth (default: 1)")
+    p_get.add_argument(
+        "--depth", type=int, default=1, help="Relationship depth (default: 1)"
+    )
 
     # delete-entity
-    p_delete = subparsers.add_parser("delete-entity", help="Delete an entity and all its relationships")
+    p_delete = subparsers.add_parser(
+        "delete-entity", help="Delete an entity and all its relationships"
+    )
     p_delete.add_argument("--entity", required=True, help="Entity name to delete")
 
     return parser.parse_args()
+
 
 async def main():
     args = parse_args()
@@ -70,7 +81,8 @@ async def main():
         # Neo4j Node/Relationship objects have .keys() and can be cast to dict
         # Also handle lists and dicts recursively
         from collections.abc import Mapping
-        if hasattr(obj, 'keys') and hasattr(obj, '__getitem__'):
+
+        if hasattr(obj, "keys") and hasattr(obj, "__getitem__"):
             try:
                 return {k: serialize_for_json(obj[k]) for k in obj.keys()}
             except Exception:
@@ -107,6 +119,7 @@ async def main():
         print(f"Unknown command: {args.command}")
 
     await db.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

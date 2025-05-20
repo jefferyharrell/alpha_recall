@@ -3,8 +3,8 @@ Main entry point for the alpha_recall MCP server.
 """
 
 import asyncio
-import sys
 import json
+import sys
 
 from alpha_recall.server import mcp
 

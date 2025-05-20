@@ -22,16 +22,18 @@ async def test_connection():
     # Configure logging
     logger = configure_logging()
     logger.info("Testing database connection...")
-    
+
     try:
         # Create and connect to database
         db = await create_db_instance()
         logger.info("Connection successful!")
-        
+
         # Test a simple query
-        result = await db.execute_query("RETURN 'Connection test successful' AS message")
+        result = await db.execute_query(
+            "RETURN 'Connection test successful' AS message"
+        )
         logger.info(f"Query result: {result[0]['message']}")
-        
+
         # Close connection
         await db.close()
         logger.info("Connection closed")
