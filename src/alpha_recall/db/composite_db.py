@@ -247,6 +247,44 @@ class CompositeDatabase:
         except Exception as e:
             logger.error(f"Failed to retrieve short-term memories: {str(e)}")
             return []
+    
+    async def semantic_search_shortterm(
+        self, 
+        query: str, 
+        limit: int = 10,
+        through_the_last: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform semantic search on short-term memories.
+        
+        Args:
+            query: The search query text
+            limit: Maximum number of results to return
+            through_the_last: Optional time window filter (e.g., '2h', '1d')
+            
+        Returns:
+            List of semantically similar memories with scores
+        """
+        if not self.shortterm_memory:
+            logger.warning("Short-term memory storage not configured")
+            return []
+            
+        # Check if the short-term memory has semantic search capability
+        if hasattr(self.shortterm_memory, 'semantic_search_memories'):
+            try:
+                return await self.shortterm_memory.semantic_search_memories(
+                    query=query,
+                    limit=limit,
+                    through_the_last=through_the_last
+                )
+            except Exception as e:
+                logger.error(f"Failed to perform semantic search on short-term memories: {str(e)}")
+                # Fall back to regular retrieval
+                return await self.get_shortterm_memories(through_the_last, limit)
+        else:
+            # Fall back to regular retrieval if semantic search not available
+            logger.info("Semantic search not available for short-term memories, using time-based retrieval")
+            return await self.get_shortterm_memories(through_the_last, limit)
 
     def _detect_client(self) -> Dict[str, str]:
         """

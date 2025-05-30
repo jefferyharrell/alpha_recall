@@ -297,22 +297,44 @@ async def recall(
             if hasattr(db, "get_shortterm_memories"):
                 try:
                     shortterm_limit = 10  # Default number of short-term memories
-                    shortterm_memories = await db.get_shortterm_memories(
-                        through_the_last=through_the_last, limit=shortterm_limit
-                    )
+                    
+                    # If query is provided, use semantic search
+                    if query and query.strip():
+                        if hasattr(db, "semantic_search_shortterm"):
+                            logger.info(f"Performing semantic search on short-term memories with query: '{query}'")
+                            shortterm_memories = await db.semantic_search_shortterm(
+                                query=query,
+                                limit=shortterm_limit,
+                                through_the_last=through_the_last
+                            )
+                        else:
+                            # Fallback to time-based retrieval if semantic search not available
+                            logger.info("Semantic search not available, using time-based retrieval")
+                            shortterm_memories = await db.get_shortterm_memories(
+                                through_the_last=through_the_last, limit=shortterm_limit
+                            )
+                    else:
+                        # No query provided, use time-based retrieval
+                        shortterm_memories = await db.get_shortterm_memories(
+                            through_the_last=through_the_last, limit=shortterm_limit
+                        )
+                    
                     logger.info(
                         f"Retrieved {len(shortterm_memories)} short-term memories"
                     )
 
                     # Filter short-term memories to only include essential fields
-                    filtered_shortterm = [
-                        {
+                    filtered_shortterm = []
+                    for memory in shortterm_memories:
+                        filtered_memory = {
                             "content": memory.get("content"),
                             "created_at": memory.get("created_at"),
                             "client": memory.get("client", {}),
                         }
-                        for memory in shortterm_memories
-                    ]
+                        # Include similarity score if present (from semantic search)
+                        if "similarity_score" in memory:
+                            filtered_memory["similarity_score"] = memory["similarity_score"]
+                        filtered_shortterm.append(filtered_memory)
 
                     # Return only filtered short-term memories
                     return {"shortterm_memories": filtered_shortterm, "success": True}

@@ -32,6 +32,9 @@ uv run python -m alpha_recall.server
 
 # Test database connections
 uv run python -m alpha_recall.db.test_connection
+
+# Migrate existing short-term memories to support vector search
+uv run python migrate_stm.py
 ```
 
 ## Architecture Overview
