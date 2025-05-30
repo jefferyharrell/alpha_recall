@@ -196,7 +196,7 @@ This revised design prioritizes reliability and consistency while maintaining fl
 # Other Notes
 
 - This is a greenfield development. We're starting from scratch.
-- We'll write in Python, `Python >= 3.11, < 3.13`, with `venv`.
+- We'll write in Python, `Python >= 3.11, < 3.13`, with `uv`.
 - Prefer standard-library Python packages except where alternatives are significantly better. When in doubt, discuss significance with Jeffery.
 - We'll use Pytest for unit testing. E2E testing is highly desirable but we haven't figured out how to do it yet without wasting hours and hours fighting with Pytest.
 - The MCP server will run as a standalone Python application with its life cycle maintained by the chat client (Claude Desktop, BoltAI, etc.)

@@ -6,33 +6,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development Setup
 ```bash
-# Create and activate virtual environment (Python 3.11+ required)
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+# Install uv if not already installed
+brew install uv
 
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (Python 3.11+ required)
+uv sync
 ```
 
 ### Testing
 ```bash
 # Run all tests
-./venv/bin/pytest
+uv run pytest
 
 # Run specific test file
-./venv/bin/pytest tests/test_<component>.py
+uv run pytest tests/test_<component>.py
 
 # Run with verbose output
-./venv/bin/pytest -v
+uv run pytest -v
 ```
 
 ### Running the Server
 ```bash
 # Run as MCP server (typically launched by chat client)
-python -m alpha_recall.server
+uv run python -m alpha_recall.server
 
 # Test database connections
-python -m alpha_recall.db.test_connection
+uv run python -m alpha_recall.db.test_connection
 ```
 
 ## Architecture Overview
