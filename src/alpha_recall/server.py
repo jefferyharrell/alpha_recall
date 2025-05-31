@@ -751,9 +751,15 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
     try:
         # Store the short-term memory
         result = await db.remember_shortterm(content)
-
-        # Return simple success response
-        return {"success": True}
+        
+        # Return success with timestamp
+        response = {"success": True}
+        
+        # If the result contains created_at, include it
+        if isinstance(result, dict) and "created_at" in result:
+            response["timestamp"] = result["created_at"]
+            
+        return response
 
     except Exception as e:
         logger.error(f"Error storing short-term memory: {str(e)}")
