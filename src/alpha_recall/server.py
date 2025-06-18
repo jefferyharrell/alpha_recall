@@ -770,6 +770,7 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
                     "relevance_score": round(memory.get("relevance_score", 0), 3),
                     "semantic_score": round(memory.get("semantic_score", 0), 3),
                     "recency_score": round(memory.get("recency_score", 0), 3),
+                    "emotional_score": round(memory.get("emotional_score", 0), 3),
                 }
                 # Include client info if present
                 if "client" in memory:
