@@ -5,7 +5,10 @@ Composite database that combines graph database, semantic search, and short-term
 import os
 import platform
 import socket
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
 
 from alpha_recall.db.base import GraphDatabase
 from alpha_recall.db.redis_db import RedisShortTermMemory
@@ -195,14 +198,14 @@ class CompositeDatabase:
         self, content: str, client_info: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Store a short-term memory with automatic TTL expiration.
+        Store a short-term memory with automatic TTL expiration and return relevant memories.
 
         Args:
             content: The memory content to store
             client_info: Optional information about the client/source
 
         Returns:
-            Dictionary containing information about the stored memory
+            Dictionary containing information about the stored memory and relevant memories
         """
         if not self.shortterm_memory:
             logger.warning("Short-term memory storage not configured")
@@ -217,7 +220,15 @@ class CompositeDatabase:
                 client_info = self._detect_client()
 
             # Store the memory
-            return await self.shortterm_memory.store_memory(content, client_info)
+            result = await self.shortterm_memory.store_memory(content, client_info)
+            
+            # If storage was successful, retrieve relevant memories
+            if result.get("success", True):  # Default to True for backward compatibility
+                # Get relevant memories using a combination of semantic search and recency
+                relevant_memories = await self._get_relevant_memories(content, limit=5)
+                result["relevant_memories"] = relevant_memories
+                
+            return result
         except Exception as e:
             logger.error(f"Failed to store short-term memory: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -300,3 +311,86 @@ class CompositeDatabase:
         client_info["client_name"] = client_name
 
         return client_info
+    
+    async def _get_relevant_memories(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Get the most relevant memories based on a combination of semantic similarity and recency.
+        
+        This method implements a relevance algorithm that combines:
+        - Semantic similarity score (from vector search)
+        - Recency (how recent the memory is)
+        
+        The formula is: relevance_score = 0.7 * semantic_similarity + 0.3 * recency_score
+        
+        Args:
+            query: The query text to find relevant memories for
+            limit: Maximum number of relevant memories to return
+            
+        Returns:
+            List of the most relevant memories with combined scores
+        """
+        # Get semantically similar memories (up to 3x the limit to have enough for reranking)
+        semantic_results = await self.semantic_search_shortterm(
+            query=query, 
+            limit=limit * 3
+        )
+        
+        # Get recent memories for recency scoring
+        recent_memories = await self.get_shortterm_memories(limit=limit * 3)
+        
+        # Create a map of memory IDs to memories for quick lookup
+        memory_map = {}
+        for memory in semantic_results:
+            memory_id = memory.get("id")
+            if memory_id:
+                memory_map[memory_id] = memory
+                
+        # Add any recent memories not in semantic results
+        for memory in recent_memories:
+            memory_id = memory.get("id")
+            if memory_id and memory_id not in memory_map:
+                memory_map[memory_id] = memory
+                # Set a low default similarity score for memories not in semantic results
+                memory["similarity_score"] = 0.0
+        
+        # Calculate relevance scores
+        current_time = datetime.utcnow()
+        scored_memories = []
+        
+        for memory_id, memory in memory_map.items():
+            # Get semantic similarity score (0-1 range, where lower is better in Redis)
+            # Convert to 0-1 range where higher is better
+            similarity_score = memory.get("similarity_score", 1.0)
+            # Redis returns cosine distance (0 = identical, 2 = opposite)
+            # Convert to similarity: 1 - (distance / 2)
+            semantic_score = max(0, 1 - (similarity_score / 2))
+            
+            # Calculate recency score (0-1 range, where 1 is most recent)
+            created_at_str = memory.get("created_at")
+            if created_at_str:
+                try:
+                    created_at = datetime.fromisoformat(created_at_str)
+                    # Calculate age in hours
+                    age_hours = (current_time - created_at).total_seconds() / 3600
+                    # Use exponential decay: e^(-age/24) gives ~0.37 after 24 hours
+                    recency_score = np.exp(-age_hours / 24)
+                except Exception as e:
+                    logger.warning(f"Failed to parse created_at for memory {memory_id}: {e}")
+                    recency_score = 0.0
+            else:
+                recency_score = 0.0
+            
+            # Calculate combined relevance score
+            # Weights: 70% semantic similarity, 30% recency
+            relevance_score = 0.7 * semantic_score + 0.3 * recency_score
+            
+            memory["relevance_score"] = relevance_score
+            memory["semantic_score"] = semantic_score
+            memory["recency_score"] = recency_score
+            scored_memories.append(memory)
+        
+        # Sort by relevance score (highest first)
+        scored_memories.sort(key=lambda m: m.get("relevance_score", 0), reverse=True)
+        
+        # Return only the top memories
+        return scored_memories[:limit]

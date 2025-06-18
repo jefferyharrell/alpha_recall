@@ -717,14 +717,14 @@ async def remember(
 @mcp.tool(name="remember_shortterm")
 async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
     """
-    Store a short-term memory with automatic TTL expiration.
+    Store a short-term memory with automatic TTL expiration and return relevant memories.
 
     Args:
         ctx: The request context containing lifespan resources
         content: The memory content to store
 
     Returns:
-        Dictionary containing information about the stored memory
+        Dictionary containing information about the stored memory and 5 most relevant memories
     """
     logger.info(
         f"Remember shortterm tool called: content='{content[:50]}...' if len(content) > 50 else content"
@@ -749,15 +749,34 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
         return {"error": "Database connection not available", "success": False}
 
     try:
-        # Store the short-term memory
+        # Store the short-term memory (this now includes relevant memories)
         result = await db.remember_shortterm(content)
         
-        # Return success with timestamp
-        response = {"success": True}
+        # Build response
+        response = {"success": result.get("success", True)}
         
-        # If the result contains created_at, include it
+        # If the result contains created_at, include it as timestamp
         if isinstance(result, dict) and "created_at" in result:
             response["timestamp"] = result["created_at"]
+        
+        # Include relevant memories if available
+        if isinstance(result, dict) and "relevant_memories" in result:
+            # Format relevant memories for cleaner output
+            relevant_memories = []
+            for memory in result["relevant_memories"]:
+                formatted_memory = {
+                    "content": memory.get("content"),
+                    "created_at": memory.get("created_at"),
+                    "relevance_score": round(memory.get("relevance_score", 0), 3),
+                    "semantic_score": round(memory.get("semantic_score", 0), 3),
+                    "recency_score": round(memory.get("recency_score", 0), 3),
+                }
+                # Include client info if present
+                if "client" in memory:
+                    formatted_memory["client"] = memory["client"]
+                relevant_memories.append(formatted_memory)
+            
+            response["relevant_memories"] = relevant_memories
             
         return response
 
