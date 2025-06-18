@@ -392,6 +392,8 @@ class CompositeDatabase:
             memory_id = memory.get("id")
             if memory_id:
                 memory_map[memory_id] = memory
+                # Initialize emotional_score to default if not present
+                memory.setdefault("emotional_score", 1.0)
         
         # Add emotional results and merge emotional scores
         for memory in emotional_results:
@@ -415,6 +417,9 @@ class CompositeDatabase:
                 # Set default scores for memories not in search results
                 memory["similarity_score"] = 1.0
                 memory["emotional_score"] = 1.0
+            elif memory_id and memory_id in memory_map:
+                # Ensure emotional_score is set for memories already in map
+                memory_map[memory_id].setdefault("emotional_score", 1.0)
         
         # Calculate relevance scores
         current_time = datetime.utcnow()
