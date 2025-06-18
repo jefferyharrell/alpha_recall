@@ -374,6 +374,7 @@ class CompositeDatabase:
             query=query, 
             limit=limit * 3
         )
+        logger.info(f"Semantic search returned {len(semantic_results)} results")
         
         # Get emotionally similar memories if enabled
         emotional_results = []
@@ -383,12 +384,14 @@ class CompositeDatabase:
                     query=query,
                     limit=limit * 3
                 )
+                logger.info(f"Emotional search returned {len(emotional_results)} results")
             except Exception as e:
                 logger.warning(f"Emotional search failed: {str(e)}")
                 emotional_results = []
         
         # Get recent memories for recency scoring
         recent_memories = await self.get_shortterm_memories(limit=limit * 3)
+        logger.info(f"Recent memories returned {len(recent_memories)} results")
         
         # Create a map of memory IDs to memories for quick lookup
         memory_map = {}
@@ -460,9 +463,13 @@ class CompositeDatabase:
             # Weights: 50% semantic similarity, 20% emotional similarity, 30% recency
             if include_emotional:
                 relevance_score = 0.5 * semantic_score + 0.2 * emotional_score + 0.3 * recency_score
+                if memory_id == next(iter(memory_map.keys())):  # Log for first memory only
+                    logger.info(f"Using emotional scoring: 0.5*{semantic_score} + 0.2*{emotional_score} + 0.3*{recency_score} = {relevance_score}")
             else:
                 # If emotional scoring is disabled, use original weights
                 relevance_score = 0.7 * semantic_score + 0.3 * recency_score
+                if memory_id == next(iter(memory_map.keys())):  # Log for first memory only
+                    logger.info(f"Using legacy scoring: 0.7*{semantic_score} + 0.3*{recency_score} = {relevance_score}")
             
             memory["relevance_score"] = relevance_score
             memory["semantic_score"] = semantic_score
