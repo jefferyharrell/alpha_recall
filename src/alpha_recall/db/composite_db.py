@@ -377,11 +377,19 @@ class CompositeDatabase:
         
         # Get emotionally similar memories if enabled
         emotional_results = []
+        logger.info(f"_get_relevant_memories called with include_emotional={include_emotional}")
         if include_emotional:
-            emotional_results = await self.emotional_search_shortterm(
-                query=query,
-                limit=limit * 3
-            )
+            try:
+                emotional_results = await self.emotional_search_shortterm(
+                    query=query,
+                    limit=limit * 3
+                )
+                logger.info(f"Emotional search returned {len(emotional_results)} results")
+                if emotional_results:
+                    logger.info(f"First emotional result: {emotional_results[0]}")
+            except Exception as e:
+                logger.warning(f"Emotional search failed: {str(e)}")
+                emotional_results = []
         
         # Get recent memories for recency scoring
         recent_memories = await self.get_shortterm_memories(limit=limit * 3)
@@ -456,14 +464,17 @@ class CompositeDatabase:
             # Weights: 50% semantic similarity, 20% emotional similarity, 30% recency
             if include_emotional:
                 relevance_score = 0.5 * semantic_score + 0.2 * emotional_score + 0.3 * recency_score
+                logger.debug(f"Using emotional scoring: semantic={semantic_score}, emotional={emotional_score}, recency={recency_score}, total={relevance_score}")
             else:
                 # If emotional scoring is disabled, use original weights
                 relevance_score = 0.7 * semantic_score + 0.3 * recency_score
+                logger.debug(f"Using legacy scoring: semantic={semantic_score}, recency={recency_score}, total={relevance_score}")
             
             memory["relevance_score"] = relevance_score
             memory["semantic_score"] = semantic_score
             memory["emotional_score"] = emotional_score
             memory["recency_score"] = recency_score
+            logger.debug(f"Memory {memory_id}: relevance={relevance_score}, semantic={semantic_score}, emotional={emotional_score}, recency={recency_score}")
             scored_memories.append(memory)
         
         # Sort by relevance score (highest first)
