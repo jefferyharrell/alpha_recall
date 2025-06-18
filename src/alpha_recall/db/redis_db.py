@@ -204,13 +204,14 @@ class RedisShortTermMemory:
                 pass
             
             # Create the index for vector search (semantic embeddings)
+            # Keep using 'embedding' for compatibility with existing memories
             await self.client.execute_command(
                 'FT.CREATE', 'idx:stm',
                 'ON', 'HASH',
                 'PREFIX', '1', self.key_prefix,
                 'SCHEMA',
                 'content', 'TEXT',
-                'embedding_semantic', 'VECTOR', 'FLAT', '6',
+                'embedding', 'VECTOR', 'FLAT', '6',
                 'TYPE', 'FLOAT32',
                 'DIM', str(self.vector_size),
                 'DISTANCE_METRIC', 'COSINE'
@@ -357,8 +358,8 @@ class RedisShortTermMemory:
         # Try to generate semantic embedding
         embedding = await self._embed_text(content)
         if embedding is not None:
-            # Store semantic embedding as binary data
-            hash_data["embedding_semantic"] = embedding.tobytes()
+            # Store semantic embedding as binary data (use 'embedding' for compatibility)
+            hash_data["embedding"] = embedding.tobytes()
         
         # Try to generate emotional embedding
         emotional_embedding = await self._embed_text_emotional(content)
@@ -497,7 +498,8 @@ class RedisShortTermMemory:
         try:
             # Prepare the vector search query
             # For time filtering, we need to combine with a TAG filter
-            base_query = f"*=>[KNN {limit} @embedding_semantic $vec_param AS score]"
+            # Use 'embedding' for compatibility with existing memories
+            base_query = f"*=>[KNN {limit} @embedding $vec_param AS score]"
             
             # Execute vector search
             results = await self.client.execute_command(
