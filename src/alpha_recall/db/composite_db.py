@@ -297,6 +297,44 @@ class CompositeDatabase:
             logger.info("Semantic search not available for short-term memories, using time-based retrieval")
             return await self.get_shortterm_memories(through_the_last, limit)
 
+    async def emotional_search_shortterm(
+        self, 
+        query: str, 
+        limit: int = 10,
+        through_the_last: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform emotional search on short-term memories.
+        
+        Args:
+            query: The search query text
+            limit: Maximum number of results to return
+            through_the_last: Optional time window filter (e.g., '2h', '1d')
+            
+        Returns:
+            List of emotionally similar memories with scores
+        """
+        if not self.shortterm_memory:
+            logger.warning("Short-term memory storage not configured")
+            return []
+            
+        # Check if the short-term memory has emotional search capability
+        if hasattr(self.shortterm_memory, 'emotional_search_memories'):
+            try:
+                return await self.shortterm_memory.emotional_search_memories(
+                    query=query,
+                    limit=limit,
+                    through_the_last=through_the_last
+                )
+            except Exception as e:
+                logger.error(f"Failed to perform emotional search on short-term memories: {str(e)}")
+                # Fall back to regular retrieval
+                return await self.get_shortterm_memories(through_the_last, limit)
+        else:
+            # Fall back to regular retrieval if emotional search not available
+            logger.info("Emotional search not available for short-term memories, using time-based retrieval")
+            return await self.get_shortterm_memories(through_the_last, limit)
+
     def _detect_client(self) -> Dict[str, str]:
         """
         Detect information about the current client environment.
@@ -312,19 +350,21 @@ class CompositeDatabase:
 
         return client_info
     
-    async def _get_relevant_memories(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+    async def _get_relevant_memories(self, query: str, limit: int = 5, include_emotional: bool = True) -> List[Dict[str, Any]]:
         """
-        Get the most relevant memories based on a combination of semantic similarity and recency.
+        Get the most relevant memories based on a combination of semantic similarity, emotional similarity, and recency.
         
         This method implements a relevance algorithm that combines:
         - Semantic similarity score (from vector search)
+        - Emotional similarity score (from emotional vector search) 
         - Recency (how recent the memory is)
         
-        The formula is: relevance_score = 0.7 * semantic_similarity + 0.3 * recency_score
+        The formula is: relevance_score = 0.5 * semantic_similarity + 0.2 * emotional_similarity + 0.3 * recency_score
         
         Args:
             query: The query text to find relevant memories for
             limit: Maximum number of relevant memories to return
+            include_emotional: Whether to include emotional similarity in scoring
             
         Returns:
             List of the most relevant memories with combined scores
@@ -335,6 +375,14 @@ class CompositeDatabase:
             limit=limit * 3
         )
         
+        # Get emotionally similar memories if enabled
+        emotional_results = []
+        if include_emotional:
+            emotional_results = await self.emotional_search_shortterm(
+                query=query,
+                limit=limit * 3
+            )
+        
         # Get recent memories for recency scoring
         recent_memories = await self.get_shortterm_memories(limit=limit * 3)
         
@@ -344,14 +392,29 @@ class CompositeDatabase:
             memory_id = memory.get("id")
             if memory_id:
                 memory_map[memory_id] = memory
+        
+        # Add emotional results and merge emotional scores
+        for memory in emotional_results:
+            memory_id = memory.get("id")
+            emotional_score = memory.get("emotional_score", 1.0)
+            if memory_id:
+                if memory_id in memory_map:
+                    # Merge emotional score into existing memory
+                    memory_map[memory_id]["emotional_score"] = emotional_score
+                else:
+                    # Add new memory from emotional results
+                    memory_map[memory_id] = memory
+                    # Set a low default similarity score for memories not in semantic results
+                    memory["similarity_score"] = 1.0
                 
-        # Add any recent memories not in semantic results
+        # Add any recent memories not in either semantic or emotional results
         for memory in recent_memories:
             memory_id = memory.get("id")
             if memory_id and memory_id not in memory_map:
                 memory_map[memory_id] = memory
-                # Set a low default similarity score for memories not in semantic results
-                memory["similarity_score"] = 0.0
+                # Set default scores for memories not in search results
+                memory["similarity_score"] = 1.0
+                memory["emotional_score"] = 1.0
         
         # Calculate relevance scores
         current_time = datetime.utcnow()
@@ -364,6 +427,10 @@ class CompositeDatabase:
             # Redis returns cosine distance (0 = identical, 2 = opposite)
             # Convert to similarity: 1 - (distance / 2)
             semantic_score = max(0, 1 - (similarity_score / 2))
+            
+            # Get emotional similarity score and convert similarly
+            emotional_score_raw = memory.get("emotional_score", 1.0)
+            emotional_score = max(0, 1 - (emotional_score_raw / 2)) if include_emotional else 0.5
             
             # Calculate recency score (0-1 range, where 1 is most recent)
             created_at_str = memory.get("created_at")
@@ -381,11 +448,16 @@ class CompositeDatabase:
                 recency_score = 0.0
             
             # Calculate combined relevance score
-            # Weights: 70% semantic similarity, 30% recency
-            relevance_score = 0.7 * semantic_score + 0.3 * recency_score
+            # Weights: 50% semantic similarity, 20% emotional similarity, 30% recency
+            if include_emotional:
+                relevance_score = 0.5 * semantic_score + 0.2 * emotional_score + 0.3 * recency_score
+            else:
+                # If emotional scoring is disabled, use original weights
+                relevance_score = 0.7 * semantic_score + 0.3 * recency_score
             
             memory["relevance_score"] = relevance_score
             memory["semantic_score"] = semantic_score
+            memory["emotional_score"] = emotional_score
             memory["recency_score"] = recency_score
             scored_memories.append(memory)
         
