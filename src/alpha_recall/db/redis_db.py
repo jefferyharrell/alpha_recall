@@ -32,7 +32,7 @@ DEFAULT_VECTOR_SIZE = 384  # Dimension of all-MiniLM-L6-v2 embeddings
 # Default emotional embedding configuration
 DEFAULT_EMOTIONAL_EMBEDDING_URL = "http://localhost:6004/sentiment-embeddings"
 DEFAULT_EMOTIONAL_EMBEDDING_MODEL = "j-hartmann/emotion-english-distilroberta-base"
-DEFAULT_EMOTIONAL_VECTOR_SIZE = 7  # Dimension of emotion embeddings
+DEFAULT_EMOTIONAL_VECTOR_SIZE = 1024  # Dimension of emotion embeddings
 
 
 class RedisShortTermMemory:

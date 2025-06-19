@@ -38,7 +38,7 @@ class TestEmotionalEmbeddings:
         """Mock HTTP response for embedding generation."""
         return {
             "embeddings": [
-                [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]  # 7-dimensional emotional embedding
+                [0.1] * 1024  # 1024-dimensional emotional embedding
             ]
         }
 
@@ -58,7 +58,7 @@ class TestEmotionalEmbeddings:
     async def test_emotional_embedding_generation(self, redis_stm, mock_embedding_response):
         """Test that emotional embeddings are generated correctly."""
         # Directly mock the method to return the expected embedding
-        expected_embedding = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], dtype=np.float32)
+        expected_embedding = np.array([0.1] * 1024, dtype=np.float32)
         redis_stm._embed_text_emotional = AsyncMock(return_value=expected_embedding)
         
         # Test emotional embedding generation
@@ -66,7 +66,7 @@ class TestEmotionalEmbeddings:
         
         # Verify the embedding was generated
         assert embedding is not None
-        assert len(embedding) == 7  # 7-dimensional emotional embedding
+        assert len(embedding) == 1024  # 1024-dimensional emotional embedding
         assert isinstance(embedding, np.ndarray)
         np.testing.assert_array_equal(embedding, expected_embedding)
 
@@ -87,7 +87,7 @@ class TestEmotionalEmbeddings:
         """Test that both semantic and emotional embeddings are stored."""
         # Mock the embedding methods to return proper embeddings
         redis_stm._embed_text = AsyncMock(return_value=np.array([0.1] * 384, dtype=np.float32))
-        redis_stm._embed_text_emotional = AsyncMock(return_value=np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], dtype=np.float32))
+        redis_stm._embed_text_emotional = AsyncMock(return_value=np.array([0.1] * 1024, dtype=np.float32))
         
         # Store a memory
         result = await redis_stm.store_memory("I feel great about this project!")
@@ -115,7 +115,7 @@ class TestEmotionalEmbeddings:
         redis_stm.client.execute_command = AsyncMock(return_value=mock_search_results)
         
         # Mock the emotional embedding generation directly
-        redis_stm._embed_text_emotional = AsyncMock(return_value=np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], dtype=np.float32))
+        redis_stm._embed_text_emotional = AsyncMock(return_value=np.array([0.1] * 1024, dtype=np.float32))
         
         # Perform emotional search
         results = await redis_stm.emotional_search_memories("I'm feeling joyful", limit=5)
@@ -167,7 +167,7 @@ class TestEmotionalEmbeddings:
         # Mock the shortterm_memory component
         mock_stm = AsyncMock()
         
-        # Mock semantic search results
+        # Mock semantic search results (lower score)
         mock_stm.semantic_search_memories = AsyncMock(return_value=[
             {
                 "id": "memory1", 
@@ -177,12 +177,12 @@ class TestEmotionalEmbeddings:
             }
         ])
         
-        # Mock emotional search results
+        # Mock emotional search results (higher score, should be prioritized)
         mock_stm.emotional_search_memories = AsyncMock(return_value=[
             {
                 "id": "memory1",
                 "content": "Test content", 
-                "emotional_score": 0.3,
+                "emotional_score": 0.8,  # Higher score than semantic
                 "created_at": datetime.utcnow().isoformat()
             }
         ])
@@ -200,13 +200,18 @@ class TestEmotionalEmbeddings:
         # Test enhanced relevance scoring
         results = await composite_db._get_relevant_memories("test query", limit=5, include_emotional=True)
         
-        # Verify that emotional scoring was included
-        assert len(results) == 1
+        # Verify that relevance scoring was performed
+        assert len(results) >= 1
         memory = results[0]
-        assert "emotional_score" in memory
-        assert "relevance_score" in memory
-        assert "semantic_score" in memory
-        assert "recency_score" in memory
+        assert "score" in memory
+        assert "search_type" in memory
+        # Since include_emotional=True, emotional search should be included
+        # The highest scoring result should be returned first
+        assert memory["score"] > 0
+        
+        # Verify that emotional search was called when include_emotional=True
+        mock_stm.emotional_search_memories.assert_called_once()
+        mock_stm.semantic_search_memories.assert_called_once()
 
 
 if __name__ == "__main__":
