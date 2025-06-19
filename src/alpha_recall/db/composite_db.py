@@ -352,139 +352,64 @@ class CompositeDatabase:
     
     async def _get_relevant_memories(self, query: str, limit: int = 5, include_emotional: bool = True) -> List[Dict[str, Any]]:
         """
-        Get the most relevant memories based on a combination of semantic similarity, emotional similarity, and recency.
+        Get relevant memories using both semantic and emotional search.
         
-        This method implements a relevance algorithm that combines:
-        - Semantic similarity score (from vector search)
-        - Emotional similarity score (from emotional vector search) 
-        - Recency (how recent the memory is)
+        This method returns the top memories from:
+        - Semantic similarity search (up to 'limit' results)
+        - Emotional similarity search (up to 'limit' results) if enabled
         
-        The formula is: relevance_score = 0.5 * semantic_similarity + 0.2 * emotional_similarity + 0.3 * recency_score
+        The results are returned as two separate groups rather than trying to merge scores,
+        providing transparency about which type of search surfaced each memory.
         
         Args:
             query: The query text to find relevant memories for
-            limit: Maximum number of relevant memories to return
-            include_emotional: Whether to include emotional similarity in scoring
+            limit: Maximum number of memories to return from each search type
+            include_emotional: Whether to include emotional similarity search
             
         Returns:
-            List of the most relevant memories with combined scores
+            List of relevant memories with their respective similarity scores
         """
-        # Get semantically similar memories (up to 3x the limit to have enough for reranking)
+        relevant_memories = []
+        
+        # Get semantically similar memories
         semantic_results = await self.semantic_search_shortterm(
             query=query, 
-            limit=limit * 3
+            limit=limit
         )
         logger.info(f"Semantic search returned {len(semantic_results)} results")
-        if semantic_results:
-            logger.debug(f"First semantic result ID: {semantic_results[0].get('id')}, score: {semantic_results[0].get('similarity_score')}")
+        
+        # Process semantic results
+        for memory in semantic_results:
+            # Convert Redis cosine distance to similarity score
+            distance = memory.get("similarity_score", 1.0)
+            similarity = max(0, 1 - (distance / 2))
+            
+            # Add search type and clean score
+            memory["search_type"] = "semantic"
+            memory["score"] = round(similarity, 3)
+            relevant_memories.append(memory)
         
         # Get emotionally similar memories if enabled
-        emotional_results = []
         if include_emotional:
             try:
                 emotional_results = await self.emotional_search_shortterm(
                     query=query,
-                    limit=limit * 3
+                    limit=limit
                 )
                 logger.info(f"Emotional search returned {len(emotional_results)} results")
-                if emotional_results:
-                    logger.debug(f"First emotional result ID: {emotional_results[0].get('id')}, score: {emotional_results[0].get('emotional_score')}")
+                
+                # Process emotional results
+                for memory in emotional_results:
+                    # Convert Redis cosine distance to similarity score
+                    distance = memory.get("emotional_score", 1.0)
+                    similarity = max(0, 1 - (distance / 2))
+                    
+                    # Add search type and clean score
+                    memory["search_type"] = "emotional"
+                    memory["score"] = round(similarity, 3)
+                    relevant_memories.append(memory)
+                    
             except Exception as e:
                 logger.warning(f"Emotional search failed: {str(e)}")
-                emotional_results = []
         
-        # Get recent memories for recency scoring
-        recent_memories = await self.get_shortterm_memories(limit=limit * 3)
-        logger.info(f"Recent memories returned {len(recent_memories)} results")
-        
-        # Create a map of memory IDs to memories for quick lookup
-        memory_map = {}
-        for memory in semantic_results:
-            memory_id = memory.get("id")
-            if memory_id:
-                memory_map[memory_id] = memory
-                # Initialize emotional_score to default if not present
-                memory.setdefault("emotional_score", 1.0)
-        
-        # Add emotional results and merge emotional scores
-        for memory in emotional_results:
-            memory_id = memory.get("id")
-            emotional_score = memory.get("emotional_score", 1.0)
-            if memory_id:
-                if memory_id in memory_map:
-                    # Merge emotional score into existing memory
-                    memory_map[memory_id]["emotional_score"] = emotional_score
-                    logger.debug(f"Merged emotional score {emotional_score} for memory {memory_id}")
-                else:
-                    # Add new memory from emotional results
-                    memory_map[memory_id] = memory
-                    # Set a low default similarity score for memories not in semantic results
-                    memory["similarity_score"] = 1.0
-                    logger.debug(f"Added new memory from emotional results: {memory_id}")
-                
-        # Add any recent memories not in either semantic or emotional results
-        for memory in recent_memories:
-            memory_id = memory.get("id")
-            if memory_id and memory_id not in memory_map:
-                memory_map[memory_id] = memory
-                # Set default scores for memories not in search results
-                memory["similarity_score"] = 1.0
-                memory["emotional_score"] = 1.0
-            elif memory_id and memory_id in memory_map:
-                # Ensure emotional_score is set for memories already in map
-                memory_map[memory_id].setdefault("emotional_score", 1.0)
-        
-        # Calculate relevance scores
-        current_time = datetime.utcnow()
-        scored_memories = []
-        
-        for memory_id, memory in memory_map.items():
-            # Get semantic similarity score (0-1 range, where lower is better in Redis)
-            # Convert to 0-1 range where higher is better
-            similarity_score = memory.get("similarity_score", 1.0)
-            # Redis returns cosine distance (0 = identical, 2 = opposite)
-            # Convert to similarity: 1 - (distance / 2)
-            semantic_score = max(0, 1 - (similarity_score / 2))
-            
-            # Get emotional similarity score and convert similarly
-            emotional_score_raw = memory.get("emotional_score", 1.0)
-            emotional_score = max(0, 1 - (emotional_score_raw / 2)) if include_emotional else 0.5
-            
-            # Calculate recency score (0-1 range, where 1 is most recent)
-            created_at_str = memory.get("created_at")
-            if created_at_str:
-                try:
-                    created_at = datetime.fromisoformat(created_at_str)
-                    # Calculate age in hours
-                    age_hours = (current_time - created_at).total_seconds() / 3600
-                    # Use exponential decay: e^(-age/24) gives ~0.37 after 24 hours
-                    recency_score = np.exp(-age_hours / 24)
-                except Exception as e:
-                    logger.warning(f"Failed to parse created_at for memory {memory_id}: {e}")
-                    recency_score = 0.0
-            else:
-                recency_score = 0.0
-            
-            # Calculate combined relevance score
-            # Weights: 50% semantic similarity, 20% emotional similarity, 30% recency
-            if include_emotional:
-                relevance_score = 0.5 * semantic_score + 0.2 * emotional_score + 0.3 * recency_score
-                if memory_id == next(iter(memory_map.keys())):  # Log for first memory only
-                    logger.info(f"Using emotional scoring: 0.5*{semantic_score} + 0.2*{emotional_score} + 0.3*{recency_score} = {relevance_score}")
-            else:
-                # If emotional scoring is disabled, use original weights
-                relevance_score = 0.7 * semantic_score + 0.3 * recency_score
-                if memory_id == next(iter(memory_map.keys())):  # Log for first memory only
-                    logger.info(f"Using legacy scoring: 0.7*{semantic_score} + 0.3*{recency_score} = {relevance_score}")
-            
-            memory["relevance_score"] = relevance_score
-            memory["semantic_score"] = semantic_score
-            memory["emotional_score"] = emotional_score
-            memory["recency_score"] = recency_score
-            scored_memories.append(memory)
-        
-        # Sort by relevance score (highest first)
-        scored_memories.sort(key=lambda m: m.get("relevance_score", 0), reverse=True)
-        
-        # Return only the top memories
-        return scored_memories[:limit]
+        return relevant_memories
