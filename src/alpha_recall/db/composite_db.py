@@ -369,47 +369,66 @@ class CompositeDatabase:
         Returns:
             List of relevant memories with their respective similarity scores
         """
-        relevant_memories = []
+        all_results = []
+        seen_ids = set()
         
         # Get semantically similar memories
         semantic_results = await self.semantic_search_shortterm(
             query=query, 
-            limit=limit
+            limit=limit * 2  # Get more to account for potential duplicates
         )
         logger.info(f"Semantic search returned {len(semantic_results)} results")
         
         # Process semantic results
         for memory in semantic_results:
-            # Convert Redis cosine distance to similarity score
-            distance = memory.get("similarity_score", 1.0)
-            similarity = max(0, 1 - (distance / 2))
-            
-            # Add search type and clean score
-            memory["search_type"] = "semantic"
-            memory["score"] = round(similarity, 3)
-            relevant_memories.append(memory)
+            memory_id = memory.get("id")
+            if memory_id and memory_id not in seen_ids:
+                # Convert Redis cosine distance to similarity score
+                distance = memory.get("similarity_score", 1.0)
+                similarity = max(0, 1 - (distance / 2))
+                
+                # Add search type and score
+                memory["search_type"] = "semantic"
+                memory["score"] = round(similarity, 3)
+                all_results.append(memory)
+                seen_ids.add(memory_id)
+                
+                # Debug log the first result
+                if len(all_results) == 1:
+                    logger.debug(f"First semantic result - ID: {memory_id}, raw distance: {distance}, similarity: {similarity}")
         
         # Get emotionally similar memories if enabled
         if include_emotional:
             try:
                 emotional_results = await self.emotional_search_shortterm(
                     query=query,
-                    limit=limit
+                    limit=limit * 2  # Get more to account for potential duplicates
                 )
                 logger.info(f"Emotional search returned {len(emotional_results)} results")
                 
                 # Process emotional results
                 for memory in emotional_results:
-                    # Convert Redis cosine distance to similarity score
-                    distance = memory.get("emotional_score", 1.0)
-                    similarity = max(0, 1 - (distance / 2))
-                    
-                    # Add search type and clean score
-                    memory["search_type"] = "emotional"
-                    memory["score"] = round(similarity, 3)
-                    relevant_memories.append(memory)
+                    memory_id = memory.get("id")
+                    if memory_id and memory_id not in seen_ids:
+                        # Convert Redis cosine distance to similarity score
+                        distance = memory.get("emotional_score", 1.0)
+                        similarity = max(0, 1 - (distance / 2))
+                        
+                        # Add search type and score
+                        memory["search_type"] = "emotional"
+                        memory["score"] = round(similarity, 3)
+                        all_results.append(memory)
+                        seen_ids.add(memory_id)
+                        
+                        # Debug log the first emotional result
+                        if memory.get("search_type") == "emotional" and len([m for m in all_results if m.get("search_type") == "emotional"]) == 1:
+                            logger.debug(f"First emotional result - ID: {memory_id}, raw distance: {distance}, similarity: {similarity}")
                     
             except Exception as e:
                 logger.warning(f"Emotional search failed: {str(e)}")
         
-        return relevant_memories
+        # Sort all results by score (highest first)
+        all_results.sort(key=lambda m: m.get("score", 0), reverse=True)
+        
+        # Return only the top N results
+        return all_results[:limit]
