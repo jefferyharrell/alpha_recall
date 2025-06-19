@@ -225,7 +225,9 @@ class CompositeDatabase:
             # If storage was successful, retrieve relevant memories
             if result.get("success", True):  # Default to True for backward compatibility
                 # Get relevant memories using a combination of semantic search and recency
-                relevant_memories = await self._get_relevant_memories(content, limit=5)
+                # Pass the new memory's ID to exclude it from results
+                new_memory_id = result.get("id")
+                relevant_memories = await self._get_relevant_memories(content, limit=5, exclude_id=new_memory_id)
                 result["relevant_memories"] = relevant_memories
                 
             return result
@@ -350,7 +352,7 @@ class CompositeDatabase:
 
         return client_info
     
-    async def _get_relevant_memories(self, query: str, limit: int = 5, include_emotional: bool = True) -> List[Dict[str, Any]]:
+    async def _get_relevant_memories(self, query: str, limit: int = 5, include_emotional: bool = True, exclude_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get relevant memories using both semantic and emotional search.
         
@@ -365,12 +367,18 @@ class CompositeDatabase:
             query: The query text to find relevant memories for
             limit: Maximum number of memories to return from each search type
             include_emotional: Whether to include emotional similarity search
+            exclude_id: Optional memory ID to exclude from results (e.g., the memory being created)
             
         Returns:
             List of relevant memories with their respective similarity scores
         """
         all_results = []
         seen_ids = set()
+        
+        # If we have an ID to exclude, add it to seen_ids
+        if exclude_id:
+            seen_ids.add(exclude_id)
+            logger.debug(f"Excluding memory ID from results: {exclude_id}")
         
         # Get semantically similar memories
         semantic_results = await self.semantic_search_shortterm(
