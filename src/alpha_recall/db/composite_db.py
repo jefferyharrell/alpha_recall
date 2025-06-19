@@ -375,6 +375,8 @@ class CompositeDatabase:
             limit=limit * 3
         )
         logger.info(f"Semantic search returned {len(semantic_results)} results")
+        if semantic_results:
+            logger.debug(f"First semantic result ID: {semantic_results[0].get('id')}, score: {semantic_results[0].get('similarity_score')}")
         
         # Get emotionally similar memories if enabled
         emotional_results = []
@@ -385,6 +387,8 @@ class CompositeDatabase:
                     limit=limit * 3
                 )
                 logger.info(f"Emotional search returned {len(emotional_results)} results")
+                if emotional_results:
+                    logger.debug(f"First emotional result ID: {emotional_results[0].get('id')}, score: {emotional_results[0].get('emotional_score')}")
             except Exception as e:
                 logger.warning(f"Emotional search failed: {str(e)}")
                 emotional_results = []
@@ -410,11 +414,13 @@ class CompositeDatabase:
                 if memory_id in memory_map:
                     # Merge emotional score into existing memory
                     memory_map[memory_id]["emotional_score"] = emotional_score
+                    logger.debug(f"Merged emotional score {emotional_score} for memory {memory_id}")
                 else:
                     # Add new memory from emotional results
                     memory_map[memory_id] = memory
                     # Set a low default similarity score for memories not in semantic results
                     memory["similarity_score"] = 1.0
+                    logger.debug(f"Added new memory from emotional results: {memory_id}")
                 
         # Add any recent memories not in either semantic or emotional results
         for memory in recent_memories:
