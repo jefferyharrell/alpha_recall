@@ -368,14 +368,63 @@ async def recall(
             # Next, perform semantic search regardless of whether we found an exact match
             # Determine the number of semantic results to include
             semantic_limit = 5  # Default number of semantic results
+            all_results = []
+            seen_ids = set()
 
             # Check if db has semantic_search method (CompositeDatabase)
             if hasattr(db, "semantic_search"):
-                semantic_results = await db.semantic_search(
-                    query=query, limit=semantic_limit
+                semantic_results_raw = await db.semantic_search(
+                    query=query, limit=semantic_limit * 2  # Get more to account for potential duplicates
                 )
+                
+                # Process semantic results
+                for i, result in enumerate(semantic_results_raw):
+                    # Use a combination of entity_name and text as a unique identifier
+                    # or index if no other identifier is available
+                    result_id = result.get("observation_id") or result.get("id") or f"{result.get('entity_name', '')}-{result.get('text', '')[:50]}-{i}"
+                    
+                    if result_id not in seen_ids:
+                        # Add search type
+                        result["search_type"] = "semantic"
+                        result["score"] = result.get("score", result.get("similarity", 0))
+                        all_results.append(result)
+                        seen_ids.add(result_id)
+                
+                logger.info(f"Semantic search returned {len(semantic_results_raw)} results, {len(all_results)} unique")
             else:
                 logger.warning("Database does not support semantic search")
+            
+            # Check if db has emotional_search method for long-term memories
+            # Note: Currently, emotional search is only implemented for short-term memories
+            # This is included for future compatibility if emotional search is added to vector store
+            if hasattr(db, "emotional_search"):
+                try:
+                    emotional_results_raw = await db.emotional_search(
+                        query=query, limit=semantic_limit * 2  # Get more to account for potential duplicates
+                    )
+                    
+                    # Process emotional results
+                    for i, result in enumerate(emotional_results_raw):
+                        # Use a combination of entity_name and text as a unique identifier
+                        # or index if no other identifier is available
+                        result_id = result.get("observation_id") or result.get("id") or f"{result.get('entity_name', '')}-{result.get('text', '')[:50]}-emotional-{i}"
+                        
+                        if result_id not in seen_ids:
+                            # Add search type
+                            result["search_type"] = "emotional"
+                            result["score"] = result.get("score", result.get("emotional_score", 0))
+                            all_results.append(result)
+                            seen_ids.add(result_id)
+                    
+                    logger.info(f"Emotional search returned {len(emotional_results_raw)} results, added {len([r for r in all_results if r.get('search_type') == 'emotional'])} unique")
+                except Exception as e:
+                    logger.warning(f"Emotional search failed: {str(e)}")
+            
+            # Sort all results by score (highest first)
+            all_results.sort(key=lambda r: r.get("score", 0), reverse=True)
+            
+            # Take only the top N results
+            semantic_results = all_results[:semantic_limit]
 
         # Construct the response for long-term memory mode
         response = {"query": query, "success": True}
