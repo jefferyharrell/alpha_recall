@@ -507,7 +507,7 @@ class RedisShortTermMemory:
                 base_query,
                 'PARAMS', '2', 
                 'vec_param', query_embedding.tobytes(),
-                'SORTBY', 'score',
+                'SORTBY', 'score', 'DESC',
                 'RETURN', '4', 'content', 'created_at', 'client', 'score',
                 'DIALECT', '2'
             )
@@ -605,7 +605,7 @@ class RedisShortTermMemory:
                 base_query,
                 'PARAMS', '2', 
                 'vec_param', query_embedding.tobytes(),
-                'SORTBY', 'score',
+                'SORTBY', 'score', 'DESC',
                 'RETURN', '4', 'content', 'created_at', 'client', 'score',
                 'DIALECT', '2'
             )
