@@ -895,6 +895,182 @@ async def relate(
         return {"error": f"Error creating relationship: {str(e)}", "success": False}
 
 
+@mcp.tool(name="remember_narrative")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def remember_narrative(
+    ctx: Context,
+    title: str,
+    paragraphs: List[str],
+    participants: List[str],
+    tags: Optional[List[str]] = None,
+    outcome: str = "ongoing",
+    references: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """
+    Store a narrative memory with hybrid storage (Redis content + Memgraph relationships).
+    
+    Narrative memories capture the stories and context around conversations, decisions,
+    and experiences. They use dual-granularity embeddings (story-level and paragraph-level)
+    for flexible search and retrieval.
+
+    Args:
+        ctx: The request context containing lifespan resources
+        title: Story title (e.g., "Debugging the Embedding Pipeline")
+        paragraphs: List of paragraph texts that make up the story
+        participants: List of participant names (e.g., ["Alpha", "Jeffery"])
+        tags: Optional list of tags/topics (e.g., ["debugging", "breakthrough"])
+        outcome: Story outcome - "breakthrough", "resolution", "ongoing", "blocked"
+        references: Optional list of story_ids this story references or builds upon
+
+    Returns:
+        Dictionary containing the created story information and success status
+    """
+    logger.info(f"Remember narrative tool called: title='{title}', participants={participants}")
+
+    # Try to get the database connection from various places
+    db = None
+
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Store the narrative memory
+        result = await db.store_narrative(
+            title=title,
+            paragraphs=paragraphs,
+            participants=participants,
+            tags=tags,
+            outcome=outcome,
+            references=references,
+        )
+
+        if result.get("success", False):
+            logger.info(f"Successfully stored narrative: {result.get('story_id')}")
+            
+            # Format the response with story details
+            response = {
+                "success": True,
+                "story_id": result.get("story_id"),
+                "title": title,
+                "created_at": result.get("created_at"),
+                "paragraph_count": result.get("paragraph_count", len(paragraphs)),
+                "participants": participants,
+                "tags": tags or [],
+                "outcome": outcome,
+                "message": f"Narrative '{title}' stored successfully with {len(paragraphs)} paragraphs and dual-granularity embeddings."
+            }
+            
+            if references:
+                response["references"] = references
+                
+            return response
+        else:
+            logger.error(f"Failed to store narrative: {result.get('error')}")
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error storing narrative")
+            }
+
+    except Exception as e:
+        logger.error(f"Error storing narrative memory: {str(e)}")
+        return {"success": False, "error": f"Error storing narrative memory: {str(e)}"}
+
+
+@mcp.tool(name="search_narratives")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def search_narratives(
+    ctx: Context,
+    query: str,
+    search_type: str = "semantic",
+    granularity: str = "story",
+    limit: int = 5,
+) -> Dict[str, Any]:
+    """
+    Search narrative memories using vector similarity.
+    
+    Supports multiple search modes:
+    - Semantic: Find stories with similar meaning/topics
+    - Emotional: Find stories with similar emotional resonance
+    - Both: Combined semantic and emotional search
+    
+    And multiple granularities:
+    - Story: Search at story level (find whole stories)
+    - Paragraph: Search at paragraph level (find specific moments)
+    - Both: Search both levels and merge results
+
+    Args:
+        ctx: The request context containing lifespan resources
+        query: Search query (e.g., "debugging breakthrough moments")
+        search_type: "semantic", "emotional", or "both"
+        granularity: "story", "paragraph", or "both"
+        limit: Maximum number of results to return
+
+    Returns:
+        Dictionary containing matching stories/paragraphs with similarity scores
+    """
+    logger.info(f"Search narratives tool called: query='{query}', type={search_type}, granularity={granularity}")
+
+    # Try to get the database connection
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    if db is None:
+        logger.error("Database connection not available")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Perform the search
+        results = await db.search_narratives(
+            query=query,
+            search_type=search_type,
+            granularity=granularity,
+            limit=limit,
+        )
+
+        return {
+            "success": True,
+            "query": query,
+            "search_type": search_type,
+            "granularity": granularity,
+            "total_results": len(results),
+            "results": results,
+            "message": f"Found {len(results)} narrative matches for '{query}' using {search_type} search at {granularity} level."
+        }
+
+    except Exception as e:
+        logger.error(f"Error searching narrative memories: {str(e)}")
+        return {"success": False, "error": f"Error searching narrative memories: {str(e)}"}
+
+
 async def main():
     """
     Main entry point for the MCP server.

@@ -17,6 +17,7 @@ from alpha_recall.db.neo4j_db import Neo4jDatabase
 from alpha_recall.db.redis_db import RedisShortTermMemory
 from alpha_recall.db.semantic_search import SemanticSearch
 from alpha_recall.db.vector_store import VectorStore
+from alpha_recall.db.narrative_memory import NarrativeMemory
 from alpha_recall.logging_utils import get_logger
 
 # Load environment variables
@@ -42,6 +43,11 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", None)
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 REDIS_TTL = int(os.environ.get("REDIS_TTL", 259200))  # Default: 72 hours
+
+# Narrative memory configuration
+EMOTIONAL_EMBEDDING_URL = os.environ.get(
+    "EMOTIONAL_EMBEDDING_URL", "http://localhost:6004/api/v1/embeddings/emotion"
+)
 
 
 async def create_graph_db() -> GraphDatabase:
@@ -119,6 +125,37 @@ async def create_shortterm_memory() -> Optional[RedisShortTermMemory]:
         return None
 
 
+async def create_narrative_memory(
+    graph_db: GraphDatabase, 
+    shortterm_memory: Optional[RedisShortTermMemory]
+) -> Optional[NarrativeMemory]:
+    """
+    Create a narrative memory instance if enabled and Redis is available.
+
+    Args:
+        graph_db: Connected graph database instance
+        shortterm_memory: Connected Redis short-term memory instance
+
+    Returns:
+        NarrativeMemory instance or None if unavailable
+    """
+    if not shortterm_memory:
+        logger.warning("Cannot create narrative memory without Redis connection")
+        return None
+
+    try:
+        logger.info("Creating narrative memory instance")
+        return NarrativeMemory(
+            redis_client=shortterm_memory.client,
+            graph_db=graph_db,
+            embedding_server_url=EMBEDDING_SERVER_URL,
+            emotional_embedding_url=EMOTIONAL_EMBEDDING_URL,
+        )
+    except Exception as e:
+        logger.error(f"Error creating narrative memory: {str(e)}")
+        return None
+
+
 async def create_db_instance() -> Union[GraphDatabase, CompositeDatabase]:
     """
     Create a composite database instance with graph database, vector store, and short-term memory.
@@ -138,10 +175,14 @@ async def create_db_instance() -> Union[GraphDatabase, CompositeDatabase]:
     # Create short-term memory store
     shortterm_memory = await create_shortterm_memory()
 
+    # Create narrative memory (if enabled)
+    narrative_memory = await create_narrative_memory(graph_db, shortterm_memory)
+
     # Create composite database
     logger.info("Creating composite database instance")
     return CompositeDatabase(
         graph_db=graph_db,
         semantic_search=vector_store,
         shortterm_memory=shortterm_memory,
+        narrative_memory=narrative_memory,
     )

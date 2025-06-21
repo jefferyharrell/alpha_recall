@@ -13,6 +13,7 @@ import numpy as np
 from alpha_recall.db.base import GraphDatabase
 from alpha_recall.db.redis_db import RedisShortTermMemory
 from alpha_recall.db.semantic_search import SemanticSearch
+from alpha_recall.db.narrative_memory import NarrativeMemory
 from alpha_recall.logging_utils import get_logger
 
 logger = get_logger(__name__)
@@ -46,6 +47,7 @@ class CompositeDatabase:
         graph_db: GraphDatabase,
         semantic_search: SemanticSearch,
         shortterm_memory: Optional[RedisShortTermMemory] = None,
+        narrative_memory: Optional[NarrativeMemory] = None,
     ):
         """
         Initialize the composite database.
@@ -54,10 +56,12 @@ class CompositeDatabase:
             graph_db: Implementation of GraphDatabase
             semantic_search: Implementation of SemanticSearch
             shortterm_memory: Optional Redis-based short-term memory implementation
+            narrative_memory: Optional narrative memory implementation
         """
         self.graph_db = graph_db
         self.search_engine = semantic_search
         self.shortterm_memory = shortterm_memory
+        self.narrative_memory = narrative_memory
 
     async def create_entity(
         self, name: str, entity_type: Optional[str] = None
@@ -440,3 +444,100 @@ class CompositeDatabase:
         
         # Return only the top N results
         return all_results[:limit]
+
+    async def store_narrative(
+        self,
+        title: str,
+        paragraphs: List[str],
+        participants: List[str],
+        tags: Optional[List[str]] = None,
+        outcome: str = "ongoing",
+        references: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Store a narrative story with hybrid storage (Redis content + Memgraph relationships).
+
+        Args:
+            title: Story title
+            paragraphs: List of paragraph texts
+            participants: List of participant names
+            tags: Optional list of tags/topics
+            outcome: Story outcome ("breakthrough", "resolution", "ongoing")
+            references: Optional list of story_ids this story references
+
+        Returns:
+            Dictionary with story information and storage status
+        """
+        if not self.narrative_memory:
+            logger.warning("Narrative memory storage not configured")
+            return {
+                "success": False,
+                "error": "Narrative memory storage not configured",
+            }
+
+        try:
+            return await self.narrative_memory.store_story(
+                title=title,
+                paragraphs=paragraphs,
+                participants=participants,
+                tags=tags,
+                outcome=outcome,
+                references=references,
+            )
+        except Exception as e:
+            logger.error(f"Failed to store narrative: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    async def search_narratives(
+        self,
+        query: str,
+        search_type: str = "semantic",  # "semantic", "emotional", "both"
+        granularity: str = "story",     # "story", "paragraph", "both"  
+        limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search narrative stories using vector similarity.
+
+        Args:
+            query: Search query text
+            search_type: Type of search ("semantic", "emotional", "both")
+            granularity: Search granularity ("story", "paragraph", "both")
+            limit: Maximum number of results
+
+        Returns:
+            List of matching stories/paragraphs with similarity scores
+        """
+        if not self.narrative_memory:
+            logger.warning("Narrative memory storage not configured")
+            return []
+
+        try:
+            return await self.narrative_memory.search_stories(
+                query=query,
+                search_type=search_type,
+                granularity=granularity,
+                limit=limit,
+            )
+        except Exception as e:
+            logger.error(f"Failed to search narratives: {str(e)}")
+            return []
+
+    async def get_narrative(self, story_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a complete narrative story by ID.
+
+        Args:
+            story_id: Unique story identifier
+
+        Returns:
+            Complete story data or None if not found
+        """
+        if not self.narrative_memory:
+            logger.warning("Narrative memory storage not configured")
+            return None
+
+        try:
+            return await self.narrative_memory.get_story(story_id)
+        except Exception as e:
+            logger.error(f"Failed to retrieve narrative {story_id}: {str(e)}")
+            return None
