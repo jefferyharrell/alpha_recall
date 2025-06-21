@@ -25,12 +25,12 @@ DEFAULT_TEST_TTL = 120  # 2 minutes for testing
 DEFAULT_PROD_TTL = 259200  # 72 hours (3 days) for production
 
 # Default embedding configuration
-DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/encode"
-DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-DEFAULT_VECTOR_SIZE = 384  # Dimension of all-MiniLM-L6-v2 embeddings
+DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/api/v1/embeddings/semantic"
+DEFAULT_EMBEDDING_MODEL = "all-mpnet-base-v2"
+DEFAULT_VECTOR_SIZE = 768  # Dimension of all-mpnet-base-v2 embeddings
 
 # Default emotional embedding configuration
-DEFAULT_EMOTIONAL_EMBEDDING_URL = "http://localhost:6004/sentiment-embeddings"
+DEFAULT_EMOTIONAL_EMBEDDING_URL = "http://localhost:6004/api/v1/embeddings/emotion"
 DEFAULT_EMOTIONAL_EMBEDDING_MODEL = "j-hartmann/emotion-english-distilroberta-base"
 DEFAULT_EMOTIONAL_VECTOR_SIZE = 1024  # Dimension of emotion embeddings
 
@@ -269,7 +269,7 @@ class RedisShortTermMemory:
             Embeddings as a numpy array or None if embedding fails
         """
         try:
-            payload = {"sentences": [text]}
+            payload = {"texts": [text]}
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -283,7 +283,7 @@ class RedisShortTermMemory:
                 data = response.json()
                 
                 embeddings = data.get("embeddings", None)
-                if not isinstance(embeddings, list) or not embeddings:
+                if not embeddings or not isinstance(embeddings, list):
                     logger.error(f"Embedding server returned unexpected data: {data}")
                     return None
                     
@@ -303,7 +303,7 @@ class RedisShortTermMemory:
             Emotional embeddings as a numpy array or None if embedding fails
         """
         try:
-            payload = {"sentences": [text]}
+            payload = {"texts": [text]}
             
             async with httpx.AsyncClient() as client:
                 response = await client.post(
@@ -317,7 +317,7 @@ class RedisShortTermMemory:
                 data = response.json()
                 
                 embeddings = data.get("embeddings", None)
-                if not isinstance(embeddings, list) or not embeddings:
+                if not embeddings or not isinstance(embeddings, list):
                     logger.error(f"Emotional embedding server returned unexpected data: {data}")
                     return None
                     

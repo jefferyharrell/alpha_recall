@@ -27,13 +27,13 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # Default embedding model
-DEFAULT_MODEL_NAME = "all-MiniLM-L6-v2"
+DEFAULT_MODEL_NAME = "all-mpnet-base-v2"
 # Default vector dimension for the model
-DEFAULT_VECTOR_SIZE = 384  # Dimension of all-MiniLM-L6-v2 embeddings
+DEFAULT_VECTOR_SIZE = 768  # Dimension of all-mpnet-base-v2 embeddings
 # Default collection name
-DEFAULT_COLLECTION_NAME = "alpha_recall_observations"
+DEFAULT_COLLECTION_NAME = "alpha_recall_observations_768d"
 # Default embedding server URL
-DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/encode"
+DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/api/v1/embeddings/semantic"
 
 
 class VectorStore(SemanticSearch):
@@ -101,12 +101,12 @@ class VectorStore(SemanticSearch):
             Embeddings as a numpy array
         """
         try:
-            # Prepare the payload
+            # Prepare the payload for new API
             if isinstance(text, str):
-                payload = {"sentences": [text]}
+                payload = {"texts": [text]}
                 is_single = True
             else:
-                payload = {"sentences": text}
+                payload = {"texts": text}
                 is_single = False
 
             # Make the HTTP request to the embedding server asynchronously
@@ -134,12 +134,12 @@ class VectorStore(SemanticSearch):
                     raise
                 logger.debug(f"Embedding server response: {data}")
 
-            # Extract embeddings from the response
+            # Extract embeddings from the response (new API format)
             embeddings = data.get("embeddings", None)
             if not isinstance(embeddings, list) or not embeddings:
                 logger.error(f"Embedding server returned unexpected data: {data}")
                 raise ValueError(f"Embedding server returned unexpected data: {data}")
-            # Convert to numpy array
+            
             if is_single:
                 return np.array(embeddings[0])
             else:

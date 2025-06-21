@@ -29,11 +29,11 @@ logger = get_logger("db_factory")
 GRAPH_DB_TYPE = os.environ.get("GRAPH_DB", "memgraph").lower()
 VECTOR_STORE_URL = os.environ.get("VECTOR_STORE_URL", "http://localhost:6333")
 VECTOR_STORE_COLLECTION = os.environ.get(
-    "VECTOR_STORE_COLLECTION", "alpha_recall_observations"
+    "VECTOR_STORE_COLLECTION", "alpha_recall_observations_768d"
 )
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "all-mpnet-base-v2")
 EMBEDDING_SERVER_URL = os.environ.get(
-    "EMBEDDING_SERVER_URL", "http://localhost:6004/encode"
+    "EMBEDDING_SERVER_URL", "http://localhost:6004/api/v1/embeddings/semantic"
 )
 
 # Redis configuration from environment
