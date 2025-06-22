@@ -511,7 +511,7 @@ class NarrativeMemory:
                 "FT.SEARCH", index_name,
                 f"*=>[KNN {limit} @{field_name} $vector AS distance]",
                 "PARAMS", "2", "vector", vector_blob,
-                "RETURN", "10", "story_id", "title", "participants", "tags", "outcome", "distance",
+                "RETURN", "6", "story_id", "title", "participants", "tags", "outcome", "distance",
                 "SORTBY", "distance", "ASC",
                 "DIALECT", "2"
             ]
