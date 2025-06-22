@@ -481,13 +481,17 @@ class NarrativeMemory:
         """Perform vector similarity search."""
         try:
             # Generate query embedding based on search type
-            if search_type == "semantic":
-                query_vector = await self._get_semantic_embedding(query)
-            elif search_type == "emotional":
-                query_vector = await self._get_emotional_embedding(query)
-            else:
-                logger.error(f"Unsupported search type: {search_type}")
-                return []
+            try:
+                if search_type == "semantic":
+                    query_vector = await self._get_semantic_embedding(query)
+                elif search_type == "emotional":
+                    query_vector = await self._get_emotional_embedding(query)
+                else:
+                    logger.error(f"Unsupported search type: {search_type}")
+                    return []
+            except Exception as e:
+                logger.error(f"Failed to generate {search_type} embedding: {str(e)}")
+                raise
             
             # Convert to binary format for Redis
             vector_blob = query_vector.tobytes()
@@ -513,7 +517,9 @@ class NarrativeMemory:
             ]
             
             # Execute search
+            logger.info(f"Executing vector search with command: {search_cmd[:4]}... (vector blob omitted)")
             result = await self.redis.execute_command(*search_cmd)
+            logger.info(f"Search result: {result}")
             
             # Parse results - Redis returns: [total_count, doc1_id, doc1_fields, doc2_id, doc2_fields, ...]
             if not result or len(result) < 2:
