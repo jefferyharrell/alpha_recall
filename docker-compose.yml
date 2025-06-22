@@ -1,0 +1,25 @@
+services:
+  alpha-recall-http:
+    build: .
+    container_name: alpha-recall-http
+    ports:
+      - "8080:8080"
+    environment:
+      - HTTP_HOST=0.0.0.0
+      - HTTP_PORT=8080
+      # These will need to be configured when we integrate with the full stack
+      - GRAPH_DB=memgraph
+      - GRAPH_DB_URI=bolt://host.docker.internal:7687
+      - VECTOR_STORE_URL=http://host.docker.internal:6333
+      - REDIS_HOST=host.docker.internal
+      - REDIS_PORT=6379
+      - MODE=advanced
+    volumes:
+      # Mount source code for hot reload during development
+      - ./src:/app/src
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
+    # Use host network mode to access services running on host
+    # Remove this when integrating with the full stack
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
