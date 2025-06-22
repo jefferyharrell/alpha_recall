@@ -415,9 +415,59 @@ class NarrativeMemory:
         emotional_dim: int
     ) -> None:
         """Create a Redis vector search index."""
-        # This would use Redis FT.CREATE command
-        # Simplified implementation - would need full Redis vector index creation
-        pass
+        try:
+            # Check if index already exists
+            try:
+                info = await self.redis.execute_command("FT.INFO", index_name)
+                logger.info(f"Vector index {index_name} already exists")
+                return
+            except Exception:
+                # Index doesn't exist, create it
+                pass
+            
+            # Build FT.CREATE command for story-level vectors
+            create_cmd = [
+                "FT.CREATE", index_name,
+                "ON", "HASH",
+                "PREFIX", "1", key_prefix,
+                "SCHEMA"
+            ]
+            
+            # Add semantic vector field (768D)
+            create_cmd.extend([
+                "full_semantic_vector", "VECTOR", "HNSW", "8",
+                "TYPE", "FLOAT32",
+                "DIM", str(semantic_dim),
+                "DISTANCE_METRIC", "COSINE",
+                "M", "16",
+                "EF_CONSTRUCTION", "200"
+            ])
+            
+            # Add emotional vector field (1024D)  
+            create_cmd.extend([
+                "full_emotional_vector", "VECTOR", "HNSW", "8", 
+                "TYPE", "FLOAT32",
+                "DIM", str(emotional_dim),
+                "DISTANCE_METRIC", "COSINE",
+                "M", "16", 
+                "EF_CONSTRUCTION", "200"
+            ])
+            
+            # Add metadata fields for filtering
+            create_cmd.extend([
+                "title", "TEXT",
+                "participants", "TAG", "SEPARATOR", ",",
+                "tags", "TAG", "SEPARATOR", ",",
+                "outcome", "TAG"
+            ])
+            
+            # Execute the command
+            await self.redis.execute_command(*create_cmd)
+            logger.info(f"Successfully created vector index: {index_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to create vector index {index_name}: {str(e)}")
+            raise
 
     async def _vector_search(
         self,
@@ -429,6 +479,107 @@ class NarrativeMemory:
         granularity: str = "story"
     ) -> List[Dict[str, Any]]:
         """Perform vector similarity search."""
-        # This would use Redis FT.SEARCH with vector similarity
-        # Simplified implementation - would need full Redis vector search
-        return []
+        try:
+            # Generate query embedding based on search type
+            if search_type == "semantic":
+                query_vector = await self._get_semantic_embedding(query)
+            elif search_type == "emotional":
+                query_vector = await self._get_emotional_embedding(query)
+            else:
+                logger.error(f"Unsupported search type: {search_type}")
+                return []
+            
+            # Convert to binary format for Redis
+            vector_blob = query_vector.tobytes()
+            
+            # For story-level search, use the appropriate vector field
+            if granularity == "story":
+                field_name = "full_semantic_vector" if search_type == "semantic" else "full_emotional_vector"
+            else:
+                # For paragraph-level search, we'd need a different approach
+                # Since we store paragraph vectors as separate fields (para_0_semantic, para_1_semantic, etc.)
+                # This is more complex and would require multiple searches or a different indexing strategy
+                logger.warning(f"Paragraph-level search not yet implemented for {search_type}")
+                return []
+            
+            # Build FT.SEARCH command with KNN
+            search_cmd = [
+                "FT.SEARCH", index_name,
+                f"*=>[KNN {limit} @{field_name} $vector AS distance]",
+                "PARAMS", "2", "vector", vector_blob,
+                "RETURN", "10", "story_id", "title", "participants", "tags", "outcome", "distance",
+                "SORTBY", "distance", "ASC",
+                "DIALECT", "2"
+            ]
+            
+            # Execute search
+            result = await self.redis.execute_command(*search_cmd)
+            
+            # Parse results - Redis returns: [total_count, doc1_id, doc1_fields, doc2_id, doc2_fields, ...]
+            if not result or len(result) < 2:
+                return []
+            
+            total_count = result[0]
+            if total_count == 0:
+                return []
+            
+            results = []
+            # Parse document results (skip total_count at index 0)
+            for i in range(1, len(result), 2):
+                if i + 1 >= len(result):
+                    break
+                    
+                doc_id = result[i]
+                doc_fields = result[i + 1]
+                
+                # Convert field list to dict
+                doc_data = {}
+                for j in range(0, len(doc_fields), 2):
+                    if j + 1 < len(doc_fields):
+                        field_name = doc_fields[j]
+                        field_value = doc_fields[j + 1]
+                        
+                        # Handle bytes conversion
+                        if isinstance(field_name, bytes):
+                            field_name = field_name.decode('utf-8')
+                        if isinstance(field_value, bytes):
+                            field_value = field_value.decode('utf-8')
+                            
+                        doc_data[field_name] = field_value
+                
+                # Parse JSON fields
+                if 'participants' in doc_data:
+                    try:
+                        doc_data['participants'] = json.loads(doc_data['participants'])
+                    except:
+                        pass
+                        
+                if 'tags' in doc_data:
+                    try:
+                        doc_data['tags'] = json.loads(doc_data['tags'])
+                    except:
+                        pass
+                
+                # Add metadata
+                doc_data['redis_key'] = doc_id
+                doc_data['search_type'] = search_type
+                doc_data['granularity'] = granularity
+                
+                # Convert distance to similarity score (Redis returns cosine distance)
+                if 'distance' in doc_data:
+                    try:
+                        distance = float(doc_data['distance'])
+                        # For cosine distance, similarity = 1 - distance (assuming normalized vectors)
+                        similarity = max(0, 1 - distance)
+                        doc_data['similarity_score'] = round(similarity, 4)
+                    except:
+                        doc_data['similarity_score'] = 0.0
+                
+                results.append(doc_data)
+            
+            logger.info(f"Vector search returned {len(results)} results for query: {query[:50]}...")
+            return results
+            
+        except Exception as e:
+            logger.error(f"Vector search failed: {str(e)}")
+            return []
