@@ -295,12 +295,13 @@ class NarrativeMemory:
             for key, value in story_data.items():
                 if isinstance(key, bytes):
                     key = key.decode('utf-8')
+                
+                # Skip vector fields entirely (they contain binary data)
+                if key.endswith('_vector') or key.startswith('para_') and ('_semantic' in key or '_emotional' in key):
+                    continue
+                
                 if isinstance(value, bytes):
-                    if key.endswith('_vector'):
-                        # Skip vectors for readability
-                        continue
-                    else:
-                        value = value.decode('utf-8')
+                    value = value.decode('utf-8')
                 
                 # Parse JSON fields
                 if key in ["participants", "tags", "paragraphs"]:

@@ -1071,6 +1071,65 @@ async def search_narratives(
         return {"success": False, "error": f"Error searching narrative memories: {str(e)}"}
 
 
+@mcp.tool(name="recall_narrative")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def recall_narrative(
+    ctx: Context,
+    story_id: str,
+) -> Dict[str, Any]:
+    """
+    Retrieve a complete narrative story by its story_id.
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        story_id: The unique story identifier (e.g., "story_1719012345_a1b2c3d4")
+    
+    Returns:
+        Dictionary containing the complete story with all paragraphs and metadata
+    """
+    logger.info(f"Recall narrative tool called: story_id='{story_id}'")
+
+    # Try to get the database connection
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    if db is None:
+        logger.error("Database connection not available")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Retrieve the complete story
+        story = await db.get_narrative(story_id)
+        
+        if story is None:
+            return {
+                "success": False,
+                "error": f"Story with ID '{story_id}' not found",
+                "story_id": story_id
+            }
+
+        return {
+            "success": True,
+            "story": story,
+            "message": f"Retrieved story '{story.get('title', 'Untitled')}' with {len(story.get('paragraphs', []))} paragraphs."
+        }
+
+    except Exception as e:
+        logger.error(f"Error retrieving narrative story: {str(e)}")
+        return {"success": False, "error": f"Error retrieving narrative story: {str(e)}", "story_id": story_id}
+
+
 async def main():
     """
     Main entry point for the MCP server.
