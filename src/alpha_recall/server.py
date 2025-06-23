@@ -932,6 +932,16 @@ async def remember_narrative(
         Dictionary containing the created story information and success status
     """
     logger.info(f"Remember narrative tool called: title='{title}', participants={participants}")
+    
+    # Fix: Parse paragraphs if it comes in as a JSON string
+    if isinstance(paragraphs, str):
+        try:
+            import json
+            paragraphs = json.loads(paragraphs)
+            logger.info(f"Parsed paragraphs from JSON string to list of {len(paragraphs)} items")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse paragraphs JSON: {e}")
+            return {"success": False, "error": f"Invalid paragraphs format: {e}"}
 
     # Try to get the database connection from various places
     db = None
