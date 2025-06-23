@@ -32,10 +32,8 @@ VECTOR_STORE_URL = os.environ.get("VECTOR_STORE_URL", "http://localhost:6333")
 VECTOR_STORE_COLLECTION = os.environ.get(
     "VECTOR_STORE_COLLECTION", "alpha_recall_observations_768d"
 )
-EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "all-mpnet-base-v2")
-EMBEDDING_SERVER_URL = os.environ.get(
-    "EMBEDDING_SERVER_URL", "http://localhost:6004/api/v1/embeddings/semantic"
-)
+EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-mpnet-base-v2")
+EMOTIONAL_EMBEDDING_MODEL = os.environ.get("EMOTIONAL_EMBEDDING_MODEL", "j-hartmann/emotion-english-distilroberta-base")
 
 # Redis configuration from environment
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
@@ -43,11 +41,6 @@ REDIS_PORT = int(os.environ.get("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", None)
 REDIS_DB = int(os.environ.get("REDIS_DB", 0))
 REDIS_TTL = int(os.environ.get("REDIS_TTL", 259200))  # Default: 72 hours
-
-# Narrative memory configuration
-EMOTIONAL_EMBEDDING_URL = os.environ.get(
-    "EMOTIONAL_EMBEDDING_URL", "http://localhost:6004/api/v1/embeddings/emotion"
-)
 
 
 async def create_graph_db() -> GraphDatabase:
@@ -83,12 +76,10 @@ def create_vector_store() -> SemanticSearch:
         SemanticSearch instance
     """
     logger.info(f"Creating vector store with URL: {VECTOR_STORE_URL}")
-    logger.info(f"Using embedding server URL: {EMBEDDING_SERVER_URL}")
     return VectorStore(
         qdrant_url=VECTOR_STORE_URL,
         collection_name=VECTOR_STORE_COLLECTION,
         model_name=EMBEDDING_MODEL,
-        embedding_server_url=EMBEDDING_SERVER_URL,
     )
 
 
@@ -109,6 +100,8 @@ async def create_shortterm_memory() -> Optional[RedisShortTermMemory]:
             password=REDIS_PASSWORD if REDIS_PASSWORD else None,
             db=REDIS_DB,
             ttl=REDIS_TTL,
+            embedding_model=EMBEDDING_MODEL,
+            emotional_embedding_model=EMOTIONAL_EMBEDDING_MODEL,
         )
 
         # Connect to Redis
@@ -148,8 +141,8 @@ async def create_narrative_memory(
         return NarrativeMemory(
             redis_client=shortterm_memory.client,
             graph_db=graph_db,
-            embedding_server_url=EMBEDDING_SERVER_URL,
-            emotional_embedding_url=EMOTIONAL_EMBEDDING_URL,
+            embedding_model=EMBEDDING_MODEL,
+            emotional_embedding_model=EMOTIONAL_EMBEDDING_MODEL,
         )
     except Exception as e:
         logger.error(f"Error creating narrative memory: {str(e)}")

@@ -12,9 +12,9 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Union
 
-import httpx
 import numpy as np
 import redis.asyncio as redis
+from sentence_transformers import SentenceTransformer
 
 from alpha_recall.logging_utils import get_logger
 
@@ -25,12 +25,10 @@ DEFAULT_TEST_TTL = 120  # 2 minutes for testing
 DEFAULT_PROD_TTL = 259200  # 72 hours (3 days) for production
 
 # Default embedding configuration
-DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/api/v1/embeddings/semantic"
-DEFAULT_EMBEDDING_MODEL = "all-mpnet-base-v2"
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 DEFAULT_VECTOR_SIZE = 768  # Dimension of all-mpnet-base-v2 embeddings
 
 # Default emotional embedding configuration
-DEFAULT_EMOTIONAL_EMBEDDING_URL = "http://localhost:6004/api/v1/embeddings/emotion"
 DEFAULT_EMOTIONAL_EMBEDDING_MODEL = "j-hartmann/emotion-english-distilroberta-base"
 DEFAULT_EMOTIONAL_VECTOR_SIZE = 1024  # Dimension of emotion embeddings
 
@@ -51,9 +49,7 @@ class RedisShortTermMemory:
         db: int = 0,
         ttl: int = DEFAULT_PROD_TTL,
         key_prefix: str = "alpha:stm:",
-        embedding_server_url: Optional[str] = None,
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
-        emotional_embedding_url: Optional[str] = None,
         emotional_embedding_model: str = DEFAULT_EMOTIONAL_EMBEDDING_MODEL,
     ):
         """
@@ -66,9 +62,7 @@ class RedisShortTermMemory:
             db: Redis database number
             ttl: Time-to-live in seconds for stored memories
             key_prefix: Prefix for Redis keys
-            embedding_server_url: URL of the embedding server API
             embedding_model: Name of the embedding model to use
-            emotional_embedding_url: URL of the emotional embedding server API
             emotional_embedding_model: Name of the emotional embedding model to use
         """
         self.host = host
@@ -80,18 +74,19 @@ class RedisShortTermMemory:
         self.client = None
         
         # Embedding configuration
-        self.embedding_server_url = embedding_server_url or os.environ.get(
-            "EMBEDDING_SERVER_URL", DEFAULT_EMBEDDING_SERVER_URL
-        )
         self.embedding_model = embedding_model
         self.vector_size = DEFAULT_VECTOR_SIZE
         
         # Emotional embedding configuration
-        self.emotional_embedding_url = emotional_embedding_url or os.environ.get(
-            "EMOTIONAL_EMBEDDING_URL", DEFAULT_EMOTIONAL_EMBEDDING_URL
-        )
         self.emotional_embedding_model = emotional_embedding_model
         self.emotional_vector_size = DEFAULT_EMOTIONAL_VECTOR_SIZE
+        
+        # Initialize embedding models
+        logger.info(f"Loading semantic embedding model: {self.embedding_model}")
+        self.semantic_model = SentenceTransformer(self.embedding_model)
+        
+        logger.info(f"Loading emotional embedding model: {self.emotional_embedding_model}")
+        self.emotional_model = SentenceTransformer(self.emotional_embedding_model)
         
         self._index_created = False
         self._emotional_index_created = False
@@ -260,7 +255,7 @@ class RedisShortTermMemory:
             
     async def _embed_text(self, text: str) -> Optional[np.ndarray]:
         """
-        Generate embeddings for the given text using the HTTP embedding server.
+        Generate embeddings for the given text using sentence-transformers.
         
         Args:
             text: Text to embed
@@ -269,32 +264,15 @@ class RedisShortTermMemory:
             Embeddings as a numpy array or None if embedding fails
         """
         try:
-            payload = {"texts": [text]}
-            
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.embedding_server_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10.0,
-                )
-                
-                response.raise_for_status()
-                data = response.json()
-                
-                embeddings = data.get("embeddings", None)
-                if not embeddings or not isinstance(embeddings, list):
-                    logger.error(f"Embedding server returned unexpected data: {data}")
-                    return None
-                    
-                return np.array(embeddings[0], dtype=np.float32)
+            embedding = self.semantic_model.encode(text)
+            return np.array(embedding, dtype=np.float32)
         except Exception as e:
             logger.warning(f"Failed to generate embedding: {str(e)}")
             return None
 
     async def _embed_text_emotional(self, text: str) -> Optional[np.ndarray]:
         """
-        Generate emotional embeddings for the given text using the HTTP emotional embedding server.
+        Generate emotional embeddings for the given text using sentence-transformers.
         
         Args:
             text: Text to embed emotionally
@@ -303,25 +281,8 @@ class RedisShortTermMemory:
             Emotional embeddings as a numpy array or None if embedding fails
         """
         try:
-            payload = {"texts": [text]}
-            
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.emotional_embedding_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                    timeout=10.0,
-                )
-                
-                response.raise_for_status()
-                data = response.json()
-                
-                embeddings = data.get("embeddings", None)
-                if not embeddings or not isinstance(embeddings, list):
-                    logger.error(f"Emotional embedding server returned unexpected data: {data}")
-                    return None
-                    
-                return np.array(embeddings[0], dtype=np.float32)
+            embedding = self.emotional_model.encode(text)
+            return np.array(embedding, dtype=np.float32)
         except Exception as e:
             logger.warning(f"Failed to generate emotional embedding: {str(e)}")
             return None

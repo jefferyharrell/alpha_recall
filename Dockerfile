@@ -1,5 +1,5 @@
 # Use Python 3.11 slim image
-FROM python:3.11-slim
+FROM python:3.11-slim AS base
 
 # Set working directory
 WORKDIR /app
@@ -16,9 +16,8 @@ RUN apt-get update && apt-get install -y \
 # Install uv for fast Python package management
 RUN pip install uv
 
-# Copy project files
+# Copy dependency files
 COPY pyproject.toml uv.lock ./
-COPY src/ ./src/
 
 # Install dependencies using uv
 RUN uv sync --frozen
@@ -30,5 +29,13 @@ ENV PYTHONPATH=/app/src
 # Expose the HTTP port
 EXPOSE 8080
 
-# Run the HTTP server
+# Production stage (default)
+FROM base AS production
+COPY src/ ./src/
+CMD ["uv", "run", "python", "-m", "alpha_recall.http_server"]
+
+# Development stage (for bind mounting source code)
+FROM base AS dev
+# Don't copy source code - it will be bind mounted
+# Just wait for the source to be mounted and then start
 CMD ["uv", "run", "python", "-m", "alpha_recall.http_server"]

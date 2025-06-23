@@ -11,9 +11,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
-import httpx
 import numpy as np
 import redis.asyncio as redis
+from sentence_transformers import SentenceTransformer
 
 from alpha_recall.logging_utils import get_logger
 
@@ -65,8 +65,8 @@ class NarrativeMemory:
         self,
         redis_client: redis.Redis,
         graph_db,
-        embedding_server_url: str,
-        emotional_embedding_url: str,
+        embedding_model: str = "sentence-transformers/all-mpnet-base-v2",
+        emotional_embedding_model: str = "j-hartmann/emotion-english-distilroberta-base",
         key_prefix: str = DEFAULT_NARRATIVE_KEY_PREFIX,
     ):
         """
@@ -75,15 +75,21 @@ class NarrativeMemory:
         Args:
             redis_client: Connected Redis client
             graph_db: Connected graph database (Memgraph/Neo4j)
-            embedding_server_url: URL for semantic embeddings (768D)
-            emotional_embedding_url: URL for emotional embeddings (1024D)
+            embedding_model: Semantic embedding model name (768D)
+            emotional_embedding_model: Emotional embedding model name (1024D)
             key_prefix: Redis key prefix for narrative stories
         """
         self.redis = redis_client
         self.graph_db = graph_db
-        self.embedding_server_url = embedding_server_url
-        self.emotional_embedding_url = emotional_embedding_url
         self.key_prefix = key_prefix
+        
+        # Initialize embedding models
+        logger.info(f"Loading semantic embedding model: {embedding_model}")
+        self.semantic_model = SentenceTransformer(embedding_model)
+        
+        logger.info(f"Loading emotional embedding model: {emotional_embedding_model}")
+        self.emotional_model = SentenceTransformer(emotional_embedding_model)
+        
         self._story_index_created = False
         self._paragraph_index_created = False
 
@@ -317,29 +323,13 @@ class NarrativeMemory:
 
     async def _get_semantic_embedding(self, text: str) -> np.ndarray:
         """Get 768D semantic embedding for text."""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self.embedding_server_url,
-                json={"texts": [text]},
-                timeout=30.0
-            )
-            response.raise_for_status()
-            data = response.json()
-            # Extract the first (and only) embedding from the response
-            return np.array(data["embeddings"][0], dtype=np.float32)
+        embedding = self.semantic_model.encode(text)
+        return np.array(embedding, dtype=np.float32)
 
     async def _get_emotional_embedding(self, text: str) -> np.ndarray:
         """Get 1024D emotional embedding for text."""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self.emotional_embedding_url,
-                json={"texts": [text]},
-                timeout=30.0
-            )
-            response.raise_for_status()
-            data = response.json()
-            # Extract the first (and only) embedding from the response
-            return np.array(data["embeddings"][0], dtype=np.float32)
+        embedding = self.emotional_model.encode(text)
+        return np.array(embedding, dtype=np.float32)
 
     async def _create_story_node(
         self,

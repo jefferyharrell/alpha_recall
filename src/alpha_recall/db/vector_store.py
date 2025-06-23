@@ -12,11 +12,11 @@ import logging
 import os
 from typing import Dict, List, Optional, Tuple, Union
 
-import httpx
 import numpy as np
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from sentence_transformers import SentenceTransformer
 
 from alpha_recall.db.semantic_search import SemanticSearch
 from alpha_recall.logging_utils import get_logger
@@ -27,13 +27,11 @@ load_dotenv()
 logger = get_logger(__name__)
 
 # Default embedding model
-DEFAULT_MODEL_NAME = "all-mpnet-base-v2"
+DEFAULT_MODEL_NAME = "sentence-transformers/all-mpnet-base-v2"
 # Default vector dimension for the model
 DEFAULT_VECTOR_SIZE = 768  # Dimension of all-mpnet-base-v2 embeddings
 # Default collection name
 DEFAULT_COLLECTION_NAME = "alpha_recall_observations_768d"
-# Default embedding server URL
-DEFAULT_EMBEDDING_SERVER_URL = "http://localhost:6004/api/v1/embeddings/semantic"
 
 
 class VectorStore(SemanticSearch):
@@ -47,7 +45,6 @@ class VectorStore(SemanticSearch):
         qdrant_url: str = "http://localhost:6333",
         collection_name: str = DEFAULT_COLLECTION_NAME,
         model_name: str = DEFAULT_MODEL_NAME,
-        embedding_server_url: str = None,
     ):
         """
         Initialize the vector store.
@@ -56,16 +53,14 @@ class VectorStore(SemanticSearch):
             qdrant_url: URL of the Qdrant server
             collection_name: Name of the collection to use
             model_name: Name of the sentence-transformers model to use
-            embedding_server_url: URL of the embedding server API
         """
         self.qdrant_url = qdrant_url
         self.collection_name = collection_name
         self.model_name = model_name
 
-        # Get embedding server URL from env or use default
-        self.embedding_server_url = embedding_server_url or os.environ.get(
-            "EMBEDDING_SERVER_URL", DEFAULT_EMBEDDING_SERVER_URL
-        )
+        # Initialize sentence-transformers model
+        logger.info(f"Loading embedding model: {self.model_name}")
+        self.embedding_model = SentenceTransformer(self.model_name)
 
         # Initialize Qdrant client
         self.client = QdrantClient(url=qdrant_url)
@@ -73,7 +68,7 @@ class VectorStore(SemanticSearch):
         # Set vector size
         self.vector_size = DEFAULT_VECTOR_SIZE
 
-        logger.info(f"Using embedding server: {self.embedding_server_url}")
+        logger.info(f"Vector store initialized with model: {self.model_name}")
 
         # Ensure collection exists
         self._ensure_collection_exists()
@@ -92,7 +87,7 @@ class VectorStore(SemanticSearch):
 
     async def embed_text(self, text: Union[str, List[str]]) -> np.ndarray:
         """
-        Generate embeddings for the given text using the HTTP embedding server.
+        Generate embeddings for the given text using sentence-transformers.
 
         Args:
             text: Text to embed, can be a single string or a list of strings
@@ -101,49 +96,9 @@ class VectorStore(SemanticSearch):
             Embeddings as a numpy array
         """
         try:
-            # Prepare the payload for new API
-            if isinstance(text, str):
-                payload = {"texts": [text]}
-                is_single = True
-            else:
-                payload = {"texts": text}
-                is_single = False
-
-            # Make the HTTP request to the embedding server asynchronously
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self.embedding_server_url,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
-                )
-
-                # Check if the request was successful
-                try:
-                    response.raise_for_status()
-                except Exception as e:
-                    logger.error(f"Embedding server returned error: {response.text}")
-                    raise
-
-                # Parse the response
-                try:
-                    data = response.json()
-                except Exception as e:
-                    logger.error(
-                        f"Failed to parse embedding server response as JSON: {response.text}"
-                    )
-                    raise
-                logger.debug(f"Embedding server response: {data}")
-
-            # Extract embeddings from the response (new API format)
-            embeddings = data.get("embeddings", None)
-            if not isinstance(embeddings, list) or not embeddings:
-                logger.error(f"Embedding server returned unexpected data: {data}")
-                raise ValueError(f"Embedding server returned unexpected data: {data}")
-            
-            if is_single:
-                return np.array(embeddings[0])
-            else:
-                return np.array(embeddings)
+            # Use sentence-transformers to generate embeddings
+            embeddings = self.embedding_model.encode(text)
+            return np.array(embeddings)
         except Exception as e:
             logger.error(f"Error generating embeddings: {e}")
             raise
