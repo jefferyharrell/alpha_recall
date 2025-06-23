@@ -933,15 +933,40 @@ async def remember_narrative(
     """
     logger.info(f"Remember narrative tool called: title='{title}', participants={participants}")
     
-    # Fix: Parse paragraphs if it comes in as a JSON string
+    # Fix: Parse JSON string parameters if they come in as strings
+    import json
+    
     if isinstance(paragraphs, str):
         try:
-            import json
             paragraphs = json.loads(paragraphs)
             logger.info(f"Parsed paragraphs from JSON string to list of {len(paragraphs)} items")
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse paragraphs JSON: {e}")
             return {"success": False, "error": f"Invalid paragraphs format: {e}"}
+    
+    if isinstance(participants, str):
+        try:
+            participants = json.loads(participants)
+            logger.info(f"Parsed participants from JSON string to list of {len(participants)} items")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse participants JSON: {e}")
+            return {"success": False, "error": f"Invalid participants format: {e}"}
+    
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags)
+            logger.info(f"Parsed tags from JSON string to list of {len(tags)} items")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse tags JSON: {e}")
+            return {"success": False, "error": f"Invalid tags format: {e}"}
+    
+    if isinstance(references, str):
+        try:
+            references = json.loads(references)
+            logger.info(f"Parsed references from JSON string to list of {len(references)} items")
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse references JSON: {e}")
+            return {"success": False, "error": f"Invalid references format: {e}"}
 
     # Try to get the database connection from various places
     db = None
