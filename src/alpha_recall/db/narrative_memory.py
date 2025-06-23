@@ -221,6 +221,8 @@ class NarrativeMemory:
             List of matching stories/paragraphs with similarity scores
         """
         try:
+            # Ensure limit is an integer (in case it comes as string from HTTP/MCP)
+            limit = int(limit)
             results = []
             
             if search_type in ["semantic", "both"]:
@@ -540,7 +542,15 @@ class NarrativeMemory:
                         if isinstance(field_name, bytes):
                             field_name = field_name.decode('utf-8')
                         if isinstance(field_value, bytes):
-                            field_value = field_value.decode('utf-8')
+                            # Skip vector fields entirely (they contain binary data)
+                            if 'vector' in field_name.lower():
+                                continue
+                            try:
+                                field_value = field_value.decode('utf-8')
+                            except UnicodeDecodeError:
+                                # Skip fields that can't be decoded (binary vector data)
+                                logger.debug(f"Skipping binary field: {field_name}")
+                                continue
                             
                         doc_data[field_name] = field_value
                 
@@ -572,7 +582,15 @@ class NarrativeMemory:
                     except:
                         doc_data['similarity_score'] = 0.0
                 
-                results.append(doc_data)
+                # Final check: remove any remaining bytes objects
+                clean_data = {}
+                for k, v in doc_data.items():
+                    if isinstance(v, bytes):
+                        logger.debug(f"Skipping bytes field: {k}")
+                        continue
+                    clean_data[k] = v
+                
+                results.append(clean_data)
             
             logger.info(f"Vector search returned {len(results)} results for query: {query[:50]}...")
             return results
