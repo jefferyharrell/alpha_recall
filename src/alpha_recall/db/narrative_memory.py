@@ -323,6 +323,172 @@ class NarrativeMemory:
             logger.error(f"Failed to retrieve story {story_id}: {str(e)}")
             return None
 
+    async def list_stories(
+        self,
+        limit: int = 10,
+        offset: int = 0,
+        since: Optional[str] = None,
+        participants: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
+        outcome: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        List narrative stories chronologically with optional filtering.
+
+        Args:
+            limit: Maximum number of stories to return
+            offset: Number of stories to skip (for pagination)
+            since: Time window filter (e.g., "2d", "1w", "1m")
+            participants: Filter by participants (AND logic)
+            tags: Filter by tags (AND logic)
+            outcome: Filter by outcome type
+
+        Returns:
+            Dictionary with stories list and pagination info
+        """
+        try:
+            # Get all narrative keys from Redis
+            pattern = f"{self.key_prefix}*"
+            keys = []
+            
+            # Use SCAN to get all keys matching the pattern
+            cursor = 0
+            while True:
+                cursor, batch = await self.redis.scan(cursor, match=pattern, count=100)
+                keys.extend(batch)
+                if cursor == 0:
+                    break
+            
+            if not keys:
+                return {
+                    "stories": [],
+                    "total_count": 0,
+                    "returned_count": 0,
+                    "offset": offset,
+                    "limit": limit,
+                    "has_more": False
+                }
+            
+            # Get metadata for all stories
+            stories_metadata = []
+            for key in keys:
+                if isinstance(key, bytes):
+                    key = key.decode('utf-8')
+                
+                try:
+                    # Get only the metadata fields we need (not the full story or vectors)
+                    story_data = await self.redis.hmget(
+                        key,
+                        "story_id", "title", "created_at", "participants", 
+                        "tags", "outcome", "paragraph_count"
+                    )
+                    
+                    if story_data and story_data[0]:  # Check if story_id exists
+                        metadata = {}
+                        field_names = ["story_id", "title", "created_at", "participants", "tags", "outcome", "paragraph_count"]
+                        
+                        for i, field_name in enumerate(field_names):
+                            value = story_data[i]
+                            if value is not None:
+                                if isinstance(value, bytes):
+                                    value = value.decode('utf-8')
+                                
+                                # Parse JSON fields
+                                if field_name in ["participants", "tags"]:
+                                    try:
+                                        metadata[field_name] = json.loads(value)
+                                    except:
+                                        metadata[field_name] = []
+                                else:
+                                    metadata[field_name] = value
+                            else:
+                                metadata[field_name] = [] if field_name in ["participants", "tags"] else None
+                        
+                        stories_metadata.append(metadata)
+                        
+                except Exception as e:
+                    logger.warning(f"Failed to get metadata for {key}: {str(e)}")
+                    continue
+            
+            # Apply filters
+            filtered_stories = []
+            for story in stories_metadata:
+                # Time filter
+                if since and story.get("created_at"):
+                    try:
+                        # Parse time filter (simple implementation)
+                        from datetime import datetime, timezone, timedelta
+                        
+                        story_time = datetime.fromisoformat(story["created_at"].replace('Z', '+00:00'))
+                        current_time = datetime.now(timezone.utc)
+                        
+                        # Parse since parameter (e.g., "2d", "1w", "1m")
+                        if since.endswith('d'):
+                            delta = timedelta(days=int(since[:-1]))
+                        elif since.endswith('w'):
+                            delta = timedelta(weeks=int(since[:-1]))
+                        elif since.endswith('m'):
+                            delta = timedelta(days=int(since[:-1]) * 30)  # Approximate month
+                        elif since.endswith('h'):
+                            delta = timedelta(hours=int(since[:-1]))
+                        else:
+                            delta = timedelta(days=1)  # Default to 1 day
+                        
+                        if story_time < current_time - delta:
+                            continue
+                    except Exception as e:
+                        logger.warning(f"Failed to parse time filter: {str(e)}")
+                        continue
+                
+                # Participants filter (AND logic)
+                if participants:
+                    story_participants = story.get("participants", [])
+                    if not all(p in story_participants for p in participants):
+                        continue
+                
+                # Tags filter (AND logic)
+                if tags:
+                    story_tags = story.get("tags", [])
+                    if not all(t in story_tags for t in tags):
+                        continue
+                
+                # Outcome filter
+                if outcome and story.get("outcome") != outcome:
+                    continue
+                
+                filtered_stories.append(story)
+            
+            # Sort by created_at descending (most recent first)
+            filtered_stories.sort(
+                key=lambda x: x.get("created_at", ""), 
+                reverse=True
+            )
+            
+            # Apply pagination
+            total_count = len(filtered_stories)
+            paginated_stories = filtered_stories[offset:offset + limit]
+            
+            return {
+                "stories": paginated_stories,
+                "total_count": total_count,
+                "returned_count": len(paginated_stories),
+                "offset": offset,
+                "limit": limit,
+                "has_more": offset + len(paginated_stories) < total_count
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to list stories: {str(e)}")
+            return {
+                "stories": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "offset": offset,
+                "limit": limit,
+                "has_more": False,
+                "error": str(e)
+            }
+
     async def _get_semantic_embedding(self, text: str) -> np.ndarray:
         """Get 768D semantic embedding for text."""
         embedding = self.semantic_model.encode(text)

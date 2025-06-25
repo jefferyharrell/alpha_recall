@@ -541,3 +541,52 @@ class CompositeDatabase:
         except Exception as e:
             logger.error(f"Failed to retrieve narrative {story_id}: {str(e)}")
             return None
+
+    async def list_narratives(
+        self,
+        limit: int = 10,
+        offset: int = 0,
+        since: Optional[str] = None,
+        participants: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
+        outcome: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        List narrative stories chronologically with optional filtering.
+
+        Args:
+            limit: Maximum number of stories to return
+            offset: Number of stories to skip (for pagination)  
+            since: Time window filter (e.g., "2d", "1w", "1m")
+            participants: Filter by participants (AND logic)
+            tags: Filter by tags (AND logic)
+            outcome: Filter by outcome type
+
+        Returns:
+            Dictionary with stories list and pagination info
+        """
+        if not self.narrative_memory:
+            return {
+                "stories": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "error": "Narrative memory not available"
+            }
+
+        try:
+            return await self.narrative_memory.list_stories(
+                limit=limit,
+                offset=offset,
+                since=since,
+                participants=participants,
+                tags=tags,
+                outcome=outcome
+            )
+        except Exception as e:
+            logger.error(f"Failed to list narratives: {str(e)}")
+            return {
+                "stories": [],
+                "total_count": 0,
+                "returned_count": 0,
+                "error": str(e)
+            }

@@ -1165,6 +1165,124 @@ async def recall_narrative(
         return {"success": False, "error": f"Error retrieving narrative story: {str(e)}", "story_id": story_id}
 
 
+@mcp.tool(name="list_narratives")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def list_narratives(
+    ctx: Context,
+    limit: int = 10,
+    offset: int = 0,
+    since: str = None,
+    participants: list = None,
+    tags: list = None,
+    outcome: str = None,
+) -> Dict[str, Any]:
+    """
+    List narrative stories chronologically with optional filtering.
+    
+    This tool provides browsing functionality for narrative memories, allowing you to:
+    - Browse stories chronologically (most recent first)
+    - Filter by time window (e.g., "2d", "1w", "1m")
+    - Filter by participants, tags, or outcome
+    - Paginate through large result sets
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        limit: Maximum number of stories to return (default: 10)
+        offset: Number of stories to skip for pagination (default: 0)
+        since: Time window filter (e.g., "2d", "1w", "1m", "6h") (optional)
+        participants: Filter by participants list (AND logic) (optional)
+        tags: Filter by tags list (AND logic) (optional)
+        outcome: Filter by outcome ("breakthrough", "resolution", "ongoing", "blocked") (optional)
+
+    Returns:
+        Dictionary containing:
+        - stories: List of story metadata (title, story_id, created_at, participants, tags, outcome)
+        - total_count: Total number of stories matching filters
+        - returned_count: Number of stories in this response
+        - offset: Current pagination offset
+        - limit: Requested limit
+        - has_more: Whether there are more stories available
+    """
+    logger.info(f"List narratives tool called: limit={limit}, offset={offset}, since={since}")
+
+    # Try to get the database connection
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    if not db:
+        logger.error("Database connection not available")
+        return {
+            "success": False,
+            "error": "Database connection not available",
+            "stories": [],
+            "total_count": 0,
+            "returned_count": 0
+        }
+
+    try:
+        # Call the database method
+        result = await db.list_narratives(
+            limit=limit,
+            offset=offset,
+            since=since,
+            participants=participants,
+            tags=tags,
+            outcome=outcome
+        )
+
+        # Add success status to the result
+        result["success"] = True
+        
+        # Create a human-readable summary
+        filter_parts = []
+        if since:
+            filter_parts.append(f"since {since}")
+        if participants:
+            filter_parts.append(f"involving {', '.join(participants)}")
+        if tags:
+            filter_parts.append(f"tagged with {', '.join(tags)}")
+        if outcome:
+            filter_parts.append(f"with outcome '{outcome}'")
+        
+        filter_desc = f" ({', '.join(filter_parts)})" if filter_parts else ""
+        
+        if "error" in result:
+            result["message"] = f"Failed to list narratives{filter_desc}: {result['error']}"
+        else:
+            result["message"] = (
+                f"Found {result['total_count']} narrative stories{filter_desc}. "
+                f"Returning {result['returned_count']} stories "
+                f"(offset {offset}, limit {limit})"
+                f"{' - More available' if result.get('has_more') else ''}"
+            )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error listing narrative stories: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error listing narrative stories: {str(e)}",
+            "stories": [],
+            "total_count": 0,
+            "returned_count": 0,
+            "offset": offset,
+            "limit": limit,
+            "has_more": False
+        }
+
+
 async def main():
     """
     Main entry point for the MCP server.

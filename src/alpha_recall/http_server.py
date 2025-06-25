@@ -23,6 +23,7 @@ from sse_starlette.sse import EventSourceResponse
 from alpha_recall.db import create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.server import (
+    list_narratives,
     recall,
     recall_narrative,
     recency_search,
@@ -137,11 +138,15 @@ TOOL_REGISTRY = {
     "remember_narrative": remember_narrative,
     "search_narratives": search_narratives,
     "recall_narrative": recall_narrative,
+    "list_narratives": list_narratives,
 }
 
 # Add advanced tools if mode is set
 if os.environ.get("MODE", "").lower() == "advanced":
     TOOL_REGISTRY["recency_search"] = recency_search
+
+# Log registered tools for debugging
+logger.info(f"Registered MCP tools: {list(TOOL_REGISTRY.keys())}")
 
 
 @app.get("/health")
