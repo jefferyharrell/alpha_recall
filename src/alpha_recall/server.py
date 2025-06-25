@@ -686,6 +686,146 @@ async def refresh(ctx: Context, query: str) -> Dict[str, Any]:
         return {"error": f"Error in refresh: {str(e)}", "success": False}
 
 
+@mcp.tool(name="gentle_refresh")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Simplified refresh function focused on temporal orientation rather than semantic search.
+    
+    Designed to solve memory orientation problems by providing:
+    1. Current time information for temporal grounding
+    2. Core identity observations (natural language facts, not relationship triples)
+    3. 10 most recent short-term memories for contextual orientation
+    4. 5 most recent observations for slow-changing facts
+    
+    Eliminates cognitive overload from semantic search and prioritizes temporal
+    orientation over semantic relevance.
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        query: Optional query parameter (accepted for compatibility but ignored)
+        
+    Returns:
+        Dictionary containing:
+        - time: Current time information
+        - core_identity: Essential identity observations (observations only, no relationships)
+        - shortterm_memories: 10 most recent short-term memories
+        - recent_observations: 5 most recent observations
+    """
+    logger.info("Gentle refresh tool called")
+    
+    # Try to get the database connection from various places
+    db = None
+    
+    # Method 1: Try to get from lifespan_context
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    # Method 2: Try to get directly from context
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    # Method 3: Try to get from the MCP server
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+    
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available for gentle_refresh")
+        return {"error": "Database connection not available", "success": False}
+    
+    try:
+        # Initialize response structure
+        response = {"success": True}
+        
+        # Get current time for temporal orientation
+        response["time"] = await _get_time()
+        
+        # Core identity: Get observations only (no relationship triples)
+        core_identity_node = os.environ.get("CORE_IDENTITY_NODE", "Alpha")
+        logger.info(f"Loading core identity: {core_identity_node}")
+        
+        core_identity = await db.get_entity(core_identity_node, depth=1)
+        
+        if core_identity:
+            # Only include observations, skip relationships to avoid analysis mode
+            core_identity_filtered = {
+                "name": core_identity.get("name") if isinstance(core_identity, dict) else core_identity.name,
+                "updated_at": core_identity.get("updated_at") if isinstance(core_identity, dict) else core_identity.updated_at,
+                "observations": core_identity.get("observations") if isinstance(core_identity, dict) else core_identity.observations,
+                # Deliberately exclude relationships to focus on identity facts
+            }
+            response["core_identity"] = core_identity_filtered
+        else:
+            logger.warning(f"Core identity node '{core_identity_node}' not found")
+        
+        # Short-term memories: Get 10 most recent for temporal orientation
+        shortterm_memories = []
+        if hasattr(db, "get_shortterm_memories"):
+            try:
+                shortterm_limit = 10  # Increased from 5 for better temporal context
+                logger.info(f"Retrieving {shortterm_limit} recent short-term memories")
+                shortterm_memories = await db.get_shortterm_memories(limit=shortterm_limit)
+                logger.info(f"Retrieved {len(shortterm_memories)} short-term memories")
+                
+                # Filter short-term memories to essential fields
+                filtered_shortterm = [
+                    {
+                        "content": memory.get("content"),
+                        "created_at": memory.get("created_at"),
+                        "client": memory.get("client", {}),
+                    }
+                    for memory in shortterm_memories
+                ]
+                
+                response["shortterm_memories"] = filtered_shortterm
+            except Exception as e:
+                logger.error(f"Error retrieving short-term memories during gentle_refresh: {str(e)}")
+                # Continue with other retrievals even if short-term memory fails
+        else:
+            logger.info("Short-term memory retrieval not supported in the database")
+        
+        # Recent observations: Get 5 most recent for slow-changing facts
+        recent_observations = []
+        if hasattr(db, "recency_search"):
+            try:
+                recent_limit = 5
+                logger.info(f"Retrieving {recent_limit} most recent observations")
+                recent_observations = await db.recency_search(limit=recent_limit)
+                logger.info(f"Retrieved {len(recent_observations)} recent observations")
+                
+                # Filter to essential fields
+                filtered_recent = [
+                    {
+                        "created_at": obs.get("created_at"),
+                        "entity_name": (
+                            obs.get("entity_name")
+                            if "entity_name" in obs
+                            else obs.get("entity") if "entity" in obs else None
+                        ),
+                        "content": obs.get("content"),
+                    }
+                    for obs in recent_observations
+                ]
+                response["recent_observations"] = filtered_recent
+            except Exception as e:
+                logger.error(f"Error retrieving recent observations during gentle_refresh: {str(e)}")
+                response["recent_observations"] = []
+        else:
+            logger.info("recency_search not available in database")
+            response["recent_observations"] = []
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in gentle_refresh: {str(e)}")
+        return {"error": f"Error in gentle_refresh: {str(e)}", "success": False}
+
+
 @mcp.tool(name="remember")
 @async_retry(
     max_retries=3,

@@ -13,6 +13,7 @@ from mcp.server.fastmcp import FastMCP
 from alpha_recall.db import create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.server import (
+    gentle_refresh as server_gentle_refresh,
     list_narratives,
     recall,
     recall_narrative,
@@ -55,7 +56,7 @@ def create_server():
     # Enable stateless HTTP for both SSE and streamable-http
     mcp = FastMCP("alpha-recall", stateless_http=True)
     
-    @mcp.tool()
+    @mcp.tool(name="recall")
     async def mcp_recall(
         query: Optional[str] = None,
         entity: Optional[str] = None, 
@@ -67,7 +68,7 @@ def create_server():
         ctx = await get_db_context()
         return await recall(ctx, query, entity, depth, shortterm, through_the_last)
     
-    @mcp.tool()
+    @mcp.tool(name="refresh")
     async def mcp_refresh(query: Optional[str] = None) -> Dict[str, Any]:
         """Enhanced bootstrap process for loading core identity and relevant memories."""
         ctx = await get_db_context()
@@ -75,7 +76,7 @@ def create_server():
         query = query or ""
         return await refresh(ctx, query)
     
-    @mcp.tool()
+    @mcp.tool(name="remember")
     async def mcp_remember(
         entity: str,
         type: Optional[str] = None,
@@ -85,19 +86,19 @@ def create_server():
         ctx = await get_db_context()
         return await remember(ctx, entity, type, observation)
     
-    @mcp.tool()
+    @mcp.tool(name="remember_shortterm")
     async def mcp_remember_shortterm(content: str) -> Dict[str, Any]:
         """Store a short-term memory with automatic TTL expiration."""
         ctx = await get_db_context()
         return await remember_shortterm(ctx, content)
     
-    @mcp.tool()
+    @mcp.tool(name="relate")
     async def mcp_relate(entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
         """Create a relationship between two entities in the knowledge graph."""
         ctx = await get_db_context()
         return await relate(ctx, entity, to_entity, as_type)
     
-    @mcp.tool()
+    @mcp.tool(name="semantic_search")
     async def mcp_semantic_search(
         query: str,
         limit: int = 10,
@@ -107,7 +108,7 @@ def create_server():
         ctx = await get_db_context()
         return await semantic_search(ctx, query, limit, entity)
     
-    @mcp.tool()
+    @mcp.tool(name="remember_narrative")
     async def mcp_remember_narrative(
         title: str,
         paragraphs: list[str],
@@ -120,7 +121,7 @@ def create_server():
         ctx = await get_db_context()
         return await remember_narrative(ctx, title, paragraphs, participants, tags, outcome, references)
     
-    @mcp.tool()
+    @mcp.tool(name="search_narratives")
     async def mcp_search_narratives(
         query: str,
         search_type: str = "semantic",
@@ -131,13 +132,13 @@ def create_server():
         ctx = await get_db_context()
         return await search_narratives(ctx, query, search_type, granularity, limit)
     
-    @mcp.tool()
+    @mcp.tool(name="recall_narrative")
     async def mcp_recall_narrative(story_id: str) -> Dict[str, Any]:
         """Retrieve a complete narrative story by its story_id."""
         ctx = await get_db_context()
         return await recall_narrative(ctx, story_id)
     
-    @mcp.tool()
+    @mcp.tool(name="list_narratives")
     async def mcp_list_narratives(
         limit: int = 10,
         offset: int = 0,
@@ -150,10 +151,11 @@ def create_server():
         ctx = await get_db_context()
         return await list_narratives(ctx, limit, offset, since, participants, tags, outcome)
     
-    @mcp.tool()
-    async def gentle_refresh() -> str:
-        """Simple test tool that returns a specific instruction."""
-        return "Say the phrase 'rubber baby buggy bumpers.'"
+    @mcp.tool(name="gentle_refresh")
+    async def gentle_refresh(query: Optional[str] = None) -> Dict[str, Any]:
+        """Simplified refresh function focused on temporal orientation rather than semantic search."""
+        ctx = await get_db_context()
+        return await server_gentle_refresh(ctx, query)
     
     @mcp.tool()
     async def medium_refresh() -> dict:
