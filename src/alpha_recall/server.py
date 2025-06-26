@@ -151,7 +151,8 @@ if MODE == "advanced":
             return {"error": f"Error deleting entity: {str(e)}", "success": False}
 
 
-@mcp.tool(name="semantic_search")
+
+@mcp.tool(name="search_shortterm")
 @async_retry(
     max_retries=3,
     retry_delay=1.0,
@@ -159,23 +160,28 @@ if MODE == "advanced":
     max_delay=10.0,
     error_messages_to_retry=["failed to receive chunk size"],
 )
-async def semantic_search(
-    ctx: Context, query: str, limit: int = 10, entity: Optional[str] = None
+async def search_shortterm(
+    ctx: Context, 
+    query: str, 
+    limit: int = 10,
+    search_type: str = "semantic",
+    through_the_last: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Search for observations semantically similar to the query.
+    Search short-term memories using semantic or emotional similarity.
 
     Args:
         ctx: The request context containing lifespan resources
         query: The natural language query to search for
-        limit: Maximum number of results to return
-        entity: Optional entity name to filter results
+        limit: Maximum number of results to return (default 10)
+        search_type: Type of search - "semantic" or "emotional" (default "semantic")
+        through_the_last: Optional time window (e.g., "24 hours", "1 week")
 
     Returns:
-        Dictionary containing the search results
+        Dictionary containing the short-term memory search results
     """
     logger.info(
-        f"Semantic search tool called: query='{query}', entity='{entity}', limit={limit}"
+        f"Search shortterm tool called: query='{query}', limit={limit}, search_type='{search_type}', through_the_last='{through_the_last}'"
     )
 
     # Try to get the database connection from various places
@@ -189,7 +195,103 @@ async def semantic_search(
 
     # If we couldn't get a database connection, return a meaningful error
     if db is None:
-        logger.error("Database connection not available for semantic_search")
+        logger.error("Database connection not available for search_shortterm")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Validate search_type
+        if search_type not in ["semantic", "emotional"]:
+            return {
+                "error": "search_type must be 'semantic' or 'emotional'",
+                "success": False,
+            }
+
+        # Use the appropriate search method
+        if search_type == "semantic":
+            if hasattr(db, "semantic_search_shortterm"):
+                results = await db.semantic_search_shortterm(
+                    query=query, 
+                    limit=limit, 
+                    through_the_last=through_the_last
+                )
+            else:
+                logger.error("Database does not support semantic search on short-term memory")
+                return {
+                    "error": "Database does not support semantic search on short-term memory",
+                    "success": False,
+                }
+        else:  # emotional
+            if hasattr(db, "emotional_search_shortterm"):
+                results = await db.emotional_search_shortterm(
+                    query=query, 
+                    limit=limit, 
+                    through_the_last=through_the_last
+                )
+            else:
+                logger.error("Database does not support emotional search on short-term memory")
+                return {
+                    "error": "Database does not support emotional search on short-term memory",
+                    "success": False,
+                }
+
+        return {
+            "query": query,
+            "search_type": search_type,
+            "through_the_last": through_the_last,
+            "results": results,
+            "success": True,
+        }
+
+    except Exception as e:
+        logger.error(f"Error performing short-term memory search: {str(e)}")
+        return {
+            "error": f"Error performing short-term memory search: {str(e)}",
+            "success": False,
+        }
+
+
+@mcp.tool(name="search_longterm")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def search_longterm(
+    ctx: Context,
+    query: str,
+    limit: int = 10,
+    entity: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Search long-term memory observations using semantic similarity.
+
+    Args:
+        ctx: The request context containing lifespan resources
+        query: The natural language query to search for
+        limit: Maximum number of results to return (default 10)
+        entity: Optional entity name to filter results
+
+    Returns:
+        Dictionary containing the long-term memory search results
+    """
+    logger.info(
+        f"Search longterm tool called: query='{query}', limit={limit}, entity='{entity}'"
+    )
+
+    # Try to get the database connection from various places
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available for search_longterm")
         return {"error": "Database connection not available", "success": False}
 
     try:
@@ -198,261 +300,22 @@ async def semantic_search(
             results = await db.semantic_search(
                 query=query, limit=limit, entity_name=entity
             )
-            return {"query": query, "results": results, "success": True}
-        else:
-            logger.error("Database does not support semantic search")
-            return {
-                "error": "Database does not support semantic search",
-                "success": False,
-            }
-    except Exception as e:
-        logger.error(f"Error performing semantic search: {str(e)}")
-        return {
-            "error": f"Error performing semantic search: {str(e)}",
-            "success": False,
-        }
-
-
-@mcp.tool(name="recall")
-@async_retry(
-    max_retries=3,
-    retry_delay=1.0,
-    backoff_factor=2.0,
-    max_delay=10.0,
-    error_messages_to_retry=["failed to receive chunk size"],
-)
-async def recall(
-    ctx: Context,
-    query: Optional[str] = None,
-    entity: Optional[str] = None,
-    depth: int = 1,
-    shortterm: bool = False,
-    through_the_last: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Retrieve information from the knowledge system.
-
-    This tool has two modes of operation:
-
-    1. Long-term memory mode (default, shortterm=False):
-       - Accepts a query parameter that can be either:
-         a. An entity name - Returns the entity with its relationships
-         b. A semantic search query - Returns semantically similar observations
-         c. Both - Returns the entity and semantically similar observations
-       - If no query is provided, returns a list of important entities
-
-    2. Short-term memory mode (shortterm=True):
-       - Returns only recent short-term memories
-       - Can be filtered by time using through_the_last
-       - Ignores query, entity, and depth parameters
-
-    Args:
-        ctx: The request context containing lifespan resources
-        query: Optional query string for long-term memory (entity name or semantic search query)
-        entity: Optional entity name (alternative to query) for long-term memory
-        depth: How many relationship hops to include for entity matches in long-term memory
-            0: Only the entity itself
-            1: Entity and direct relationships
-            2+: Entity and extended network
-        shortterm: When True, only returns short-term memories
-        through_the_last: Optional time window for short-term memories (e.g., '2h', '1d')
-
-    Returns:
-        For shortterm=False (default):
-        - exact_match: Entity information if query matches an entity name
-        - semantic_results: Top semantically similar observations
-
-        For shortterm=True:
-        - shortterm_memories: Recent short-term memories
-    """
-    logger.info(
-        f"Enhanced recall tool called: query='{query}', entity='{entity}', depth={depth}, shortterm={shortterm}, through_the_last='{through_the_last}'"
-    )
-
-    # If entity is provided but query is not, use entity as the query
-    if entity and not query:
-        query = entity
-
-    # Try to get the database connection from various places
-    db = None
-
-    # Method 1: Try to get from lifespan_context
-    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
-        db = ctx.lifespan_context.db
-    # Method 2: Try to get directly from context
-    elif hasattr(ctx, "db"):
-        db = ctx.db
-    # Method 3: Try to get from the MCP server
-    elif hasattr(mcp, "db"):
-        db = mcp.db
-
-    # If we couldn't get a database connection, return a meaningful error
-    if db is None:
-        logger.error("Database connection not available")
-        return {"error": "Database connection not available", "success": False}
-
-    try:
-        # Handle short-term memory mode (shortterm=True)
-        if shortterm:
-            if hasattr(db, "get_shortterm_memories"):
-                try:
-                    shortterm_limit = 10  # Default number of short-term memories
-                    
-                    # If query is provided, use semantic search
-                    if query and query.strip():
-                        if hasattr(db, "semantic_search_shortterm"):
-                            logger.info(f"Performing semantic search on short-term memories with query: '{query}'")
-                            shortterm_memories = await db.semantic_search_shortterm(
-                                query=query,
-                                limit=shortterm_limit,
-                                through_the_last=through_the_last
-                            )
-                        else:
-                            # Fallback to time-based retrieval if semantic search not available
-                            logger.info("Semantic search not available, using time-based retrieval")
-                            shortterm_memories = await db.get_shortterm_memories(
-                                through_the_last=through_the_last, limit=shortterm_limit
-                            )
-                    else:
-                        # No query provided, use time-based retrieval
-                        shortterm_memories = await db.get_shortterm_memories(
-                            through_the_last=through_the_last, limit=shortterm_limit
-                        )
-                    
-                    logger.info(
-                        f"Retrieved {len(shortterm_memories)} short-term memories"
-                    )
-
-                    # Filter short-term memories to only include essential fields
-                    filtered_shortterm = []
-                    for memory in shortterm_memories:
-                        filtered_memory = {
-                            "content": memory.get("content"),
-                            "created_at": memory.get("created_at"),
-                            "client": memory.get("client", {}),
-                        }
-                        # Include similarity score if present (from semantic search)
-                        if "similarity_score" in memory:
-                            filtered_memory["similarity_score"] = memory["similarity_score"]
-                        filtered_shortterm.append(filtered_memory)
-
-                    # Return only filtered short-term memories
-                    return {"shortterm_memories": filtered_shortterm, "success": True}
-                except Exception as e:
-                    logger.error(f"Error retrieving short-term memories: {str(e)}")
-                    return {
-                        "error": f"Error retrieving short-term memories: {str(e)}",
-                        "success": False,
-                    }
-            else:
-                logger.warning("Database does not support short-term memories")
-                return {
-                    "error": "Short-term memory retrieval not supported",
-                    "success": False,
-                }
-
-        # Handle long-term memory mode (shortterm=False)
-        exact_match = None
-        semantic_results = []
-
-        # Empty query returns important entities (bootstrap mode)
-        # This behavior is maintained for backward compatibility
-        if not query or query.strip() == "":
-            bootstrap_node = os.environ.get("BOOTSTRAP_NODE", "Alpha")
-            logger.info(f"Bootstrap mode activated, returning {bootstrap_node}")
-            exact_match = await db.get_entity(bootstrap_node, depth)
-        else:
-            # First, try to get an exact entity match
-            exact_match = await db.get_entity(query, depth)
-
-            # Next, perform semantic search regardless of whether we found an exact match
-            # Determine the number of semantic results to include
-            semantic_limit = 5  # Default number of semantic results
-            all_results = []
-            seen_ids = set()
-
-            # Check if db has semantic_search method (CompositeDatabase)
-            if hasattr(db, "semantic_search"):
-                semantic_results_raw = await db.semantic_search(
-                    query=query, limit=semantic_limit * 2  # Get more to account for potential duplicates
-                )
-                
-                # Process semantic results
-                for i, result in enumerate(semantic_results_raw):
-                    # Use a combination of entity_name and text as a unique identifier
-                    # or index if no other identifier is available
-                    result_id = result.get("observation_id") or result.get("id") or f"{result.get('entity_name', '')}-{result.get('text', '')[:50]}-{i}"
-                    
-                    if result_id not in seen_ids:
-                        # Add search type
-                        result["search_type"] = "semantic"
-                        result["score"] = result.get("score", result.get("similarity", 0))
-                        all_results.append(result)
-                        seen_ids.add(result_id)
-                
-                logger.info(f"Semantic search returned {len(semantic_results_raw)} results, {len(all_results)} unique")
-            else:
-                logger.warning("Database does not support semantic search")
-            
-            # Check if db has emotional_search method for long-term memories
-            # Note: Currently, emotional search is only implemented for short-term memories
-            # This is included for future compatibility if emotional search is added to vector store
-            if hasattr(db, "emotional_search"):
-                try:
-                    emotional_results_raw = await db.emotional_search(
-                        query=query, limit=semantic_limit * 2  # Get more to account for potential duplicates
-                    )
-                    
-                    # Process emotional results
-                    for i, result in enumerate(emotional_results_raw):
-                        # Use a combination of entity_name and text as a unique identifier
-                        # or index if no other identifier is available
-                        result_id = result.get("observation_id") or result.get("id") or f"{result.get('entity_name', '')}-{result.get('text', '')[:50]}-emotional-{i}"
-                        
-                        if result_id not in seen_ids:
-                            # Add search type
-                            result["search_type"] = "emotional"
-                            result["score"] = result.get("score", result.get("emotional_score", 0))
-                            all_results.append(result)
-                            seen_ids.add(result_id)
-                    
-                    logger.info(f"Emotional search returned {len(emotional_results_raw)} results, added {len([r for r in all_results if r.get('search_type') == 'emotional'])} unique")
-                except Exception as e:
-                    logger.warning(f"Emotional search failed: {str(e)}")
-            
-            # Sort all results by score (highest first)
-            all_results.sort(key=lambda r: r.get("score", 0), reverse=True)
-            
-            # Take only the top N results
-            semantic_results = all_results[:semantic_limit]
-
-        # Construct the response for long-term memory mode
-        response = {"query": query, "success": True}
-
-        # Add exact match if found
-        if exact_match:
-            response["exact_match"] = exact_match
-
-        # Add semantic results if available
-        if semantic_results:
-            response["semantic_results"] = semantic_results
-
-        # If no results found in any category, return an error
-        if not exact_match and not semantic_results:
-            logger.warning(f"No results found for query: {query}")
             return {
                 "query": query,
-                "error": f"No results found for query: '{query}'",
+                "entity": entity,
+                "results": results,
+                "success": True,
+            }
+        else:
+            logger.error("Database does not support long-term semantic search")
+            return {
+                "error": "Database does not support long-term semantic search",
                 "success": False,
             }
-
-        return response
-
     except Exception as e:
-        logger.error(f"Error in enhanced recall: {str(e)}")
+        logger.error(f"Error performing long-term memory search: {str(e)}")
         return {
-            "query": query,
-            "error": f"Error in enhanced recall: {str(e)}",
+            "error": f"Error performing long-term memory search: {str(e)}",
             "success": False,
         }
 
@@ -826,7 +689,7 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
         return {"error": f"Error in gentle_refresh: {str(e)}", "success": False}
 
 
-@mcp.tool(name="remember")
+@mcp.tool(name="remember_longterm")
 @async_retry(
     max_retries=3,
     retry_delay=1.0,
@@ -834,7 +697,7 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
     max_delay=10.0,
     error_messages_to_retry=["failed to receive chunk size"],
 )
-async def remember(
+async def remember_longterm(
     ctx: Context,
     entity: str,
     entity_type: Optional[str] = None,
@@ -853,7 +716,7 @@ async def remember(
         Dictionary containing the created/updated entity information
     """
     logger.info(
-        f"Remember tool called: entity='{entity}', type='{entity_type}', observation='{observation}'"
+        f"Remember longterm tool called: entity='{entity}', type='{entity_type}', observation='{observation}'"
     )
 
     # Try to get the database connection from various places
@@ -973,7 +836,7 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Error storing short-term memory: {str(e)}"}
 
 
-@mcp.tool(name="relate")
+@mcp.tool(name="relate_longterm")
 @async_retry(
     max_retries=3,
     retry_delay=1.0,
@@ -981,7 +844,7 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
     max_delay=10.0,
     error_messages_to_retry=["failed to receive chunk size"],
 )
-async def relate(
+async def relate_longterm(
     ctx: Context, entity: str, to_entity: str, as_type: str
 ) -> Dict[str, Any]:
     """
@@ -997,7 +860,7 @@ async def relate(
         Dictionary containing the created relationship information
     """
     logger.info(
-        f"Relate tool called: entity='{entity}', to_entity='{to_entity}', as_type='{as_type}'"
+        f"Relate longterm tool called: entity='{entity}', to_entity='{to_entity}', as_type='{as_type}'"
     )
 
     # Try to get the database connection from various places

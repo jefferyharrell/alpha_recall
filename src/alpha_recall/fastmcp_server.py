@@ -15,16 +15,16 @@ from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.server import (
     gentle_refresh as server_gentle_refresh,
     list_narratives,
-    recall,
     recall_narrative,
     refresh,
-    relate,
-    remember,
+    relate_longterm,
+    remember_longterm,
     remember_narrative,
     remember_shortterm,
     search_all_memories,
+    search_longterm,
     search_narratives,
-    semantic_search,
+    search_shortterm,
 )
 
 # Configure logging
@@ -57,18 +57,6 @@ def create_server():
     # Enable stateless HTTP for both SSE and streamable-http
     mcp = FastMCP("alpha-recall", stateless_http=True)
     
-    @mcp.tool(name="recall")
-    async def mcp_recall(
-        query: Optional[str] = None,
-        entity: Optional[str] = None, 
-        depth: int = 1,
-        shortterm: bool = False,
-        through_the_last: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Retrieve information from the knowledge system."""
-        ctx = await get_db_context()
-        return await recall(ctx, query, entity, depth, shortterm, through_the_last)
-    
     # @mcp.tool(name="refresh")
     # async def mcp_refresh(query: Optional[str] = None) -> Dict[str, Any]:
     #     """Enhanced bootstrap process for loading core identity and relevant memories."""
@@ -77,15 +65,15 @@ def create_server():
     #     query = query or ""
     #     return await refresh(ctx, query)
     
-    @mcp.tool(name="remember")
-    async def mcp_remember(
+    @mcp.tool(name="remember_longterm")
+    async def mcp_remember_longterm(
         entity: str,
         type: Optional[str] = None,
         observation: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create or update an entity in the knowledge graph with optional observations."""
         ctx = await get_db_context()
-        return await remember(ctx, entity, type, observation)
+        return await remember_longterm(ctx, entity, type, observation)
     
     @mcp.tool(name="remember_shortterm")
     async def mcp_remember_shortterm(content: str) -> Dict[str, Any]:
@@ -93,21 +81,32 @@ def create_server():
         ctx = await get_db_context()
         return await remember_shortterm(ctx, content)
     
-    @mcp.tool(name="relate")
-    async def mcp_relate(entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
+    @mcp.tool(name="relate_longterm")
+    async def mcp_relate_longterm(entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
         """Create a relationship between two entities in the knowledge graph."""
         ctx = await get_db_context()
-        return await relate(ctx, entity, to_entity, as_type)
+        return await relate_longterm(ctx, entity, to_entity, as_type)
     
-    @mcp.tool(name="semantic_search")
-    async def mcp_semantic_search(
+    @mcp.tool(name="search_shortterm")
+    async def mcp_search_shortterm(
+        query: str,
+        limit: int = 10,
+        search_type: str = "semantic",
+        through_the_last: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Search short-term memories using semantic or emotional similarity."""
+        ctx = await get_db_context()
+        return await search_shortterm(ctx, query, limit, search_type, through_the_last)
+    
+    @mcp.tool(name="search_longterm")
+    async def mcp_search_longterm(
         query: str,
         limit: int = 10,
         entity: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Search for observations semantically similar to the query."""
+        """Search long-term memory observations using semantic similarity."""
         ctx = await get_db_context()
-        return await semantic_search(ctx, query, limit, entity)
+        return await search_longterm(ctx, query, limit, entity)
     
     @mcp.tool(name="remember_narrative")
     async def mcp_remember_narrative(
