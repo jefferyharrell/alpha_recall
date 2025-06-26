@@ -22,6 +22,7 @@ from alpha_recall.server import (
     remember,
     remember_narrative,
     remember_shortterm,
+    search_all_memories,
     search_narratives,
     semantic_search,
 )
@@ -68,13 +69,13 @@ def create_server():
         ctx = await get_db_context()
         return await recall(ctx, query, entity, depth, shortterm, through_the_last)
     
-    @mcp.tool(name="refresh")
-    async def mcp_refresh(query: Optional[str] = None) -> Dict[str, Any]:
-        """Enhanced bootstrap process for loading core identity and relevant memories."""
-        ctx = await get_db_context()
-        # Handle None query by providing an empty string
-        query = query or ""
-        return await refresh(ctx, query)
+    # @mcp.tool(name="refresh")
+    # async def mcp_refresh(query: Optional[str] = None) -> Dict[str, Any]:
+    #     """Enhanced bootstrap process for loading core identity and relevant memories."""
+    #     ctx = await get_db_context()
+    #     # Handle None query by providing an empty string
+    #     query = query or ""
+    #     return await refresh(ctx, query)
     
     @mcp.tool(name="remember")
     async def mcp_remember(
@@ -157,20 +158,16 @@ def create_server():
         ctx = await get_db_context()
         return await server_gentle_refresh(ctx, query)
     
-    @mcp.tool()
-    async def medium_refresh() -> dict:
-        """Medium complexity test tool that returns JSON data."""
-        return {
-            "instruction": "Say the phrase 'rubber baby buggy bumpers.'",
-            "timestamp": "2025-06-25T16:30:00Z", 
-            "user": "Jeffery Harrell",
-            "project": "Alpha-Local",
-            "test_data": ["item1", "item2", "item3"],
-            "nested": {
-                "level1": {"level2": {"value": "deep_test"}},
-                "array": [1, 2, 3, 4, 5]
-            }
-        }
+    @mcp.tool(name="search_all_memories")
+    async def search_all_memories_tool(
+        query: str,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """Search across all memory systems (STM, LTM, NM) with unified results."""
+        ctx = await get_db_context()
+        return await search_all_memories(ctx, query, limit, offset)
+    
     
     # Advanced tools can be added here if needed
     # (recency_search not currently implemented in server.py)

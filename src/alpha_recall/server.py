@@ -1423,6 +1423,184 @@ async def list_narratives(
         }
 
 
+@mcp.tool(name="search_all_memories")
+async def search_all_memories(
+    ctx: Context,
+    query: str,
+    limit: int = 10,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """
+    Search across all memory systems (STM, LTM, NM) with unified results.
+    
+    This is a unified memory search tool that searches across all three memory subsystems:
+    - Short-term memories (Redis with TTL) - semantic and emotional search
+    - Long-term observations (Qdrant vector store) - semantic search
+    - Narrative memories (Redis with embeddings) - semantic and emotional search
+    - Entity names (exact matching)
+    
+    Results are merged and sorted by similarity score (cosine distance) to provide
+    serendipitous memory discovery across all storage systems.
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        query: Search query to find relevant memories
+        limit: Maximum number of results to return (default: 10)
+        offset: Number of results to skip for pagination (default: 0)
+    
+    Returns:
+        Dictionary containing unified search results from all memory systems
+    """
+    logger.info(f"Search all memories tool called: query='{query}', limit={limit}, offset={offset}")
+    
+    # Get database connection
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    if db is None:
+        logger.error("Database connection not available")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        all_results = []
+        
+        # Search STM (short-term memory) - both semantic and emotional
+        try:
+            stm_semantic = await db.semantic_search_shortterm(query, limit=50)
+            for result in stm_semantic:
+                all_results.append({
+                    "source": "STM",
+                    "search_type": "semantic", 
+                    "content": result.get("content", ""),
+                    "score": result.get("similarity_score", 0.0),
+                    "created_at": result.get("created_at"),
+                    "client": result.get("client", {}),
+                    "id": f"stm_{result.get('id', hash(result.get('content', '')))}"
+                })
+        except Exception as e:
+            logger.warning(f"STM semantic search failed: {e}")
+        
+        try:
+            stm_emotional = await db.emotional_search_shortterm(query, limit=50)
+            for result in stm_emotional:
+                all_results.append({
+                    "source": "STM",
+                    "search_type": "emotional",
+                    "content": result.get("content", ""),
+                    "score": result.get("emotional_score", 0.0),
+                    "created_at": result.get("created_at"),
+                    "client": result.get("client", {}),
+                    "id": f"stm_{result.get('id', hash(result.get('content', '')))}"
+                })
+        except Exception as e:
+            logger.warning(f"STM emotional search failed: {e}")
+        
+        # Search LTM (long-term memory observations)
+        try:
+            ltm_results = await db.semantic_search(query, limit=50)
+            for result in ltm_results:
+                all_results.append({
+                    "source": "LTM",
+                    "search_type": "semantic",
+                    "content": result.get("content", ""),
+                    "score": result.get("score", 0.0),
+                    "created_at": result.get("created_at"),
+                    "entity_name": result.get("entity_name"),
+                    "id": f"ltm_{result.get('id', hash(result.get('content', '')))}"
+                })
+        except Exception as e:
+            logger.warning(f"LTM semantic search failed: {e}")
+        
+        # Search NM (narrative memory) - both semantic and emotional
+        try:
+            nm_semantic = await db.search_narratives(query, search_type="semantic", granularity="both", limit=25)
+            for result in nm_semantic:
+                all_results.append({
+                    "source": "NM",
+                    "search_type": "semantic",
+                    "content": result.get("content", result.get("title", "")),
+                    "score": result.get("score", 0.0),
+                    "created_at": result.get("created_at"),
+                    "story_id": result.get("story_id"),
+                    "title": result.get("title"),
+                    "granularity": result.get("granularity"),
+                    "id": f"nm_{result.get('story_id', hash(result.get('content', '')))}"
+                })
+        except Exception as e:
+            logger.warning(f"NM semantic search failed: {e}")
+        
+        try:
+            nm_emotional = await db.search_narratives(query, search_type="emotional", granularity="both", limit=25)
+            for result in nm_emotional:
+                all_results.append({
+                    "source": "NM",
+                    "search_type": "emotional",
+                    "content": result.get("content", result.get("title", "")),
+                    "score": result.get("score", 0.0),
+                    "created_at": result.get("created_at"),
+                    "story_id": result.get("story_id"),
+                    "title": result.get("title"),
+                    "granularity": result.get("granularity"),
+                    "id": f"nm_{result.get('story_id', hash(result.get('content', '')))}"
+                })
+        except Exception as e:
+            logger.warning(f"NM emotional search failed: {e}")
+        
+        # Search entities (exact name matching)
+        try:
+            entity_result = await db.get_entity(query, depth=1)
+            if entity_result:
+                all_results.append({
+                    "source": "ENTITY",
+                    "search_type": "exact_match",
+                    "content": f"Entity: {query}",
+                    "score": 1.0,  # Perfect match for exact entity name
+                    "entity_name": query,
+                    "entity_data": entity_result,
+                    "id": f"entity_{hash(query)}"
+                })
+        except Exception as e:
+            logger.warning(f"Entity search failed: {e}")
+        
+        # Sort all results by score (descending - higher scores are more relevant)
+        all_results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        
+        # Remove duplicates by ID (keeping highest scored version)
+        seen_ids = set()
+        unique_results = []
+        for result in all_results:
+            result_id = result.get("id")
+            if result_id not in seen_ids:
+                seen_ids.add(result_id)
+                unique_results.append(result)
+        
+        # Apply pagination
+        total_found = len(unique_results)
+        paginated_results = unique_results[offset:offset + limit]
+        
+        return {
+            "success": True,
+            "query": query,
+            "results": paginated_results,
+            "total_found": total_found,
+            "returned_count": len(paginated_results),
+            "offset": offset,
+            "limit": limit,
+            "has_more": offset + limit < total_found,
+            "sources_searched": ["STM", "LTM", "NM", "ENTITIES"],
+            "message": f"Found {total_found} memories across all systems for '{query}'. Returning {len(paginated_results)} results (offset {offset})."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in search_all_memories: {str(e)}")
+        return {"success": False, "error": f"Error searching all memories: {str(e)}"}
+
+
 async def main():
     """
     Main entry point for the MCP server.
