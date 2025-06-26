@@ -42,7 +42,7 @@ uv run python migrate_stm.py
 Alpha-Recall is an MCP (Model Context Protocol) server that implements a three-tier memory system for AI agents:
 
 1. **Graph Database** (Memgraph/Neo4j): Stores entities and relationships
-2. **Vector Store** (Qdrant): Enables semantic search on observations
+2. **Vector Store** (Memgraph native vectors or Qdrant): Enables semantic search on observations
 3. **Redis**: Short-term memory with TTL expiration
 
 ### Key Design Patterns
@@ -60,7 +60,8 @@ Alpha-Recall is an MCP (Model Context Protocol) server that implements a three-t
 Key environment variables:
 - `GRAPH_DB`: "memgraph" (default) or "neo4j"
 - `GRAPH_DB_URI`: Connection string for graph database
-- `VECTOR_STORE_URL`: Qdrant server URL (default: http://localhost:6333)
+- `VECTOR_STORE_TYPE`: "memgraph" (default) or "qdrant"
+- `VECTOR_STORE_URL`: Qdrant server URL (default: http://localhost:6333) - only used if VECTOR_STORE_TYPE=qdrant
 - `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`: Redis connection
 - `REDIS_TTL`: TTL for short-term memories in seconds (default: 259200 = 72 hours)
 - `CORE_IDENTITY_NODE`: Bootstrap entity name (default: "Alpha")

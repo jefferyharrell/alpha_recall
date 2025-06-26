@@ -17,6 +17,7 @@ from alpha_recall.db.neo4j_db import Neo4jDatabase
 from alpha_recall.db.redis_db import RedisShortTermMemory
 from alpha_recall.db.semantic_search import SemanticSearch
 from alpha_recall.db.vector_store import VectorStore
+from alpha_recall.db.memgraph_vector_store import MemgraphVectorStore
 from alpha_recall.db.narrative_memory import NarrativeMemory
 from alpha_recall.logging_utils import get_logger
 
@@ -28,6 +29,8 @@ logger = get_logger("db_factory")
 
 # Database configuration from environment
 GRAPH_DB_TYPE = os.environ.get("GRAPH_DB", "memgraph").lower()
+GRAPH_DB_URI = os.environ.get("GRAPH_DB_URI", "bolt://localhost:7687")
+VECTOR_STORE_TYPE = os.environ.get("VECTOR_STORE_TYPE", "memgraph").lower()  # "qdrant" or "memgraph"
 VECTOR_STORE_URL = os.environ.get("VECTOR_STORE_URL", "http://localhost:6333")
 VECTOR_STORE_COLLECTION = os.environ.get(
     "VECTOR_STORE_COLLECTION", "alpha_recall_observations_768d"
@@ -75,12 +78,22 @@ def create_vector_store() -> SemanticSearch:
     Returns:
         SemanticSearch instance
     """
-    logger.info(f"Creating vector store with URL: {VECTOR_STORE_URL}")
-    return VectorStore(
-        qdrant_url=VECTOR_STORE_URL,
-        collection_name=VECTOR_STORE_COLLECTION,
-        model_name=EMBEDDING_MODEL,
-    )
+    if VECTOR_STORE_TYPE == "qdrant":
+        logger.info(f"Creating Qdrant vector store with URL: {VECTOR_STORE_URL}")
+        return VectorStore(
+            qdrant_url=VECTOR_STORE_URL,
+            collection_name=VECTOR_STORE_COLLECTION,
+            model_name=EMBEDDING_MODEL,
+        )
+    elif VECTOR_STORE_TYPE == "memgraph":
+        logger.info(f"Creating Memgraph vector store with URI: {GRAPH_DB_URI}")
+        return MemgraphVectorStore(
+            memgraph_uri=GRAPH_DB_URI,
+            model_name=EMBEDDING_MODEL,
+        )
+    else:
+        logger.error(f"Unsupported vector store type: {VECTOR_STORE_TYPE}")
+        raise ValueError(f"Unsupported vector store type: {VECTOR_STORE_TYPE}")
 
 
 async def create_shortterm_memory() -> Optional[RedisShortTermMemory]:
