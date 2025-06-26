@@ -18,12 +18,14 @@ from alpha_recall.server import (
     recall,
     recall_narrative,
     refresh,
-    relate,
-    remember,
+    relate_longterm,
+    remember_longterm,
     remember_narrative,
     remember_shortterm,
     search_all_memories,
+    search_longterm,
     search_narratives,
+    search_shortterm,
     semantic_search,
 )
 
@@ -77,15 +79,15 @@ def create_server():
     #     query = query or ""
     #     return await refresh(ctx, query)
     
-    @mcp.tool(name="remember")
-    async def mcp_remember(
+    @mcp.tool(name="remember_longterm")
+    async def mcp_remember_longterm(
         entity: str,
         type: Optional[str] = None,
         observation: Optional[str] = None
     ) -> Dict[str, Any]:
         """Create or update an entity in the knowledge graph with optional observations."""
         ctx = await get_db_context()
-        return await remember(ctx, entity, type, observation)
+        return await remember_longterm(ctx, entity, type, observation)
     
     @mcp.tool(name="remember_shortterm")
     async def mcp_remember_shortterm(content: str) -> Dict[str, Any]:
@@ -93,11 +95,11 @@ def create_server():
         ctx = await get_db_context()
         return await remember_shortterm(ctx, content)
     
-    @mcp.tool(name="relate")
-    async def mcp_relate(entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
+    @mcp.tool(name="relate_longterm")
+    async def mcp_relate_longterm(entity: str, to_entity: str, as_type: str) -> Dict[str, Any]:
         """Create a relationship between two entities in the knowledge graph."""
         ctx = await get_db_context()
-        return await relate(ctx, entity, to_entity, as_type)
+        return await relate_longterm(ctx, entity, to_entity, as_type)
     
     @mcp.tool(name="semantic_search")
     async def mcp_semantic_search(
@@ -108,6 +110,27 @@ def create_server():
         """Search for observations semantically similar to the query."""
         ctx = await get_db_context()
         return await semantic_search(ctx, query, limit, entity)
+    
+    @mcp.tool(name="search_shortterm")
+    async def mcp_search_shortterm(
+        query: str,
+        limit: int = 10,
+        search_type: str = "semantic",
+        through_the_last: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Search short-term memories using semantic or emotional similarity."""
+        ctx = await get_db_context()
+        return await search_shortterm(ctx, query, limit, search_type, through_the_last)
+    
+    @mcp.tool(name="search_longterm")
+    async def mcp_search_longterm(
+        query: str,
+        limit: int = 10,
+        entity: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Search long-term memory observations using semantic similarity."""
+        ctx = await get_db_context()
+        return await search_longterm(ctx, query, limit, entity)
     
     @mcp.tool(name="remember_narrative")
     async def mcp_remember_narrative(

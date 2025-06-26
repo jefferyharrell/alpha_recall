@@ -213,6 +213,174 @@ async def semantic_search(
         }
 
 
+@mcp.tool(name="search_shortterm")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def search_shortterm(
+    ctx: Context, 
+    query: str, 
+    limit: int = 10,
+    search_type: str = "semantic",
+    through_the_last: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Search short-term memories using semantic or emotional similarity.
+
+    Args:
+        ctx: The request context containing lifespan resources
+        query: The natural language query to search for
+        limit: Maximum number of results to return (default 10)
+        search_type: Type of search - "semantic" or "emotional" (default "semantic")
+        through_the_last: Optional time window (e.g., "24 hours", "1 week")
+
+    Returns:
+        Dictionary containing the short-term memory search results
+    """
+    logger.info(
+        f"Search shortterm tool called: query='{query}', limit={limit}, search_type='{search_type}', through_the_last='{through_the_last}'"
+    )
+
+    # Try to get the database connection from various places
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available for search_shortterm")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Validate search_type
+        if search_type not in ["semantic", "emotional"]:
+            return {
+                "error": "search_type must be 'semantic' or 'emotional'",
+                "success": False,
+            }
+
+        # Use the appropriate search method
+        if search_type == "semantic":
+            if hasattr(db, "semantic_search_shortterm"):
+                results = await db.semantic_search_shortterm(
+                    query=query, 
+                    limit=limit, 
+                    through_the_last=through_the_last
+                )
+            else:
+                logger.error("Database does not support semantic search on short-term memory")
+                return {
+                    "error": "Database does not support semantic search on short-term memory",
+                    "success": False,
+                }
+        else:  # emotional
+            if hasattr(db, "emotional_search_shortterm"):
+                results = await db.emotional_search_shortterm(
+                    query=query, 
+                    limit=limit, 
+                    through_the_last=through_the_last
+                )
+            else:
+                logger.error("Database does not support emotional search on short-term memory")
+                return {
+                    "error": "Database does not support emotional search on short-term memory",
+                    "success": False,
+                }
+
+        return {
+            "query": query,
+            "search_type": search_type,
+            "through_the_last": through_the_last,
+            "results": results,
+            "success": True,
+        }
+
+    except Exception as e:
+        logger.error(f"Error performing short-term memory search: {str(e)}")
+        return {
+            "error": f"Error performing short-term memory search: {str(e)}",
+            "success": False,
+        }
+
+
+@mcp.tool(name="search_longterm")
+@async_retry(
+    max_retries=3,
+    retry_delay=1.0,
+    backoff_factor=2.0,
+    max_delay=10.0,
+    error_messages_to_retry=["failed to receive chunk size"],
+)
+async def search_longterm(
+    ctx: Context,
+    query: str,
+    limit: int = 10,
+    entity: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Search long-term memory observations using semantic similarity.
+
+    Args:
+        ctx: The request context containing lifespan resources
+        query: The natural language query to search for
+        limit: Maximum number of results to return (default 10)
+        entity: Optional entity name to filter results
+
+    Returns:
+        Dictionary containing the long-term memory search results
+    """
+    logger.info(
+        f"Search longterm tool called: query='{query}', limit={limit}, entity='{entity}'"
+    )
+
+    # Try to get the database connection from various places
+    db = None
+    if hasattr(ctx, "lifespan_context") and hasattr(ctx.lifespan_context, "db"):
+        db = ctx.lifespan_context.db
+    elif hasattr(ctx, "db"):
+        db = ctx.db
+    elif hasattr(mcp, "db"):
+        db = mcp.db
+
+    # If we couldn't get a database connection, return a meaningful error
+    if db is None:
+        logger.error("Database connection not available for search_longterm")
+        return {"error": "Database connection not available", "success": False}
+
+    try:
+        # Check if db has semantic_search method (CompositeDatabase)
+        if hasattr(db, "semantic_search"):
+            results = await db.semantic_search(
+                query=query, limit=limit, entity_name=entity
+            )
+            return {
+                "query": query,
+                "entity": entity,
+                "results": results,
+                "success": True,
+            }
+        else:
+            logger.error("Database does not support long-term semantic search")
+            return {
+                "error": "Database does not support long-term semantic search",
+                "success": False,
+            }
+    except Exception as e:
+        logger.error(f"Error performing long-term memory search: {str(e)}")
+        return {
+            "error": f"Error performing long-term memory search: {str(e)}",
+            "success": False,
+        }
+
+
 @mcp.tool(name="recall")
 @async_retry(
     max_retries=3,
@@ -826,7 +994,7 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
         return {"error": f"Error in gentle_refresh: {str(e)}", "success": False}
 
 
-@mcp.tool(name="remember")
+@mcp.tool(name="remember_longterm")
 @async_retry(
     max_retries=3,
     retry_delay=1.0,
@@ -834,7 +1002,7 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
     max_delay=10.0,
     error_messages_to_retry=["failed to receive chunk size"],
 )
-async def remember(
+async def remember_longterm(
     ctx: Context,
     entity: str,
     entity_type: Optional[str] = None,
@@ -853,7 +1021,7 @@ async def remember(
         Dictionary containing the created/updated entity information
     """
     logger.info(
-        f"Remember tool called: entity='{entity}', type='{entity_type}', observation='{observation}'"
+        f"Remember longterm tool called: entity='{entity}', type='{entity_type}', observation='{observation}'"
     )
 
     # Try to get the database connection from various places
@@ -973,7 +1141,7 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Error storing short-term memory: {str(e)}"}
 
 
-@mcp.tool(name="relate")
+@mcp.tool(name="relate_longterm")
 @async_retry(
     max_retries=3,
     retry_delay=1.0,
@@ -981,7 +1149,7 @@ async def remember_shortterm(ctx: Context, content: str) -> Dict[str, Any]:
     max_delay=10.0,
     error_messages_to_retry=["failed to receive chunk size"],
 )
-async def relate(
+async def relate_longterm(
     ctx: Context, entity: str, to_entity: str, as_type: str
 ) -> Dict[str, Any]:
     """
@@ -997,7 +1165,7 @@ async def relate(
         Dictionary containing the created relationship information
     """
     logger.info(
-        f"Relate tool called: entity='{entity}', to_entity='{to_entity}', as_type='{as_type}'"
+        f"Relate longterm tool called: entity='{entity}', to_entity='{to_entity}', as_type='{as_type}'"
     )
 
     # Try to get the database connection from various places
