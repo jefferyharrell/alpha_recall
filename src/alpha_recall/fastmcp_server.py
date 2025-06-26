@@ -15,7 +15,6 @@ from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.server import (
     gentle_refresh as server_gentle_refresh,
     list_narratives,
-    recall,
     recall_narrative,
     refresh,
     relate_longterm,
@@ -26,7 +25,6 @@ from alpha_recall.server import (
     search_longterm,
     search_narratives,
     search_shortterm,
-    semantic_search,
 )
 
 # Configure logging
@@ -59,18 +57,6 @@ def create_server():
     # Enable stateless HTTP for both SSE and streamable-http
     mcp = FastMCP("alpha-recall", stateless_http=True)
     
-    @mcp.tool(name="recall")
-    async def mcp_recall(
-        query: Optional[str] = None,
-        entity: Optional[str] = None, 
-        depth: int = 1,
-        shortterm: bool = False,
-        through_the_last: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Retrieve information from the knowledge system."""
-        ctx = await get_db_context()
-        return await recall(ctx, query, entity, depth, shortterm, through_the_last)
-    
     # @mcp.tool(name="refresh")
     # async def mcp_refresh(query: Optional[str] = None) -> Dict[str, Any]:
     #     """Enhanced bootstrap process for loading core identity and relevant memories."""
@@ -100,16 +86,6 @@ def create_server():
         """Create a relationship between two entities in the knowledge graph."""
         ctx = await get_db_context()
         return await relate_longterm(ctx, entity, to_entity, as_type)
-    
-    @mcp.tool(name="semantic_search")
-    async def mcp_semantic_search(
-        query: str,
-        limit: int = 10,
-        entity: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Search for observations semantically similar to the query."""
-        ctx = await get_db_context()
-        return await semantic_search(ctx, query, limit, entity)
     
     @mcp.tool(name="search_shortterm")
     async def mcp_search_shortterm(
