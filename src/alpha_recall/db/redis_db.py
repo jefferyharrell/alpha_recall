@@ -9,7 +9,7 @@ import json
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -303,8 +303,8 @@ class RedisShortTermMemory:
         if not await self.is_connected():
             await self.connect()
 
-        # Create memory object
-        timestamp = datetime.utcnow().isoformat()
+        # Create memory object  
+        timestamp = datetime.now(timezone.utc).isoformat()
         
         # Generate a unique key
         key = self._generate_key()
