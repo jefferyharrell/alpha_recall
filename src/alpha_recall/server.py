@@ -23,6 +23,8 @@ from alpha_recall.db import GraphDatabase, create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.models.entities import Entity, Observation, Relationship
 from alpha_recall.utils.retry import async_retry
+from alpha_recall.utils.alpha_snooze import create_alpha_snooze_from_env
+from alpha_recall.reminiscer import ReminiscerAgent
 
 # Load environment variables
 load_dotenv()
@@ -56,11 +58,33 @@ async def server_lifespan(mcp_server: FastMCP) -> AsyncIterator[Dict[str, Any]]:
         # Initialize database connection
         db = await create_db_instance()
         logger.info("Database connection established")
+        
+        # Initialize reminiscer if enabled
+        reminiscer = None
+        reminiscer_enabled = os.environ.get("REMINISCER_ENABLED", "false").lower() == "true"
+        logger.info(f"Reminiscer enabled check: REMINISCER_ENABLED='{os.environ.get('REMINISCER_ENABLED', 'NOT_SET')}', reminiscer_enabled={reminiscer_enabled}")
+        if reminiscer_enabled:
+            try:
+                model_name = os.environ.get("REMINISCER_MODEL", "llama3.1:8b")
+                ollama_host = os.environ.get("REMINISCER_OLLAMA_HOST", "localhost")
+                ollama_port = int(os.environ.get("REMINISCER_OLLAMA_PORT", "11434"))
+                
+                reminiscer = ReminiscerAgent(
+                    composite_db=db,
+                    model_name=model_name,
+                    ollama_host=ollama_host,
+                    ollama_port=ollama_port
+                )
+                logger.info(f"Reminiscer initialized with model {model_name} at {ollama_host}:{ollama_port}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize reminiscer: {e}")
+                reminiscer = None
 
-        # Yield the lifespan context with the database connection
+        # Yield the lifespan context with the database connection and reminiscer
         # Also set db directly on the mcp_server for tools that access ctx.db
-        context = {"db": db}
+        context = {"db": db, "reminiscer": reminiscer}
         mcp_server.db = db
+        mcp_server.reminiscer = reminiscer
         yield context
 
     except Exception as e:
@@ -565,10 +589,12 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
     1. Current time information for temporal grounding
     2. Core identity observations (natural language facts, not relationship triples)
     3. 10 most recent short-term memories for contextual orientation
-    4. 5 most recent observations for slow-changing facts
+    4. Alpha-Snooze memory consolidation (if enabled) - processes recent memories for insights
+    5. 5 most recent observations for slow-changing facts
     
     Eliminates cognitive overload from semantic search and prioritizes temporal
-    orientation over semantic relevance.
+    orientation over semantic relevance. When Alpha-Snooze is enabled, provides
+    additional memory consolidation insights extracted from recent interactions.
     
     Args:
         ctx: The request context containing lifespan resources
@@ -579,6 +605,7 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
         - time: Current time information
         - core_identity: Essential identity observations (observations only, no relationships)
         - shortterm_memories: 10 most recent short-term memories
+        - memory_consolidation: Alpha-Snooze insights (if enabled and available)
         - recent_observations: 5 most recent observations
     """
     logger.info("Gentle refresh tool called")
@@ -646,6 +673,32 @@ async def gentle_refresh(ctx: Context, query: Optional[str] = None) -> Dict[str,
                 ]
                 
                 response["shortterm_memories"] = filtered_shortterm
+                
+                # Alpha-Snooze: Memory consolidation (if enabled and available)
+                try:
+                    alpha_snooze = await create_alpha_snooze_from_env()
+                    if alpha_snooze:
+                        # Get memories for alpha-snooze time window (may be different from gentle_refresh limit)
+                        snooze_memories = await db.get_shortterm_memories(
+                            through_the_last=alpha_snooze.time_window,
+                            limit=100  # High limit since we're using time window
+                        )
+                        if snooze_memories:
+                            logger.info(f"Running alpha-snooze memory consolidation on {len(snooze_memories)} memories from last {alpha_snooze.time_window}")
+                            consolidation = await alpha_snooze.consolidate_memories(snooze_memories)
+                            if consolidation:
+                                response["memory_consolidation"] = consolidation
+                                logger.info(f"Alpha-snooze processed {consolidation.get('processed_memories_count', 0)} memories")
+                            else:
+                                logger.info("Alpha-snooze consolidation returned no results")
+                        else:
+                            logger.info(f"Alpha-snooze available but no short-term memories in last {alpha_snooze.time_window}")
+                    else:
+                        logger.info("Alpha-snooze not available for memory consolidation")
+                except Exception as e:
+                    logger.warning(f"Alpha-snooze consolidation failed: {str(e)}")
+                    # Continue with gentle_refresh even if alpha-snooze fails
+                
             except Exception as e:
                 logger.error(f"Error retrieving short-term memories during gentle_refresh: {str(e)}")
                 # Continue with other retrievals even if short-term memory fails
@@ -1462,6 +1515,64 @@ async def search_all_memories(
     except Exception as e:
         logger.error(f"Error in search_all_memories: {str(e)}")
         return {"success": False, "error": f"Error searching all memories: {str(e)}"}
+
+
+@mcp.tool(name="ask_memory")
+async def ask_memory(ctx: Context, question: str) -> Dict[str, Any]:
+    """
+    Ask a conversational question to Alpha-Reminiscer about memories.
+    
+    This tool provides a natural language interface to Alpha's memory systems,
+    allowing for complex questions and maintaining conversation context.
+    
+    Args:
+        ctx: The request context containing lifespan resources
+        question: Natural language question about memories
+    
+    Returns:
+        Dictionary containing the reminiscer's response
+    """
+    logger.info(f"Ask memory tool called: question='{question}'")
+    logger.debug(f"[ASK_MEMORY] Question received: {question}")
+    
+    # Get reminiscer from context
+    reminiscer = None
+    if hasattr(ctx, "lifespan_context") and ctx.lifespan_context.get("reminiscer"):
+        reminiscer = ctx.lifespan_context["reminiscer"]
+    elif hasattr(ctx, "reminiscer"):
+        reminiscer = ctx.reminiscer
+    elif hasattr(mcp, "reminiscer"):
+        reminiscer = mcp.reminiscer
+    
+    if reminiscer is None:
+        return {
+            "success": False,
+            "error": "Alpha-Reminiscer is not available. Set REMINISCER_ENABLED=true and ensure Ollama is running.",
+            "question": question
+        }
+    
+    try:
+        response = await reminiscer.ask(question)
+        conversation_length = reminiscer.get_conversation_length()
+        
+        logger.debug(f"[ASK_MEMORY] Response from reminiscer: {response}")
+        logger.debug(f"[ASK_MEMORY] Conversation length: {conversation_length}")
+        
+        return {
+            "success": True,
+            "question": question,
+            "response": response,
+            "conversation_length": conversation_length,
+            "message": f"Alpha-Reminiscer processed your question about memories."
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in ask_memory: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Error asking reminiscer: {str(e)}",
+            "question": question
+        }
 
 
 async def main():

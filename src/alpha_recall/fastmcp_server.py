@@ -12,7 +12,9 @@ from mcp.server.fastmcp import FastMCP
 
 from alpha_recall.db import create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
+from alpha_recall.reminiscer import ReminiscerAgent
 from alpha_recall.server import (
+    ask_memory,
     gentle_refresh as server_gentle_refresh,
     list_narratives,
     recall_narrative,
@@ -31,25 +33,56 @@ from alpha_recall.server import (
 logger = configure_logging()
 logger = get_logger("fastmcp_server")
 
-# Global database instance
+# Global instances
 db_instance = None
+reminiscer_instance = None
 
 
 class AlphaRecallContext:
     """Context object that mimics MCP context for tool functions."""
     
-    def __init__(self, db):
+    def __init__(self, db, reminiscer=None):
         self.db = db
-        self.lifespan_context = type("obj", (object,), {"db": db})
+        self.reminiscer = reminiscer
+        # Create a proper context object with get method and subscriptable access
+        class LifespanContext:
+            def __init__(self, db, reminiscer):
+                self._data = {"db": db, "reminiscer": reminiscer}
+            def get(self, key, default=None):
+                return self._data.get(key, default)
+            def __getitem__(self, key):
+                return self._data[key]
+        self.lifespan_context = LifespanContext(db, reminiscer)
 
 
 async def get_db_context():
     """Get database context for tool functions."""
-    global db_instance
+    global db_instance, reminiscer_instance
     if db_instance is None:
         db_instance = await create_db_instance()
         logger.info("Database connection established")
-    return AlphaRecallContext(db_instance)
+        
+        # Initialize reminiscer if enabled
+        reminiscer_enabled = os.environ.get("REMINISCER_ENABLED", "false").lower() == "true"
+        logger.info(f"Reminiscer enabled check: REMINISCER_ENABLED='{os.environ.get('REMINISCER_ENABLED', 'NOT_SET')}', reminiscer_enabled={reminiscer_enabled}")
+        if reminiscer_enabled:
+            try:
+                model_name = os.environ.get("REMINISCER_MODEL", "llama3.1:8b")
+                ollama_host = os.environ.get("REMINISCER_OLLAMA_HOST", "localhost")
+                ollama_port = int(os.environ.get("REMINISCER_OLLAMA_PORT", "11434"))
+                
+                reminiscer_instance = ReminiscerAgent(
+                    composite_db=db_instance,
+                    model_name=model_name,
+                    ollama_host=ollama_host,
+                    ollama_port=ollama_port
+                )
+                logger.info(f"Reminiscer initialized with model {model_name} at {ollama_host}:{ollama_port}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize reminiscer: {e}")
+                reminiscer_instance = None
+        
+    return AlphaRecallContext(db_instance, reminiscer_instance)
 
 
 def create_server():
@@ -166,6 +199,12 @@ def create_server():
         """Search across all memory systems (STM, LTM, NM) with unified results."""
         ctx = await get_db_context()
         return await search_all_memories(ctx, query, limit, offset)
+    
+    @mcp.tool(name="ask_memory")
+    async def ask_memory_tool(question: str) -> Dict[str, Any]:
+        """Ask a conversational question to Alpha-Reminiscer about memories."""
+        ctx = await get_db_context()
+        return await ask_memory(ctx, question)
     
     
     # Advanced tools can be added here if needed
