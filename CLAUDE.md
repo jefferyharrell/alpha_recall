@@ -44,6 +44,7 @@ Alpha-Recall is an MCP (Model Context Protocol) server that implements a three-t
 1. **Graph Database** (Memgraph/Neo4j): Stores entities and relationships
 2. **Vector Store** (Memgraph native vectors or Qdrant): Enables semantic search on observations
 3. **Redis**: Short-term memory with TTL expiration
+4. **Alpha-Snooze** (Optional): Memory consolidation system that processes recent memories during gentle_refresh
 
 ### Key Design Patterns
 
@@ -66,6 +67,55 @@ Key environment variables:
 - `REDIS_TTL`: TTL for short-term memories in seconds (default: 259200 = 72 hours)
 - `CORE_IDENTITY_NODE`: Bootstrap entity name (default: "Alpha")
 - `MODE`: Set to "advanced" to expose additional tools
+
+#### Alpha-Snooze Configuration (Memory Consolidation)
+- `ALPHA_SNOOZE_ENABLED`: Set to "true" to enable memory consolidation during gentle_refresh
+- `ALPHA_SNOOZE_OLLAMA_HOST`: Ollama server host (default: "localhost")
+- `ALPHA_SNOOZE_OLLAMA_PORT`: Ollama server port (default: 11434)
+- `ALPHA_SNOOZE_MODEL`: Model name for memory processing (default: "qwen2.5:3b")
+- `ALPHA_SNOOZE_LIMIT`: Number of recent memories to process (default: 10)
+- `ALPHA_SNOOZE_TIMEOUT`: Request timeout in seconds (default: 30)
+
+### Alpha-Snooze Memory Consolidation
+
+Alpha-Snooze is an optional memory consolidation feature that integrates with the `gentle_refresh` tool. When enabled, it processes recent short-term memories using a local LLM (via Ollama) to extract structured insights before Alpha fully "wakes up" to new conversations.
+
+#### How It Works
+
+1. **Integration Point**: Runs during `gentle_refresh()` after short-term memories are retrieved
+2. **Memory Processing**: Takes the N most recent short-term memories (configurable via `ALPHA_SNOOZE_LIMIT`)
+3. **LLM Analysis**: Sends formatted memories to a local Ollama model for analysis
+4. **Structured Output**: Extracts entities, relationships, insights, emotional context, and next steps
+5. **Response Enhancement**: Adds `memory_consolidation` field to gentle_refresh response
+
+#### What It Provides
+
+When successful, alpha-snooze adds a `memory_consolidation` object to gentle_refresh responses containing:
+
+- `entities`: Discovered entities with types and key facts
+- `relationships`: Relationships between entities  
+- `insights`: Key patterns or discoveries from recent interactions
+- `summary`: Brief narrative summary of recent activities
+- `emotional_context`: Overall emotional tone (excited, frustrated, breakthrough, etc.)
+- `next_steps`: Potential follow-up actions or areas of focus
+- `processed_memories_count`: Number of memories processed
+- `consolidation_timestamp`: When consolidation occurred
+- `model_used`: Which Ollama model performed the analysis
+
+#### Setup Requirements
+
+1. **Ollama Server**: Must have Ollama running locally (default: localhost:11434)
+2. **Model Available**: The specified model must be pulled/available in Ollama
+3. **Environment Variables**: Set `ALPHA_SNOOZE_ENABLED=true` and configure other variables as needed
+4. **Optional Feature**: If unavailable, gentle_refresh continues normally without consolidation
+
+#### Failure Handling
+
+Alpha-Snooze is designed to fail gracefully:
+- If Ollama is unavailable, gentle_refresh continues without consolidation
+- If the model is not found, alpha-snooze is disabled
+- If consolidation fails, logs a warning but doesn't break gentle_refresh
+- Network timeouts and parsing errors are handled gracefully
 
 ### Important Conventions
 

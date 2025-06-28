@@ -375,7 +375,7 @@ class RedisShortTermMemory:
             duration = self._parse_duration(through_the_last)
 
             if duration:
-                cutoff_time = datetime.utcnow() - duration
+                cutoff_time = datetime.now(timezone.utc) - duration
                 filtered_keys = []
 
                 for key in keys:
@@ -390,6 +390,11 @@ class RedisShortTermMemory:
                             
                         if created_at_str:
                             created_at = datetime.fromisoformat(created_at_str)
+                            
+                            # Handle timezone compatibility for old vs new memories
+                            if created_at.tzinfo is None:
+                                # Old memory without timezone - assume UTC
+                                created_at = created_at.replace(tzinfo=timezone.utc)
                             
                             # Keep only memories newer than the cutoff time
                             if created_at >= cutoff_time:

@@ -23,6 +23,7 @@ from sse_starlette.sse import EventSourceResponse
 from alpha_recall.db import create_db_instance
 from alpha_recall.logging_utils import configure_logging, get_logger
 from alpha_recall.server import (
+    ask_memory,
     list_narratives,
     recall,
     recall_narrative,
