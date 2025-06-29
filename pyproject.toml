@@ -24,4 +24,5 @@ dependencies = [
     "uvicorn[standard]>=0.30.0,<1.0.0",
     "fastmcp>=2.9.0",
     "pydantic-ai>=0.0.14",
+    "rich>=13.0.0",
 ]

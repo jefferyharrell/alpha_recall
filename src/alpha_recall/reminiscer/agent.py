@@ -12,10 +12,15 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.messages import ModelMessage
+from rich.console import Console
+from rich.panel import Panel
+from rich.markdown import Markdown
+from rich.text import Text
 
 from alpha_recall.db.composite_db import CompositeDatabase
 
 logger = logging.getLogger(__name__)
+console = Console(stderr=True, style="dim")
 
 @dataclass
 class ReminiscerDeps:
@@ -155,7 +160,8 @@ Always provide a synthesis rather than just raw search results."""
         Maintains conversation context across multiple questions.
         """
         try:
-            logger.debug(f"[REMINISCER] User Question: {question}")
+            # Log the user question (simple, dim, word-wrapped)
+            console.print(f"\n[dim blue]❓ Question:[/dim blue] {question}")
             
             result = await self.agent.run(
                 question,
@@ -163,8 +169,9 @@ Always provide a synthesis rather than just raw search results."""
                 message_history=self.conversation_history
             )
             
-            logger.debug(f"[REMINISCER] Agent Response: {result.output}")
-            logger.debug(f"[REMINISCER] Conversation length after response: {len(result.new_messages())}")
+            # Log the agent response with Markdown (simple, dim, word-wrapped)
+            console.print(f"[dim green]💭 Response:[/dim green]")
+            console.print(Markdown(result.output, style="dim"))
             
             # Update conversation history by extending with new messages
             self.conversation_history.extend(result.new_messages())
