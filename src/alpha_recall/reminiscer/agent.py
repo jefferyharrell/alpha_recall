@@ -166,8 +166,8 @@ Always provide a synthesis rather than just raw search results."""
             logger.debug(f"[REMINISCER] Agent Response: {result.output}")
             logger.debug(f"[REMINISCER] Conversation length after response: {len(result.new_messages())}")
             
-            # Update conversation history
-            self.conversation_history = result.new_messages()
+            # Update conversation history by extending with new messages
+            self.conversation_history.extend(result.new_messages())
             
             return result.output
             

@@ -1518,7 +1518,7 @@ async def search_all_memories(
 
 
 @mcp.tool(name="ask_memory")
-async def ask_memory(ctx: Context, question: str) -> Dict[str, Any]:
+async def ask_memory(ctx: Context, question: str, new_chat: bool = False) -> Dict[str, Any]:
     """
     Ask a conversational question to Alpha-Reminiscer about memories.
     
@@ -1528,6 +1528,7 @@ async def ask_memory(ctx: Context, question: str) -> Dict[str, Any]:
     Args:
         ctx: The request context containing lifespan resources
         question: Natural language question about memories
+        new_chat: If True, reset conversation context and start fresh (default: False)
     
     Returns:
         Dictionary containing the reminiscer's response
@@ -1552,6 +1553,11 @@ async def ask_memory(ctx: Context, question: str) -> Dict[str, Any]:
         }
     
     try:
+        # Reset conversation if requested
+        if new_chat:
+            reminiscer.reset_conversation()
+            logger.debug(f"[ASK_MEMORY] Conversation context reset for new chat")
+        
         response = await reminiscer.ask(question)
         conversation_length = reminiscer.get_conversation_length()
         
@@ -1563,6 +1569,7 @@ async def ask_memory(ctx: Context, question: str) -> Dict[str, Any]:
             "question": question,
             "response": response,
             "conversation_length": conversation_length,
+            "new_chat": new_chat,
             "message": f"Alpha-Reminiscer processed your question about memories."
         }
         

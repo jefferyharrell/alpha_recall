@@ -201,10 +201,10 @@ def create_server():
         return await search_all_memories(ctx, query, limit, offset)
     
     @mcp.tool(name="ask_memory")
-    async def ask_memory_tool(question: str) -> Dict[str, Any]:
+    async def ask_memory_tool(question: str, new_chat: bool = False) -> Dict[str, Any]:
         """Ask a conversational question to Alpha-Reminiscer about memories."""
         ctx = await get_db_context()
-        return await ask_memory(ctx, question)
+        return await ask_memory(ctx, question, new_chat)
     
     
     # Advanced tools can be added here if needed

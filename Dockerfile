@@ -32,10 +32,10 @@ EXPOSE 8080
 # Production stage (default)
 FROM base AS production
 COPY src/ ./src/
-CMD ["uv", "run", "python", "-m", "alpha_recall.http_server"]
+CMD ["uv", "run", "python", "-m", "alpha_recall.fastmcp_server"]
 
 # Development stage (for bind mounting source code)
 FROM base AS dev
 # Don't copy source code - it will be bind mounted
 # Just wait for the source to be mounted and then start
-CMD ["uv", "run", "python", "-m", "alpha_recall.http_server"]
+CMD ["uv", "run", "python", "-m", "alpha_recall.fastmcp_server"]
