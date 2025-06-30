@@ -1,25 +1,71 @@
 services:
-  alpha-recall-http:
-    build: .
-    container_name: alpha-recall-http
+  memgraph:
+    image: memgraph/memgraph-mage:latest
+    container_name: memgraph
     ports:
-      - "8080:8080"
-    environment:
-      - HTTP_HOST=0.0.0.0
-      - HTTP_PORT=8080
-      # These will need to be configured when we integrate with the full stack
-      - GRAPH_DB=memgraph
-      - GRAPH_DB_URI=bolt://host.docker.internal:7687
-      - VECTOR_STORE_URL=http://host.docker.internal:6333
-      - REDIS_HOST=host.docker.internal
-      - REDIS_PORT=6379
-      - MODE=advanced
+      - "7687:7687"  # bolt://localhost:7687
+    command: ["--log-level=TRACE"]
     volumes:
-      # Mount source code for hot reload during development
+      - ../../Alpha-Recall-Volumes/memgraph:/var/lib/memgraph
+
+  memgraph-lab:
+    image: memgraph/lab:latest
+    container_name: memgraph-lab
+    ports:
+      - "6002:3000"  # http://localhost:6002
+    depends_on:
+      - memgraph
+    environment:
+      - QUICK_CONNECT_MG_HOST=memgraph
+      - QUICK_CONNECT_MG_PORT=7687
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"  # redis://localhost:6379
+    volumes:
+      - ../../Alpha-Recall-Volumes/redis:/data
+
+  alpha-recall:
+    build:
+      dockerfile: Dockerfile
+      target: dev
+    container_name: alpha-recall
+    ports:
+      - "9005:9005"  # http://localhost:9005
+    depends_on:
+      - memgraph
+      - redis
+    environment:
+      - LOG_LEVEL=INFO
+      - GRAPH_DB=memgraph
+      - GRAPH_DB_URI=bolt://memgraph:7687
+      - VECTOR_STORE_TYPE=memgraph
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_TTL=2000000 # 2 megaseconds
+      - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
+      - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
+      - CORE_IDENTITY_NODE=Alpha Core Identity
+      - MODE=advanced
+      - MCP_TRANSPORT=streamable-http
+      - FASTMCP_HOST=0.0.0.0
+      - FASTMCP_PORT=9005
+      - PYTHONUNBUFFERED=1
+      # Alpha-Snooze Configuration
+      - ALPHA_SNOOZE_ENABLED=true
+      - ALPHA_SNOOZE_OLLAMA_HOST=host.docker.internal
+      - ALPHA_SNOOZE_OLLAMA_PORT=11434
+      - ALPHA_SNOOZE_MODEL=qwen2.5:3b
+      - ALPHA_SNOOZE_TIME_WINDOW=24h
+      - ALPHA_SNOOZE_TIMEOUT=60
+      # Alpha-Reminiscer Configuration
+      - REMINISCER_ENABLED=true
+      - REMINISCER_OLLAMA_HOST=host.docker.internal
+      - REMINISCER_MODEL=qwen2.5:7b
+    volumes:
       - ./src:/app/src
-      - ./pyproject.toml:/app/pyproject.toml
-      - ./uv.lock:/app/uv.lock
-    # Use host network mode to access services running on host
-    # Remove this when integrating with the full stack
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ./fastmcp_entrypoint.py:/app/fastmcp_entrypoint.py
+      - ./huggingface-cache:/root/.cache/huggingface
+    command: ["uv", "run", "python", "/app/fastmcp_entrypoint.py"]
