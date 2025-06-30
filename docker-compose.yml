@@ -27,11 +27,11 @@ services:
   #   volumes:
   #     - ../../Alpha-Recall-Volumes/redis:/data
 
-  alpha-recall-2:
+  alpha-recall-1:
     build:
       dockerfile: Dockerfile
       target: dev
-    container_name: alpha-recall-2
+    container_name: alpha-recall-1
     ports:
       - "19005:9005"  # http://localhost:19005
     # depends_on:
@@ -67,4 +67,4 @@ services:
     volumes:
       - ./src:/app/src
       - ./huggingface-cache:/root/.cache/huggingface
-    command: ["uv", "run", "python", "-m", "alpha_recall.fastmcp_server"]
+    command: ["uv", "run", "python", "-m", "alpha_recall"]
