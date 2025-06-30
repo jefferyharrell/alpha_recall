@@ -1,11 +1,11 @@
 """Health check tools for Alpha-Recall."""
 
 import json
-from datetime import datetime, timezone
 from fastmcp import FastMCP
 from ..logging import get_logger
 from ..version import __version__
 from ..config import settings
+from ..utils.time import current_utc
 
 __all__ = ["health_check", "register_health_tools"]
 
@@ -44,7 +44,7 @@ def register_health_tools(mcp: FastMCP) -> None:
             "status": overall_status,
             "version": __version__,
             "checks": checks,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": current_utc()
         }
         
         response = json.dumps(response_data, indent=2)
