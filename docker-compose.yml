@@ -1,48 +1,48 @@
 services:
-  memgraph:
-    image: memgraph/memgraph-mage:latest
-    container_name: memgraph
-    ports:
-      - "7687:7687"  # bolt://localhost:7687
-    command: ["--log-level=TRACE"]
-    volumes:
-      - ../../Alpha-Recall-Volumes/memgraph:/var/lib/memgraph
+  # memgraph:
+  #   image: memgraph/memgraph-mage:latest
+  #   container_name: memgraph
+  #   ports:
+  #     - "7687:7687"  # bolt://localhost:7687
+  #   command: ["--log-level=TRACE"]
+  #   volumes:
+  #     - ../../Alpha-Recall-Volumes/memgraph:/var/lib/memgraph
 
-  memgraph-lab:
-    image: memgraph/lab:latest
-    container_name: memgraph-lab
-    ports:
-      - "6002:3000"  # http://localhost:6002
-    depends_on:
-      - memgraph
-    environment:
-      - QUICK_CONNECT_MG_HOST=memgraph
-      - QUICK_CONNECT_MG_PORT=7687
+  # memgraph-lab:
+  #   image: memgraph/lab:latest
+  #   container_name: memgraph-lab
+  #   ports:
+  #     - "6002:3000"  # http://localhost:6002
+  #   depends_on:
+  #     - memgraph
+  #   environment:
+  #     - QUICK_CONNECT_MG_HOST=memgraph
+  #     - QUICK_CONNECT_MG_PORT=7687
 
-  redis:
-    image: redis:latest
-    container_name: redis
-    ports:
-      - "6379:6379"  # redis://localhost:6379
-    volumes:
-      - ../../Alpha-Recall-Volumes/redis:/data
+  # redis:
+  #   image: redis:latest
+  #   container_name: redis
+  #   ports:
+  #     - "6379:6379"  # redis://localhost:6379
+  #   volumes:
+  #     - ../../Alpha-Recall-Volumes/redis:/data
 
-  alpha-recall:
+  alpha-recall-2:
     build:
       dockerfile: Dockerfile
       target: dev
-    container_name: alpha-recall
+    container_name: alpha-recall-2
     ports:
-      - "9005:9005"  # http://localhost:9005
-    depends_on:
-      - memgraph
-      - redis
+      - "19005:9005"  # http://localhost:19005
+    # depends_on:
+    #   - memgraph
+    #   - redis
     environment:
       - LOG_LEVEL=INFO
       - GRAPH_DB=memgraph
-      - GRAPH_DB_URI=bolt://memgraph:7687
+      - GRAPH_DB_URI=bolt://host.docker.internal:7687
       - VECTOR_STORE_TYPE=memgraph
-      - REDIS_HOST=redis
+      - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
       - REDIS_TTL=2000000 # 2 megaseconds
       - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
@@ -66,6 +66,5 @@ services:
       - REMINISCER_MODEL=qwen2.5:7b
     volumes:
       - ./src:/app/src
-      - ./fastmcp_entrypoint.py:/app/fastmcp_entrypoint.py
       - ./huggingface-cache:/root/.cache/huggingface
-    command: ["uv", "run", "python", "/app/fastmcp_entrypoint.py"]
+    command: ["uv", "run", "python", "-m", "alpha_recall.fastmcp_server"]
