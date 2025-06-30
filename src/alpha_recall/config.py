@@ -54,7 +54,7 @@ class AlphaRecallSettings(BaseSettings):
     
     @field_validator('log_level')
     @classmethod
-    def validate_log_level(cls, v: str) -> str:
+    def validate_log_level(cls, v: str) -> str:  # type: ignore
         """Validate log level is a valid logging level."""
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if v.upper() not in valid_levels:

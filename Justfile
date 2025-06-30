@@ -80,3 +80,8 @@ clean:
     docker compose down --volumes --remove-orphans
     docker compose rm -f
     docker system prune -f
+
+# Development tools
+lint:
+    @echo "Running vulture dead code detection..."
+    uv run vulture src/ .vulture_whitelist.py

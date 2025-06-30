@@ -29,3 +29,8 @@ dependencies = [
     "structlog>=24.0.0",
     "docker>=7.0.0",
 ]
+
+[dependency-groups]
+dev = [
+    "vulture>=2.14",
+]

@@ -2,7 +2,6 @@
 
 import logging
 import sys
-from typing import Any
 
 import structlog
 from rich.console import Console
