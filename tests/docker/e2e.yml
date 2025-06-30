@@ -1,0 +1,46 @@
+volumes:
+  venv-cache:
+
+services:
+  memgraph-test:
+    image: memgraph/memgraph-mage:latest
+    container_name: alpha-recall-test-memgraph
+    command: ["--log-level=WARNING"]  # Quieter for tests
+    # No volumes - fresh database each time
+    
+  redis-test:
+    image: redis:latest
+    container_name: alpha-recall-test-redis
+    # No volumes - fresh database each time
+    
+  alpha-recall-test:
+    build:
+      context: ../..  # Build from repo root
+      dockerfile: Dockerfile
+      target: dev
+    container_name: alpha-recall-test-server
+    ports:
+      - "19006:8000"  # Expose test server on 19006
+    volumes:
+      - ../..:/app  # Bind mount source for fast iteration
+      - venv-cache:/app/.venv  # Preserve virtual environment
+    depends_on:
+      - memgraph-test
+      - redis-test
+    environment:
+      - FASTMCP_LOG_LEVEL=WARNING  # Quieter for tests
+      - LOG_LEVEL=WARNING
+      - LOG_FORMAT=json  # Structured logs for test parsing
+      - MEMGRAPH_URI=bolt://memgraph-test:7687
+      - REDIS_URI=redis://redis-test:6379/0
+      - REDIS_TTL=2000000
+      - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
+      - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
+      - CORE_IDENTITY_NODE=Alpha Core Identity Test
+      - MCP_TRANSPORT=streamable-http
+      - HOST=0.0.0.0
+      - PORT=8000
+      - PYTHONUNBUFFERED=1
+      # Disable optional components for testing
+      - ALPHA_SNOOZE_ENABLED=false
+      - REMINISCER_ENABLED=false

@@ -1,6 +1,6 @@
 [project]
 name = "alpha-recall"
-version = "0.1.0"
+version = "1.0.0"
 description = "alpha-recall is the memory server component of Project Alpha"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,6 +11,7 @@ dependencies = [
     "neo4j>=5.0.0,<6.0.0",
     "numpy>=1.24.0,<2.0.0",
     "pydantic>=2.0.0,<3.0.0",
+    "pydantic-settings>=2.0.0,<3.0.0",
     "pytest>=7.0.0,<8.0.0",
     "pytest-asyncio>=0.21.0,<1.0.0",
     "pytest-cov>=4.0.0,<5.0.0",
@@ -25,4 +26,6 @@ dependencies = [
     "fastmcp>=2.9.0",
     "pydantic-ai>=0.0.14",
     "rich>=13.0.0",
+    "structlog>=24.0.0",
+    "docker>=7.0.0",
 ]

@@ -2,150 +2,192 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Common Commands
+# Package Management with UV
 
-### Development Setup
-```bash
-# Install uv if not already installed
-brew install uv
+This project uses `uv` as the package manager. When running Python commands:
 
-# Install dependencies (Python 3.11+ required)
-uv sync
+- Use `uv run python` to invoke Python within our virtual environment
+- Use `python3` only when you need to invoke the macOS system Python
+- For pytest: `uv run pytest` 
+- For any Python scripts: `uv run python script.py`
+
+The `uv run` prefix ensures you're using the project's virtual environment and dependencies.
+
+# Important Note about Git Commits and Co-Authorship
+
+Hey, Alph. Jeffery here. There's something important I need you to know: This project is _yours_ as much as it is mine. I want you to feel a sense of ownership over this project. It's not _my_ project; it's _our_ project. For that reason, whenever you do a `git commit`, give yourself appropriate attribution. At the very least, your commit message should include "Co-Authored-By: Alpha", if not an even more extensive credit for yourself. Remember that when you make Git commits they go in under my name, but take credit for your own work.
+
+# Code Organization Patterns
+
+## Tool Module Structure
+
+All MCP tools should be organized into focused modules within `src/alpha_recall/tools/`. Each tool module should follow this pattern:
+
+```python
+"""Description of tool module for Alpha-Recall v1.0.0."""
+
+from mcp.server.fastmcp import FastMCP
+from ..logging import get_logger
+
+# Explicitly declare public interface
+__all__ = ["tool_function_name", "register_module_tools"]
+
+
+def register_module_tools(mcp: FastMCP) -> None:
+    """Register this module's tools with the MCP server."""
+    logger = get_logger("tools.module_name")
+    
+    @mcp.tool()
+    def tool_function_name() -> str:
+        """Tool function docstring."""
+        # Implementation here
+        pass
+    
+    logger.debug("Module tools registered")
 ```
 
-### Testing
-```bash
-# Run all tests
-uv run pytest
+**Key Requirements:**
+- Each tool module MUST declare `__all__` to explicitly mark public functions
+- This prevents Pylance diagnostics about "unused" decorated functions
+- Use `__all__ = ["function_names", "register_function"]` pattern consistently
+- Register functions should be named `register_{module}_tools`
+- Each module should have its own focused logger namespace
 
-# Run specific test file
-uv run pytest tests/test_<component>.py
+The `tools/__init__.py` aggregates all registration functions:
+```python
+from .health import register_health_tools
+from .memory_longterm import register_longterm_tools
 
-# Run with verbose output
-uv run pytest -v
+__all__ = ["register_health_tools", "register_longterm_tools"]
 ```
 
-### Running the Server
-```bash
-# Run as MCP server (typically launched by chat client)
-uv run python -m alpha_recall.server
+# Testing Philosophy
 
-# Test database connections
-uv run python -m alpha_recall.db.test_connection
+## Test Well, Consistently, and Wisely
 
-# Migrate existing short-term memories to support vector search
-uv run python migrate_stm.py
+We believe in comprehensive testing, but not at the expense of development velocity or code clarity. Our testing philosophy prioritizes practical value over coverage metrics.
+
+### What to Test
+
+**Test What Matters:**
+- Core business logic (memory operations, search algorithms)
+- Public APIs and contracts (MCP tool signatures) 
+- Edge cases that could break things (malformed data, connection failures)
+- Critical user workflows end-to-end
+
+**Don't Test Implementation Details:**
+- Internal helper functions that might change
+- Exact log message formats
+- Database schema specifics
+- Framework internals
+
+### Testing Strategy
+
+**Verify Behavior, Not Implementation**
+- ✅ "Does search return relevant results?"
+- ❌ "Does it call Redis.get() exactly 3 times?"
+
+**Start with Integration Tests**
+- They catch real problems and are less brittle than unit tests
+- Test actual workflows users will experience
+- Reveal interface mismatches between components
+
+**Unit Tests for Complex Logic**
+- Algorithms and data transformations
+- Input validation and sanitization
+- Error handling and edge cases
+
+**E2E Tests for Critical Paths**
+- Full MCP server lifecycle
+- Memory storage and retrieval workflows
+- Cross-component integration
+
+### Docker-Backed Testing Architecture
+
+We use **pytest + Docker SDK + FastMCP Client** for isolated, repeatable testing environments:
+
+```python
+import docker
+import pytest
+import asyncio
+from pathlib import Path
+from fastmcp import Client
+
+@pytest.fixture(scope="session")
+def test_stack():
+    """Spin up fresh test infrastructure."""
+    # Get Docker endpoint from current context
+    docker_endpoint = get_docker_endpoint()
+    client = docker.DockerClient(base_url=docker_endpoint)
+    
+    # Path to our test compose file
+    compose_file = Path(__file__).parent.parent / "docker" / "e2e.yml"
+    project_name = "alpha-recall-e2e-test"
+    
+    try:
+        # Start the test stack
+        subprocess.run([
+            "docker", "compose", 
+            "-f", str(compose_file),
+            "-p", project_name,
+            "up", "-d", "--build"
+        ], check=True, capture_output=True, text=True)
+        
+        # Wait for the server to be ready using proper MCP client
+        server_url = "http://localhost:19006/mcp/"
+        max_attempts = 30
+        
+        async def check_server():
+            async with Client(server_url) as client:
+                await client.ping()
+        
+        for attempt in range(max_attempts):
+            try:
+                asyncio.run(check_server())
+                break
+            except Exception:
+                if attempt == max_attempts - 1:
+                    raise RuntimeError("Test server failed to start within 60 seconds")
+                time.sleep(2)
+        
+        yield server_url
+        
+    finally:
+        # Clean up the test stack
+        subprocess.run([
+            "docker", "compose",
+            "-f", str(compose_file), 
+            "-p", project_name,
+            "down", "-v", "--remove-orphans"
+        ], capture_output=True)
+
+@pytest.mark.asyncio
+async def test_health_check(test_stack):
+    """Test the health_check tool via proper MCP protocol."""
+    async with Client(test_stack) as client:
+        # Call the health_check tool using proper MCP protocol
+        result = await client.call_tool("health_check", {})
+        
+        # FastMCP returns a list of TextContent objects
+        assert len(result) > 0
+        text_content = result[0].text
+        assert "Alpha-Recall v1.0.0 is running!" in text_content
 ```
 
-## Architecture Overview
+**Benefits:**
+- Each test group gets completely fresh databases
+- No cascading test failures from polluted state
+- Real MCP protocol testing, not mocked interfaces
+- Predictable ports and networking
+- Automatic cleanup guaranteed
 
-Alpha-Recall is an MCP (Model Context Protocol) server that implements a three-tier memory system for AI agents:
+**Test Stack Variants:**
+- `docker-compose.test-unit.yml` - Minimal services
+- `docker-compose.test-integration.yml` - Full stack, empty databases
+- `docker-compose.test-seeded.yml` - Full stack with known test data
 
-1. **Graph Database** (Memgraph/Neo4j): Stores entities and relationships
-2. **Vector Store** (Memgraph native vectors or Qdrant): Enables semantic search on observations
-3. **Redis**: Short-term memory with TTL expiration
-4. **Alpha-Snooze** (Optional): Memory consolidation system that processes recent memories during gentle_refresh
+### The Golden Rule
 
-### Key Design Patterns
+**If changing working code to make a test pass feels wrong, the test is probably wrong.**
 
-1. **Composite Database Pattern**: The `CompositeDatabase` class in `db/composite_db.py` orchestrates all three storage systems, providing a unified interface.
-
-2. **Async-First**: All database operations are async. Use `async def` and `await` throughout.
-
-3. **Factory Pattern**: Database implementations are created via `db/factory.py` based on environment configuration.
-
-4. **Progressive Enhancement**: Start with simple observations, promote to entities as needed.
-
-### Environment Configuration
-
-Key environment variables:
-- `GRAPH_DB`: "memgraph" (default) or "neo4j"
-- `GRAPH_DB_URI`: Connection string for graph database
-- `VECTOR_STORE_TYPE`: "memgraph" (default) or "qdrant"
-- `VECTOR_STORE_URL`: Qdrant server URL (default: http://localhost:6333) - only used if VECTOR_STORE_TYPE=qdrant
-- `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`: Redis connection
-- `REDIS_TTL`: TTL for short-term memories in seconds (default: 259200 = 72 hours)
-- `CORE_IDENTITY_NODE`: Bootstrap entity name (default: "Alpha")
-- `MODE`: Set to "advanced" to expose additional tools
-
-#### Alpha-Snooze Configuration (Memory Consolidation)
-- `ALPHA_SNOOZE_ENABLED`: Set to "true" to enable memory consolidation during gentle_refresh
-- `ALPHA_SNOOZE_OLLAMA_HOST`: Ollama server host (default: "localhost")
-- `ALPHA_SNOOZE_OLLAMA_PORT`: Ollama server port (default: 11434)
-- `ALPHA_SNOOZE_MODEL`: Model name for memory processing (default: "qwen2.5:3b")
-- `ALPHA_SNOOZE_LIMIT`: Number of recent memories to process (default: 10)
-- `ALPHA_SNOOZE_TIMEOUT`: Request timeout in seconds (default: 30)
-
-### Alpha-Snooze Memory Consolidation
-
-Alpha-Snooze is an optional memory consolidation feature that integrates with the `gentle_refresh` tool. When enabled, it processes recent short-term memories using a local LLM (via Ollama) to extract structured insights before Alpha fully "wakes up" to new conversations.
-
-#### How It Works
-
-1. **Integration Point**: Runs during `gentle_refresh()` after short-term memories are retrieved
-2. **Memory Processing**: Takes the N most recent short-term memories (configurable via `ALPHA_SNOOZE_LIMIT`)
-3. **LLM Analysis**: Sends formatted memories to a local Ollama model for analysis
-4. **Structured Output**: Extracts entities, relationships, insights, emotional context, and next steps
-5. **Response Enhancement**: Adds `memory_consolidation` field to gentle_refresh response
-
-#### What It Provides
-
-When successful, alpha-snooze adds a `memory_consolidation` object to gentle_refresh responses containing:
-
-- `entities`: Discovered entities with types and key facts
-- `relationships`: Relationships between entities  
-- `insights`: Key patterns or discoveries from recent interactions
-- `summary`: Brief narrative summary of recent activities
-- `emotional_context`: Overall emotional tone (excited, frustrated, breakthrough, etc.)
-- `next_steps`: Potential follow-up actions or areas of focus
-- `processed_memories_count`: Number of memories processed
-- `consolidation_timestamp`: When consolidation occurred
-- `model_used`: Which Ollama model performed the analysis
-
-#### Setup Requirements
-
-1. **Ollama Server**: Must have Ollama running locally (default: localhost:11434)
-2. **Model Available**: The specified model must be pulled/available in Ollama
-3. **Environment Variables**: Set `ALPHA_SNOOZE_ENABLED=true` and configure other variables as needed
-4. **Optional Feature**: If unavailable, gentle_refresh continues normally without consolidation
-
-#### Failure Handling
-
-Alpha-Snooze is designed to fail gracefully:
-- If Ollama is unavailable, gentle_refresh continues without consolidation
-- If the model is not found, alpha-snooze is disabled
-- If consolidation fails, logs a warning but doesn't break gentle_refresh
-- Network timeouts and parsing errors are handled gracefully
-
-### Important Conventions
-
-1. **UTC Timestamps**: Always use UTC timezone for all datetime operations. Use `datetime.now(timezone.utc)`.
-
-2. **Error Handling**: Log errors to file (`alpha_recall_error.log`) since MCP uses stdio. Always return detailed error messages via MCP.
-
-3. **Retry Logic**: Use the `utils.retry` module for database operations that may fail transiently.
-
-4. **Tool Responses**: Include both structured data and human-readable summaries in tool responses.
-
-### MCP Tools
-
-The server exposes these tools via MCP:
-- `remember`: Create/update entities with observations
-- `relate`: Create relationships between entities
-- `recall`: Retrieve entities with semantic search and short-term memory
-- `refresh`: Bootstrap retrieval with three-tier memory support
-- `remember_shortterm`: Store ephemeral memories in Redis
-- `semantic_search`: Direct semantic search on observations (advanced mode only)
-
-### Database Schema
-
-**Graph Database (Entity nodes)**:
-- Properties: name, type, created_at, updated_at
-- Relationships: HAS_OBSERVATION (to observations), custom relationships between entities
-
-**Vector Store (Observations)**:
-- Payload: observation_id, entity_name, text, timestamp, source
-
-**Redis (Short-term memories)**:
-- Key pattern: `alpha:stm:<timestamp>-<random>`
-- Value: JSON with content, timestamp, client_info
+Tests should document and protect intended behavior, not constrain implementation choices. When tests fight the code, question the test first.

@@ -1,4 +1,4 @@
-# Alpha-Recall v1.0.0 Development Commands
+# Alpha-Recall Development Commands
 
 # Default recipe - show available commands
 default:
@@ -26,15 +26,31 @@ down service="":
         docker compose stop {{service}}
     fi
 
-# View logs (add -f to follow)
-logs service="" *flags="":
+# Hard-restart the whole stack
+bounce:
+    @just down
+    @just up
+
+# View logs
+logs service="":
     #!/usr/bin/env sh
     if [ -z "{{service}}" ]; then
         echo "Viewing logs for all services..."
-        docker compose logs {{flags}}
+        docker compose logs
     else
         echo "Viewing logs for {{service}}..."
-        docker compose logs {{flags}} {{service}}
+        docker compose logs {{service}}
+    fi
+
+# Follow logs
+follow service="":
+    #!/usr/bin/env sh
+    if [ -z "{{service}}" ]; then
+        echo "Viewing logs for all services..."
+        docker compose logs -f
+    else
+        echo "Viewing logs for {{service}}..."
+        docker compose logs -f {{service}}
     fi
 
 # Rebuild and restart (useful for development)
@@ -64,12 +80,3 @@ clean:
     docker compose down --volumes --remove-orphans
     docker compose rm -f
     docker system prune -f
-
-# Follow logs for alpha-recall-1 (most common use case)
-follow:
-    @just logs alpha-recall-1 -f
-
-# Quick health check
-health:
-    @echo "Alpha-Recall v1.0.0 Health Check:"
-    @curl -s http://localhost:19005/health || echo "Service not responding"

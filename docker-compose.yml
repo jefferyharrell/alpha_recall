@@ -1,3 +1,6 @@
+volumes:
+  alpha-recall-venv:
+
 services:
   # memgraph:
   #   image: memgraph/memgraph-mage:latest
@@ -33,25 +36,25 @@ services:
       target: dev
     container_name: alpha-recall-1
     ports:
-      - "19005:9005"  # http://localhost:19005
+      - "127.0.0.1:19005:9005"  # Only bind to localhost for security
     # depends_on:
     #   - memgraph
     #   - redis
     environment:
-      - LOG_LEVEL=INFO
-      - GRAPH_DB=memgraph
-      - GRAPH_DB_URI=bolt://host.docker.internal:7687
-      - VECTOR_STORE_TYPE=memgraph
-      - REDIS_HOST=host.docker.internal
-      - REDIS_PORT=6379
+      - FASTMCP_LOG_LEVEL=DEBUG
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=rich
+      - MEMGRAPH_URI=bolt://host.docker.internal:7687
+      - REDIS_URI=redis://host.docker.internal:6379/0
       - REDIS_TTL=2000000 # 2 megaseconds
       - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
       - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
       - CORE_IDENTITY_NODE=Alpha Core Identity
-      - MODE=advanced
       - MCP_TRANSPORT=streamable-http
-      - FASTMCP_HOST=0.0.0.0
-      - FASTMCP_PORT=9005
+      - HOST=0.0.0.0
+      - PORT=9005
+      # - FASTMCP_HOST=0.0.0.0
+      # - FASTMCP_PORT=9005
       - PYTHONUNBUFFERED=1
       # Alpha-Snooze Configuration
       - ALPHA_SNOOZE_ENABLED=true
@@ -67,4 +70,5 @@ services:
     volumes:
       - ./src:/app/src
       - ./huggingface-cache:/root/.cache/huggingface
+      - alpha-recall-venv:/app/.venv  # Preserve virtual environment
     command: ["uv", "run", "python", "-m", "alpha_recall"]
