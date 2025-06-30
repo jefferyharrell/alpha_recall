@@ -85,3 +85,15 @@ clean:
 lint:
     @echo "Running vulture dead code detection..."
     uv run vulture src/ .vulture_whitelist.py
+
+test:
+    @echo "Running all tests..."
+    uv run pytest tests/ -v
+
+test-unit:
+    @echo "Running unit tests..."
+    uv run pytest tests/unit/ -v
+
+test-e2e:
+    @echo "Running e2e tests..."
+    uv run pytest tests/e2e/ -v
