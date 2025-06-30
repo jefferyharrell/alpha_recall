@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import warnings
 
 import structlog
 from rich.console import Console
@@ -12,6 +13,10 @@ from .config import settings
 
 def configure_logging() -> structlog.stdlib.BoundLogger:
     """Configure structured logging based on settings."""
+    
+    # Suppress known deprecation warnings from dependencies
+    warnings.filterwarnings("ignore", message="websockets.legacy is deprecated.*")
+    warnings.filterwarnings("ignore", message="websockets.server.WebSocketServerProtocol is deprecated.*")
     
     # Configure standard library logging first
     logging.basicConfig(
