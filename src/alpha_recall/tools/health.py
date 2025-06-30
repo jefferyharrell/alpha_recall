@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from ..logging import get_logger
 from ..version import __version__
 from ..config import settings

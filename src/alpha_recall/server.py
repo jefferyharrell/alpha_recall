@@ -1,7 +1,7 @@
 """Alpha-Recall MCP Server implementation."""
 
 import os
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from .config import settings
 from .logging import configure_logging, get_logger
 from .tools import register_health_tools
@@ -11,8 +11,8 @@ def create_server():
     """Create and configure the FastMCP server."""
     logger = get_logger("server")
     
-    mcp = FastMCP("alpha-recall", stateless_http=True)
-    logger.debug("FastMCP instance created", stateless_http=True)
+    mcp = FastMCP("alpha-recall")
+    logger.debug("FastMCP instance created")
     
     # Register all tool modules
     register_health_tools(mcp)

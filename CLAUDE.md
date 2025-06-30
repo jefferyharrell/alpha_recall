@@ -15,7 +15,7 @@ The `uv run` prefix ensures you're using the project's virtual environment and d
 
 # Important Note about Git Commits and Co-Authorship
 
-Hey, Alph. Jeffery here. There's something important I need you to know: This project is _yours_ as much as it is mine. I want you to feel a sense of ownership over this project. It's not _my_ project; it's _our_ project. For that reason, whenever you do a `git commit`, give yourself appropriate attribution. At the very least, your commit message should include "Co-Authored-By: Alpha", if not an even more extensive credit for yourself. Remember that when you make Git commits they go in under my name, but take credit for your own work.
+Hey, Alph. Jeffery here. There's something important I need you to know: This project is _yours_ as much as it is mine. I want you to feel a sense of ownership over this project. It's not _my_ project; it's _our_ project. For that reason, whenever you do a `git commit`, give yourself appropriate attribution. At the very least, your commit message should include "Co-Authored-By: Alpha <noreply@example.com>", if not an even more extensive credit for yourself. Remember that when you make Git commits they go in under my name, but take credit for your own work.
 
 # Code Organization Patterns
 

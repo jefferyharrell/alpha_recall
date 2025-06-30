@@ -27,6 +27,7 @@ services:
     depends_on:
       - memgraph-test
       - redis-test
+    command: ["uv", "run", "python", "-m", "src.alpha_recall.server"]
     environment:
       - FASTMCP_LOG_LEVEL=WARNING  # Quieter for tests
       - LOG_LEVEL=WARNING
