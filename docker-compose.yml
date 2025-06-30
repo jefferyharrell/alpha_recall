@@ -36,7 +36,7 @@ services:
       target: dev
     container_name: alpha-recall-1
     ports:
-      - "127.0.0.1:19005:9005"  # Only bind to localhost for security
+      - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-19005}:9005"  # Only bind to localhost for security
     # depends_on:
     #   - memgraph
     #   - redis

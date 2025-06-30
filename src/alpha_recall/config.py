@@ -20,6 +20,9 @@ class AlphaRecallSettings(BaseSettings):
     host: str = "localhost"
     port: int | None = None
     
+    # Development Configuration
+    alpha_recall_dev_port: int = Field(default=19005, ge=1, le=65535)
+    
     # Logging
     log_level: str = "INFO"
     log_format: Literal["rich", "json"] = "rich"
