@@ -1,7 +1,7 @@
 """Health check tools for Alpha-Recall."""
 
 import json
-from fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP
 from ..logging import get_logger
 from ..version import __version__
 from ..config import settings

@@ -23,7 +23,6 @@ dependencies = [
     "fastapi>=0.100.0,<1.0.0",
     "sse-starlette>=2.0.0,<3.0.0",
     "uvicorn[standard]>=0.30.0,<1.0.0",
-    "fastmcp>=2.9.0",
     "pydantic-ai>=0.0.14",
     "rich>=13.0.0",
     "structlog>=24.0.0",
