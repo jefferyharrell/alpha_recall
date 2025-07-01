@@ -87,12 +87,16 @@ lint:
     uv run vulture src/ .vulture_whitelist.py
 
 test:
-    @echo "Running all tests..."
-    uv run pytest tests/ -v
+    @echo "Running all tests (unit → integration → e2e)..."
+    uv run pytest tests/unit/ tests/integration/ tests/e2e/ -v
 
 test-unit:
     @echo "Running unit tests..."
     uv run pytest tests/unit/ -v
+
+test-integration:
+    @echo "Running integration tests..."
+    uv run pytest tests/integration/ -v
 
 test-e2e:
     @echo "Running e2e tests..."
