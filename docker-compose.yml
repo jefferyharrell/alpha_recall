@@ -36,7 +36,7 @@ services:
       target: dev
     container_name: alpha-recall-1
     ports:
-      - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-19005}:9005"  # Only bind to localhost for security
+      - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-19005}:8000"  # Only bind to localhost for security
     # depends_on:
     #   - memgraph
     #   - redis
@@ -52,9 +52,7 @@ services:
       - CORE_IDENTITY_NODE=Alpha Core Identity
       - MCP_TRANSPORT=streamable-http
       - HOST=0.0.0.0
-      - PORT=9005
-      # - FASTMCP_HOST=0.0.0.0
-      # - FASTMCP_PORT=9005
+      - PORT=8000
       - PYTHONUNBUFFERED=1
       # Alpha-Snooze Configuration
       - ALPHA_SNOOZE_ENABLED=true
