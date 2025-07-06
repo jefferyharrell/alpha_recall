@@ -27,9 +27,9 @@ down service="":
     fi
 
 # Hard-restart the whole stack
-bounce:
-    @just down
-    @just up
+bounce service="":
+    @just down {{service}}
+    @just up {{service}}
 
 # View logs
 logs service="":
@@ -55,8 +55,14 @@ follow service="":
 
 # Rebuild and restart (useful for development)
 restart service="":
-    @just down {{service}}
-    @just up {{service}}
+    #!/usr/bin/env sh
+    if [ -z "{{service}}" ]; then
+        echo "Restarting all services..."
+        docker compose restart
+    else
+        echo "Restarting {{service}}..."
+        docker compose restart {{service}}
+    fi
 
 # Build images without starting
 build service="":

@@ -1,5 +1,6 @@
 volumes:
   alpha-recall-venv:
+  alpha-recall-uv-cache:
 
 services:
   # memgraph:
@@ -69,4 +70,5 @@ services:
       - ./src:/app/src
       - ./huggingface-cache:/root/.cache/huggingface
       - alpha-recall-venv:/app/.venv  # Preserve virtual environment
+      - alpha-recall-uv-cache:/root/.cache/uv  # Preserve uv download cache
     command: ["uv", "run", "python", "-m", "alpha_recall"]

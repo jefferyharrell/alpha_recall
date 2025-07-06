@@ -1,5 +1,6 @@
 volumes:
   venv-cache:
+  uv-cache:
 
 services:
   memgraph-test:
@@ -24,10 +25,11 @@ services:
     volumes:
       - ../..:/app  # Bind mount source for fast iteration
       - venv-cache:/app/.venv  # Preserve virtual environment
+      - uv-cache:/root/.cache/uv  # Preserve uv download cache
     depends_on:
       - memgraph-test
       - redis-test
-    command: ["uv", "run", "python", "-m", "src.alpha_recall.server"]
+    command: ["uv", "run", "python", "-m", "alpha_recall.server"]
     environment:
       - FASTMCP_LOG_LEVEL=WARNING  # Quieter for tests
       - LOG_LEVEL=WARNING

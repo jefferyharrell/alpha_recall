@@ -12,7 +12,7 @@ def create_server():
     logger = get_logger("server")
     
     mcp = FastMCP("alpha-recall")
-    logger.debug("FastMCP instance created", stateless_http=True)
+    logger.debug("FastMCP instance created")
     
     # Register all tool modules
     register_health_tools(mcp)

@@ -61,7 +61,7 @@ def test_stack():
         
         for attempt in range(max_attempts):
             try:
-                # Try to ping the MCP server using FastMCP client
+                # Try to initialize the MCP server using proper MCP client
                 asyncio.run(check_server())
                 print(f"Server ready after {attempt + 1} attempts")
                 break
@@ -93,9 +93,10 @@ async def test_mcp_health_check_tool(test_stack):
         # Call the health_check tool using proper MCP protocol
         result = await client.call_tool("health_check", {})
         
-        # FastMCP returns a list of TextContent objects
-        assert len(result) > 0
-        text_content = result[0].text
+        # FastMCP returns a CallToolResult object with content
+        assert result.content is not None
+        assert len(result.content) > 0
+        text_content = result.content[0].text
         
         # Parse the JSON response
         health_data = json.loads(text_content)
@@ -129,10 +130,11 @@ async def test_full_server_lifecycle(test_stack):
         
         # Call the health check tool
         result = await client.call_tool("health_check", {})
-        assert len(result) > 0
+        assert result.content is not None
+        assert len(result.content) > 0
         
         # Parse the JSON response
-        health_data = json.loads(result[0].text)
+        health_data = json.loads(result.content[0].text)
         assert health_data["status"] == "ok"
     
     # If we get here, the server started and responded
