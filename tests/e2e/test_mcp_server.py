@@ -45,7 +45,7 @@ def test_stack():
 
         # Wait for the server to be ready - test actual MCP interface
         server_url = "http://localhost:19006/mcp/"
-        max_attempts = 30
+        max_attempts = 90  # Increased timeout for model downloads (3 minutes)
 
         async def check_server():
             async with Client(server_url) as client:
@@ -57,13 +57,32 @@ def test_stack():
                 asyncio.run(check_server())
                 print(f"Server ready after {attempt + 1} attempts")
                 break
-            except Exception:
-                pass
+            except Exception as e:
+                # Log the specific error for debugging
+                if attempt % 15 == 0:  # Log every 30 seconds
+                    print(
+                        f"Attempt {attempt + 1}/{max_attempts} - server not ready: {e}"
+                    )
 
             if attempt == max_attempts - 1:
-                raise RuntimeError("Test server failed to start within 60 seconds")
+                # Show container logs on failure for debugging
+                try:
+                    logs_result = subprocess.run(
+                        ["docker", "logs", "alpha-recall-test-server"],
+                        capture_output=True,
+                        text=True,
+                    )
+                    print(f"Container logs:\n{logs_result.stdout}")
+                    if logs_result.stderr:
+                        print(f"Container stderr:\n{logs_result.stderr}")
+                except Exception:
+                    pass
+                raise RuntimeError("Test server failed to start within 180 seconds")
 
-            print(f"Attempt {attempt + 1}/{max_attempts} - server not ready yet")
+            if attempt % 15 == 0 and attempt > 0:  # Progress update every 30 seconds
+                print(
+                    f"Still waiting... attempt {attempt + 1}/{max_attempts} - allowing time for model downloads"
+                )
             time.sleep(2)
 
         yield server_url

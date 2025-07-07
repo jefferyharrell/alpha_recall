@@ -6,9 +6,22 @@ import warnings
 
 import structlog
 from rich.console import Console
-from rich.logging import RichHandler
+from rich.json import JSON
 
 from .config import settings
+
+
+class RichJSONRenderer:
+    """Custom structlog renderer that uses Rich for JSON pretty-printing."""
+
+    def __init__(self, console: Console | None = None):
+        self.console = console or Console(file=sys.stdout, stderr=False)
+
+    def __call__(self, logger, method_name, event_dict):
+        # Convert the event dict to JSON and pretty-print with Rich
+        rich_json = JSON.from_data(event_dict)
+        self.console.print(rich_json)
+        return ""  # Return empty string since Rich handles the output
 
 
 def configure_logging() -> structlog.stdlib.BoundLogger:
@@ -45,23 +58,25 @@ def configure_logging() -> structlog.stdlib.BoundLogger:
         # Use standard StreamHandler
         handler = logging.StreamHandler(sys.stdout)
 
-    else:  # rich format - always use colors for rich format
-        # Use RichHandler approach - let Rich handle all formatting
+    elif settings.log_format == "rich_json":
+        # Rich JSON format - structured data with beautiful syntax highlighting
         processors = shared_processors + [
-            # Don't use ConsoleRenderer with RichHandler - just pass structured data
-            structlog.processors.KeyValueRenderer(key_order=["level", "event"])
+            structlog.processors.TimeStamper(fmt="iso"),
+            RichJSONRenderer(),
         ]
 
-        # Use RichHandler for beautiful output, force terminal for Docker
-        console = Console(file=sys.stdout, force_terminal=True)
-        handler = RichHandler(
-            console=console,
-            show_time=True,
-            show_path=True,
-            markup=True,
-            rich_tracebacks=True,
-            tracebacks_show_locals=True,
-        )
+        # Use standard StreamHandler for console output
+        handler = logging.StreamHandler(sys.stdout)
+
+    else:  # rich format - always use colors for rich format
+        # Use ConsoleRenderer for beautiful human-readable output
+        processors = shared_processors + [
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(colors=True),
+        ]
+
+        # Use standard StreamHandler for console output
+        handler = logging.StreamHandler(sys.stdout)
 
     # Add the handler to root logger
     root_logger = logging.getLogger()

@@ -23,7 +23,7 @@ class AlphaRecallSettings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
-    log_format: Literal["rich", "json"] = "rich"
+    log_format: Literal["rich", "json", "rich_json"] = "rich"
 
     # Memgraph Database Configuration
     memgraph_uri: str = "bolt://localhost:7687"

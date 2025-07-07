@@ -26,6 +26,7 @@ services:
       - ../..:/app  # Bind mount source for fast iteration
       - venv-cache:/app/.venv  # Preserve virtual environment
       - uv-cache:/root/.cache/uv  # Preserve uv download cache
+      - ../../huggingface-cache:/root/.cache/huggingface  # Share model cache to avoid re-downloads
     depends_on:
       - memgraph-test
       - redis-test
