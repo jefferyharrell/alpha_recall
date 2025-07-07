@@ -74,6 +74,40 @@ uv run --group dev ruff check --fix src/ tests/
 uv run python -m alpha_recall.server
 ```
 
+# Logging and Observability
+
+## Correlation IDs for Request Tracing
+
+We use **correlation IDs** throughout Alpha-Recall to trace requests from entry point to completion. This creates a "golden thread" through all log entries for a single operation.
+
+**Key Components:**
+- `src/alpha_recall/utils/correlation.py` - Core correlation ID utilities
+- Auto-generated IDs: `generate_correlation_id("prefix")` -> `prefix_12345678`
+- Child IDs: `parent_id.operation_name` for sub-operations
+- Context variables: Automatically included in all structlog entries
+
+**Usage Pattern:**
+```python
+# At tool entry points
+correlation_id = generate_correlation_id("mem")
+set_correlation_id(correlation_id)
+
+# Child operations get hierarchical IDs automatically
+# mem_abc123 -> mem_abc123.semantic_encode -> mem_abc123.semantic_encode.emotional_encode
+```
+
+**Debugging:** `grep "correlation_id=mem_abc123" logs.txt` shows complete request flow.
+
+## Structured Logging with Rich Metrics
+
+All logging uses **structlog** with rich contextual data:
+- Performance metrics (timing, throughput, resource usage)
+- Embedding model stats (dimensions, device, load times)
+- Request metadata (content length, operation type, status)
+- Error context (type, message, operation step)
+
+Example log entries include business metrics, not just debug strings.
+
 # Architecture Overview
 
 ## Core Design
