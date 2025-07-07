@@ -40,6 +40,7 @@ just format               # Format code with isort and black
 just check-format         # Check formatting without changing files
 just lint                 # Run Ruff linter
 just lint-fix             # Run Ruff linter with auto-fix
+just pre-commit           # Run all pre-commit hooks manually
 just test                 # Run all tests (unit → integration → e2e)
 just test-unit            # Run only unit tests
 just test-integration     # Run only integration tests
@@ -106,6 +107,11 @@ All logging uses **structlog** with rich contextual data:
 - Request metadata (content length, operation type, status)
 - Error context (type, message, operation step)
 
+**Log Format Options** (set via `LOG_FORMAT` environment variable):
+- `rich` - Human-readable prose format with colors (default)
+- `json` - Production JSON format for log aggregation
+- `rich_json` - Beautiful syntax-highlighted JSON with Rich library
+
 Example log entries include business metrics, not just debug strings.
 
 # Architecture Overview
@@ -119,6 +125,48 @@ Alpha-Recall implements a **three-silo memory architecture** for AI agents:
 3. **Narrative Memory** (Hybrid storage) - Experiential stories using both graph and vector storage
 
 The system is built as an **MCP (Model Context Protocol) server** using FastMCP 2.0, exposing memory operations as tools to AI chat clients.
+
+## Current Architecture Diagram
+
+```mermaid
+graph TD
+    Client[MCP Client] --> Server[FastMCP Server]
+
+    Server --> Health[health_check tool]
+    Server --> Memory[remember_shortterm tool]
+
+    Memory --> EmbedSvc[EmbeddingService]
+    EmbedSvc --> Semantic[Semantic Model<br/>all-mpnet-base-v2<br/>768 dimensions]
+    EmbedSvc --> Emotional[Emotional Model<br/>sentiment-embedding-model<br/>1024 dimensions]
+
+    Semantic --> Output[Performance Metrics<br/>& Embeddings<br/>🗑️ Discarded]
+    Emotional --> Output
+
+    Health --> Status[Health Status JSON]
+
+    subgraph "Future Connections (Coming Soon)"
+        Memory -.-> Redis[(Redis<br/>Short-term Memory)]
+        Memory -.-> Memgraph[(Memgraph<br/>Long-term Memory)]
+        Memory -.-> Vector[(Vector DB<br/>Narrative Memory)]
+    end
+
+    subgraph "Embedding Pipeline"
+        EmbedSvc
+        Semantic
+        Emotional
+    end
+
+    style Memory fill:#e1f5fe
+    style EmbedSvc fill:#f3e5f5
+    style Output fill:#ffebee
+    style Redis fill:#e8f5e8
+    style Memgraph fill:#e8f5e8
+    style Vector fill:#e8f5e8
+```
+
+**Current State**: The `remember_shortterm` tool generates both semantic and emotional embeddings via the EmbeddingService, measures performance metrics, and discards the results (test implementation).
+
+**Next Phase**: Connect to Redis for actual short-term memory storage, then expand to full three-silo architecture.
 
 ## Key Components
 
@@ -161,6 +209,14 @@ def register_module_tools(mcp: FastMCP) -> None:
 - Registration functions use `mcp.tool(function_name)` to register module-level tools
 - Each module gets its own logger namespace
 
+### EmbeddingService (`src/alpha_recall/services/embedding.py`)
+- **Dual Model Support**: Semantic (all-mpnet-base-v2, 768d) and emotional (sentiment-embedding-model, 1024d)
+- **Smart Device Detection**: Automatic Apple Silicon GPU detection with CPU fallback
+- **Eager Loading**: Models loaded at startup for consistent performance
+- **Correlation ID Integration**: Full request tracing through embedding pipeline
+- **Performance Monitoring**: Detailed timing and throughput metrics
+- **sentence-transformers v5.0.0**: Latest version with significant performance improvements
+
 ### Configuration (`src/alpha_recall/config.py`)
 - **Pydantic Settings**: Type-safe configuration with validation
 - **Environment Variables**: Auto-loads from `.env` file
@@ -197,9 +253,12 @@ async with Client(server_url) as client:
 ## Memory System Architecture
 
 ### Current Implementation (v1.0)
-- **Health Check Tool**: Basic server health monitoring
-- **Placeholder Infrastructure**: Memgraph and Redis connection checks (TODO)
-- **Modular Design**: Ready for memory tool implementation
+- **Health Check Tool**: Comprehensive server health monitoring with correlation IDs
+- **remember_shortterm Tool**: Complete embedding pipeline with performance measurement
+- **EmbeddingService**: Dual embedding generation (semantic + emotional) with sentence-transformers v5.0.0
+- **Performance**: 1,090 tokens/sec semantic, 612 tokens/sec emotional in containerized environment
+- **Observability**: Full correlation ID tracing and structured logging
+- **Quality**: Ruff linting, pre-commit hooks, comprehensive test coverage
 
 ### Target Architecture (from README)
 - **Long-term Memory**: Entity-relationship graph with observations
@@ -244,3 +303,7 @@ Critical environment variables (all optional with defaults):
 - `REDIS_URI`: Short-term memory storage
 - `MCP_TRANSPORT`: "sse" or "streamable-http"
 - `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+- `LOG_FORMAT`: "rich", "json", or "rich_json"
+- `EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
+- `EMOTIONAL_EMBEDDING_MODEL`: Emotional embedding model name (default: ng3owb/sentiment-embedding-model)
+- `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
