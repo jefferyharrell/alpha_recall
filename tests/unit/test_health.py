@@ -10,7 +10,7 @@ import pytest
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from alpha_recall.tools.health import register_health_tools
+from alpha_recall.tools.health import health_check, register_health_tools
 from alpha_recall.version import __version__
 
 
@@ -20,14 +20,19 @@ class MockMCP:
     def __init__(self):
         self.tools = {}
 
-    def tool(self):
-        """Decorator to register a tool."""
-
-        def decorator(func):
+    def tool(self, func=None):
+        """Register a tool function or return decorator."""
+        if func is not None:
+            # Called as mcp.tool(function)
             self.tools[func.__name__] = func
             return func
+        else:
+            # Called as @mcp.tool decorator
+            def decorator(func):
+                self.tools[func.__name__] = func
+                return func
 
-        return decorator
+            return decorator
 
 
 def test_health_check_registration():
@@ -41,10 +46,6 @@ def test_health_check_registration():
 
 def test_health_check_response_structure():
     """Test health check returns proper JSON structure."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
 
     # Parse JSON response
@@ -65,10 +66,6 @@ def test_health_check_response_structure():
 
 def test_health_check_status_ok():
     """Test health check returns OK status when all checks pass."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
     data = json.loads(response)
 
@@ -82,10 +79,6 @@ def test_health_check_status_ok():
 
 def test_health_check_timestamp_format():
     """Test health check timestamp is valid ISO format."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
     data = json.loads(response)
 
@@ -101,10 +94,6 @@ def test_health_check_timestamp_format():
 
 def test_health_check_version_matches():
     """Test health check returns current version."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
     data = json.loads(response)
 
@@ -113,10 +102,6 @@ def test_health_check_version_matches():
 
 def test_health_check_json_validity():
     """Test health check returns valid JSON."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
 
     # Should not raise any exception
@@ -129,10 +114,6 @@ def test_health_check_json_validity():
 @pytest.mark.parametrize("indent", [None, 2, 4])
 def test_health_check_json_formatting(indent):
     """Test health check JSON is properly formatted."""
-    mock_mcp = MockMCP()
-    register_health_tools(mock_mcp)
-
-    health_check = mock_mcp.tools["health_check"]
     response = health_check()
 
     # Should be properly formatted JSON (our implementation uses indent=2)

@@ -105,21 +105,26 @@ from ..logging import get_logger
 
 __all__ = ["tool_function_name", "register_module_tools"]
 
+def tool_function_name() -> str:
+    """Tool docstring."""
+    # Tool implementation here
+    pass
+
 def register_module_tools(mcp: FastMCP) -> None:
     """Register this module's tools with the MCP server."""
     logger = get_logger("tools.module_name")
 
-    @mcp.tool()
-    def tool_function_name() -> str:
-        """Tool docstring."""
-        pass
+    # Register tools defined at module level
+    mcp.tool(tool_function_name)
 
     logger.debug("Tools registered")
 ```
 
 **Key Requirements:**
-- Each tool module MUST declare `__all__` to prevent Pylance "unused" warnings
+- Tool functions are defined at module level for direct import and testing
+- Each tool module MUST declare `__all__` including both tool functions and registration function
 - Use the `register_{module}_tools` naming convention
+- Registration functions use `mcp.tool(function_name)` to register module-level tools
 - Each module gets its own logger namespace
 
 ### Configuration (`src/alpha_recall/config.py`)
