@@ -8,12 +8,12 @@ services:
     container_name: alpha-recall-test-memgraph
     command: ["--log-level=WARNING"]  # Quieter for tests
     # No volumes - fresh database each time
-    
+
   redis-test:
     image: redis:latest
     container_name: alpha-recall-test-redis
     # No volumes - fresh database each time
-    
+
   alpha-recall-test:
     build:
       context: ../..  # Build from repo root

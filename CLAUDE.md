@@ -8,7 +8,7 @@ This project uses `uv` as the package manager. When running Python commands:
 
 - Use `uv run python` to invoke Python within our virtual environment
 - Use `python3` only when you need to invoke the macOS system Python
-- For pytest: `uv run pytest` 
+- For pytest: `uv run pytest`
 - For any Python scripts: `uv run python script.py`
 
 The `uv run` prefix ensures you're using the project's virtual environment and dependencies.
@@ -36,13 +36,13 @@ __all__ = ["tool_function_name", "register_module_tools"]
 def register_module_tools(mcp: FastMCP) -> None:
     """Register this module's tools with the MCP server."""
     logger = get_logger("tools.module_name")
-    
+
     @mcp.tool()
     def tool_function_name() -> str:
         """Tool function docstring."""
         # Implementation here
         pass
-    
+
     logger.debug("Module tools registered")
 ```
 
@@ -71,7 +71,7 @@ We believe in comprehensive testing, but not at the expense of development veloc
 
 **Test What Matters:**
 - Core business logic (memory operations, search algorithms)
-- Public APIs and contracts (MCP tool signatures) 
+- Public APIs and contracts (MCP tool signatures)
 - Edge cases that could break things (malformed data, connection failures)
 - Critical user workflows end-to-end
 
@@ -119,28 +119,28 @@ def test_stack():
     # Get Docker endpoint from current context
     docker_endpoint = get_docker_endpoint()
     client = docker.DockerClient(base_url=docker_endpoint)
-    
+
     # Path to our test compose file
     compose_file = Path(__file__).parent.parent / "docker" / "e2e.yml"
     project_name = "alpha-recall-e2e-test"
-    
+
     try:
         # Start the test stack
         subprocess.run([
-            "docker", "compose", 
+            "docker", "compose",
             "-f", str(compose_file),
             "-p", project_name,
             "up", "-d", "--build"
         ], check=True, capture_output=True, text=True)
-        
+
         # Wait for the server to be ready using proper MCP client
         server_url = "http://localhost:19006/mcp/"
         max_attempts = 30
-        
+
         async def check_server():
             async with Client(server_url) as client:
                 await client.ping()
-        
+
         for attempt in range(max_attempts):
             try:
                 asyncio.run(check_server())
@@ -149,14 +149,14 @@ def test_stack():
                 if attempt == max_attempts - 1:
                     raise RuntimeError("Test server failed to start within 60 seconds")
                 time.sleep(2)
-        
+
         yield server_url
-        
+
     finally:
         # Clean up the test stack
         subprocess.run([
             "docker", "compose",
-            "-f", str(compose_file), 
+            "-f", str(compose_file),
             "-p", project_name,
             "down", "-v", "--remove-orphans"
         ], capture_output=True)
@@ -167,7 +167,7 @@ async def test_health_check(test_stack):
     async with Client(test_stack) as client:
         # Call the health_check tool using proper MCP protocol
         result = await client.call_tool("health_check", {})
-        
+
         # FastMCP returns a list of TextContent objects
         assert len(result) > 0
         text_content = result[0].text
