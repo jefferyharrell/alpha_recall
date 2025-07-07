@@ -6,11 +6,7 @@ from fastmcp import FastMCP
 
 from .config import settings
 from .logging import configure_logging, get_logger
-from .tools import (
-    register_health_tools,
-    register_memory_demo_tools,
-    register_shortterm_memory_tools,
-)
+from .tools import register_health_tools, register_shortterm_memory_tools
 from .version import __version__
 
 
@@ -23,7 +19,6 @@ def create_server():
 
     # Register all tool modules
     register_health_tools(mcp)
-    register_memory_demo_tools(mcp)
     register_shortterm_memory_tools(mcp)
 
     logger.debug("All tools registered")
