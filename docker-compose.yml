@@ -1,35 +1,26 @@
 volumes:
   alpha-recall-venv:
   alpha-recall-uv-cache:
+  memgraph-dev-data:
+  redis-dev-data:
 
 services:
-  # memgraph:
-  #   image: memgraph/memgraph-mage:latest
-  #   container_name: memgraph
-  #   ports:
-  #     - "7687:7687"  # bolt://localhost:7687
-  #   command: ["--log-level=TRACE"]
-  #   volumes:
-  #     - ../../Alpha-Recall-Volumes/memgraph:/var/lib/memgraph
+  memgraph:
+    image: memgraph/memgraph-mage:latest
+    container_name: memgraph-dev
+    ports:
+      - "7687:7687"  # bolt://localhost:7687
+    command: ["--log-level=TRACE"]
+    volumes:
+      - memgraph-dev-data:/var/lib/memgraph
 
-  # memgraph-lab:
-  #   image: memgraph/lab:latest
-  #   container_name: memgraph-lab
-  #   ports:
-  #     - "6002:3000"  # http://localhost:6002
-  #   depends_on:
-  #     - memgraph
-  #   environment:
-  #     - QUICK_CONNECT_MG_HOST=memgraph
-  #     - QUICK_CONNECT_MG_PORT=7687
-
-  # redis:
-  #   image: redis:latest
-  #   container_name: redis
-  #   ports:
-  #     - "6379:6379"  # redis://localhost:6379
-  #   volumes:
-  #     - ../../Alpha-Recall-Volumes/redis:/data
+  redis:
+    image: redis:latest
+    container_name: redis-dev
+    ports:
+      - "6379:6379"  # redis://localhost:6379
+    volumes:
+      - redis-dev-data:/data
 
   alpha-recall-1:
     build:
@@ -38,15 +29,15 @@ services:
     container_name: alpha-recall-1
     ports:
       - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-19005}:8000"  # Only bind to localhost for security
-    # depends_on:
-    #   - memgraph
-    #   - redis
+    depends_on:
+      - memgraph
+      - redis
     environment:
       - FASTMCP_LOG_LEVEL=DEBUG
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=rich
-      - MEMGRAPH_URI=bolt://host.docker.internal:7687
-      - REDIS_URI=redis://host.docker.internal:6379/0
+      - MEMGRAPH_URI=bolt://memgraph:7687
+      - REDIS_URI=redis://redis:6379/0
       - REDIS_TTL=2000000 # 2 megaseconds
       - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
       - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
