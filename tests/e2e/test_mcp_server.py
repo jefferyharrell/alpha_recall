@@ -235,3 +235,132 @@ async def test_remember_shortterm_performance(test_stack):
         assert (
             response_data["performance"]["total_tokens_per_sec"] > 50
         ), "Should be significantly faster than v2.x baseline"
+
+
+@pytest.mark.asyncio
+async def test_remember_shortterm_splash_functionality(test_stack):
+    """Test the splash functionality that finds related memories."""
+    async with Client(test_stack) as client:
+        # Test with content that should trigger our mock related memories
+        test_content = "Working on alpha-recall memory embedding improvements"
+
+        result = await client.call_tool("remember_shortterm", {"content": test_content})
+
+        response_data = json.loads(result.content[0].text)
+
+        # Verify basic response structure first
+        assert response_data["status"] == "processed"
+
+        # Verify splash section exists
+        assert "splash" in response_data, "Response should include splash section"
+        splash = response_data["splash"]
+
+        # Verify splash structure
+        assert "related_memories_found" in splash
+        assert "search_time_ms" in splash
+        assert "memories" in splash
+
+        # Verify splash performance
+        assert isinstance(splash["related_memories_found"], int)
+        assert splash["related_memories_found"] >= 0
+        assert isinstance(splash["search_time_ms"], int | float)
+        assert splash["search_time_ms"] < 1000, "Splash search should be fast"
+
+        # Verify memories structure
+        memories = splash["memories"]
+        assert isinstance(memories, list)
+
+        # With our mock implementation and keywords "alpha-recall" and "memory",
+        # we should get at least 1 related memory
+        assert (
+            len(memories) >= 1
+        ), "Should find at least one related memory for this content"
+
+        # Verify each memory has the correct structure
+        for memory in memories:
+            assert "content" in memory
+            assert "similarity_score" in memory
+            assert "created_at" in memory
+            assert "id" in memory
+            assert "source" in memory
+
+            # Verify field types and constraints
+            assert isinstance(memory["content"], str)
+            assert len(memory["content"]) > 0
+            assert isinstance(memory["similarity_score"], int | float)
+            assert 0.0 <= memory["similarity_score"] <= 1.0
+            assert isinstance(memory["created_at"], str)
+            assert isinstance(memory["id"], str)
+            assert memory["source"] == "mock_splash"
+
+        # Verify memories are sorted by similarity (highest first)
+        if len(memories) > 1:
+            for i in range(len(memories) - 1):
+                assert (
+                    memories[i]["similarity_score"]
+                    >= memories[i + 1]["similarity_score"]
+                ), "Memories should be sorted by similarity score (highest first)"
+
+        print(f"✅ Splash found {len(memories)} related memories")
+        print(f"🔍 Search completed in {splash['search_time_ms']}ms")
+
+        if memories:
+            top_similarity = memories[0]["similarity_score"]
+            print(f"🎯 Top similarity score: {top_similarity}")
+            assert (
+                top_similarity > 0.5
+            ), "Should find strongly related memories for keywords"
+
+
+@pytest.mark.asyncio
+async def test_remember_shortterm_splash_keyword_matching(test_stack):
+    """Test that splash finds appropriate memories based on content keywords."""
+    async with Client(test_stack) as client:
+        # Test different keyword combinations to verify our mock logic
+        test_cases = [
+            {
+                "content": "Testing embedding performance tools",
+                "expected_keywords": ["embedding", "tool"],
+                "min_memories": 1,
+            },
+            {
+                "content": "Using Claude Code with FastMCP integration",
+                "expected_keywords": ["claude code", "fastmcp"],
+                "min_memories": 1,
+            },
+            {
+                "content": "Random unrelated content about cooking pasta",
+                "expected_keywords": [],
+                "min_memories": 1,  # Should still get the general fallback memory
+            },
+        ]
+
+        for test_case in test_cases:
+            result = await client.call_tool(
+                "remember_shortterm", {"content": test_case["content"]}
+            )
+
+            response_data = json.loads(result.content[0].text)
+            memories = response_data["splash"]["memories"]
+
+            assert len(memories) >= test_case["min_memories"], (
+                f"Should find at least {test_case['min_memories']} memory(ies) "
+                f"for content: {test_case['content']}"
+            )
+
+            # Verify that found memories are contextually relevant
+            if test_case["expected_keywords"]:
+                found_relevant = any(
+                    any(
+                        keyword.lower() in memory["content"].lower()
+                        for keyword in test_case["expected_keywords"]
+                    )
+                    for memory in memories
+                )
+                assert found_relevant, (
+                    f"Should find memories related to keywords {test_case['expected_keywords']} "
+                    f"for content: {test_case['content']}"
+                )
+
+            print(f"✅ Keyword test passed for: {test_case['content'][:50]}...")
+            print(f"   Found {len(memories)} related memories")
