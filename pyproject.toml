@@ -34,4 +34,28 @@ dependencies = [
 [dependency-groups]
 dev = [
     "vulture>=2.14",
+    "black>=24.0.0",
+    "isort>=5.12.0",
 ]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+    | \.venv
+    | \.pytest_cache
+    | __pycache__
+    | build
+    | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["alpha_recall"]
+src_paths = ["src", "tests"]

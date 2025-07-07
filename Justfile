@@ -88,6 +88,16 @@ clean:
     docker system prune -f
 
 # Development tools
+format:
+    @echo "Formatting code with isort and black..."
+    uv run --group dev isort src/ tests/
+    uv run --group dev black src/ tests/
+
+check-format:
+    @echo "Checking code formatting..."
+    uv run --group dev isort --check-only --diff src/ tests/
+    uv run --group dev black --check --diff src/ tests/
+
 lint:
     @echo "Running vulture dead code detection..."
     uv run vulture src/ .vulture_whitelist.py
