@@ -4,12 +4,11 @@ import json
 
 from fastmcp import FastMCP
 
-from ..config import settings
 from ..logging import get_logger
 from ..utils.time import current_utc
 from ..version import __version__
 
-__all__ = ["health_check", "register_health_tools"]
+__all__ = ["register_health_tools"]
 
 
 def register_health_tools(mcp: FastMCP) -> None:

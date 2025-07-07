@@ -2,7 +2,7 @@
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -93,7 +93,7 @@ def test_health_check_timestamp_format():
     timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
 
     # Should be recent (within last minute) and in UTC
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     time_diff = abs((now - timestamp).total_seconds())
     assert time_diff < 60  # Within 1 minute
     assert timestamp.tzinfo is not None  # Has timezone info

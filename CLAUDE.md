@@ -38,7 +38,8 @@ just down redis           # Stop specific service
 # Development workflow
 just format               # Format code with isort and black
 just check-format         # Check formatting without changing files
-just lint                 # Run dead code detection with vulture
+just lint                 # Run Ruff linter
+just lint-fix             # Run Ruff linter with auto-fix
 just test                 # Run all tests (unit → integration → e2e)
 just test-unit            # Run only unit tests
 just test-integration     # Run only integration tests
@@ -63,9 +64,11 @@ uv run pytest tests/integration/             # Integration tests
 uv run pytest tests/e2e/                     # E2E tests
 uv run pytest tests/unit/test_health.py      # Single test file
 
-# Code formatting
+# Code formatting and linting
 uv run --group dev black src/ tests/
 uv run --group dev isort src/ tests/
+uv run --group dev ruff check src/ tests/
+uv run --group dev ruff check --fix src/ tests/
 
 # Run the server directly
 uv run python -m alpha_recall.server
@@ -169,7 +172,7 @@ async with Client(server_url) as client:
 
 ### Code Standards
 - **Formatting**: Black (line length 88) + isort with black profile
-- **Linting**: Vulture for dead code detection
+- **Linting**: Ruff for fast, comprehensive Python linting
 - **Pre-commit**: Automated formatting and validation
 - **Type Hints**: Full type annotation expected
 

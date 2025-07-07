@@ -5,12 +5,11 @@ with explicit timezone offset (+00:00) for maximum clarity.
 """
 
 from datetime import datetime
-from typing import Union
 
 import pendulum
 
 
-def utc_timestamp(dt: Union[datetime, str, None] = None) -> str:
+def utc_timestamp(dt: datetime | str | None = None) -> str:
     """Convert any datetime to our standard UTC+offset format.
 
     Args:

@@ -98,13 +98,17 @@ check-format:
     uv run --group dev isort --check-only --diff src/ tests/
     uv run --group dev black --check --diff src/ tests/
 
+lint:
+    @echo "Running Ruff linter..."
+    uv run --group dev ruff check src/ tests/
+
+lint-fix:
+    @echo "Running Ruff linter with auto-fix..."
+    uv run --group dev ruff check --fix src/ tests/
+
 pre-commit:
     @echo "Running pre-commit on all files..."
     uv run --group dev pre-commit run --all-files
-
-lint:
-    @echo "Running vulture dead code detection..."
-    uv run vulture src/ .vulture_whitelist.py
 
 test:
     @echo "Running all tests (unit → integration → e2e)..."

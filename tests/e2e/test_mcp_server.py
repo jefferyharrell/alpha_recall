@@ -9,29 +9,10 @@ from pathlib import Path
 import pytest
 from fastmcp import Client
 
-import docker
-
-
-def get_docker_endpoint():
-    """Get the Docker endpoint from the current context."""
-    try:
-        result = subprocess.run(
-            ["docker", "context", "inspect"], capture_output=True, text=True, check=True
-        )
-        context = json.loads(result.stdout)[0]
-        return context["Endpoints"]["docker"]["Host"]
-    except (subprocess.CalledProcessError, json.JSONDecodeError, KeyError, IndexError):
-        # Fallback to default socket
-        return "unix:///var/run/docker.sock"
-
 
 @pytest.fixture(scope="session")
 def test_stack():
     """Spin up the full Alpha-Recall test stack."""
-    # Use the current Docker context's endpoint
-    docker_endpoint = get_docker_endpoint()
-    client = docker.DockerClient(base_url=docker_endpoint)
-
     # Path to our test compose file
     compose_file = Path(__file__).parent.parent / "docker" / "e2e.yml"
     project_name = "alpha-recall-e2e-test"

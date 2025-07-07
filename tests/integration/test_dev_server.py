@@ -5,7 +5,6 @@ the MCP server is working correctly. Sits between unit tests and
 full e2e tests in our testing pyramid.
 """
 
-import asyncio
 import json
 import sys
 from pathlib import Path
