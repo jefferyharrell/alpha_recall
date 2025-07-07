@@ -73,11 +73,15 @@ class TestStoreMemoryToRedis:
         assert mapping["created_at"] == sample_memory_data["created_at"]
         assert mapping["id"] == sample_memory_data["memory_id"]
 
-        # Check that vectors were stored as JSON
-        stored_semantic = json.loads(mapping["semantic_vector"])
+        # Check that vectors were stored correctly
+        # Semantic vector should be binary for Redis vector search
+        assert isinstance(mapping["semantic_vector"], bytes)
+        # Emotional vector stored as JSON
         stored_emotional = json.loads(mapping["emotional_vector"])
-        assert len(stored_semantic) == 768
         assert len(stored_emotional) == 1024
+
+        # Verify binary semantic vector has correct size (768 floats * 4 bytes each)
+        assert len(mapping["semantic_vector"]) == 768 * 4
 
         # Check that expire was called for the memory
         mock_redis.expire.assert_any_call(
@@ -111,7 +115,7 @@ class TestStoreMemoryToRedis:
         assert result is False
 
     def test_vector_serialization(self, mock_redis, sample_memory_data):
-        """Test that numpy arrays are correctly serialized to JSON."""
+        """Test that numpy arrays are correctly serialized to binary and JSON."""
         store_memory_to_redis(
             memory_id=sample_memory_data["memory_id"],
             content=sample_memory_data["content"],
@@ -123,13 +127,16 @@ class TestStoreMemoryToRedis:
         # Get the mapping that was passed to hset
         mapping = mock_redis.hset.call_args[1]["mapping"]
 
-        # Verify vectors can be round-tripped through JSON
-        semantic_roundtrip = np.array(json.loads(mapping["semantic_vector"]))
-        emotional_roundtrip = np.array(json.loads(mapping["emotional_vector"]))
-
+        # Verify binary semantic vector can be round-tripped
+        semantic_binary = mapping["semantic_vector"]
+        semantic_roundtrip = np.frombuffer(semantic_binary, dtype=np.float32)
         np.testing.assert_array_almost_equal(
             semantic_roundtrip, sample_memory_data["semantic_embedding"]
         )
+
+        # Verify JSON emotional vector can be round-tripped
+        emotional_roundtrip = np.array(json.loads(mapping["emotional_vector"]))
+
         np.testing.assert_array_almost_equal(
             emotional_roundtrip, sample_memory_data["emotional_embedding"]
         )
@@ -141,144 +148,98 @@ class TestSearchRelatedMemories:
     def test_empty_memory_index(self, mock_redis):
         """Test search when no memories exist."""
         # Mock empty memory index
-        mock_redis.zrevrange.return_value = []
+        mock_redis.zcard.return_value = 0  # No memories in index
 
         query_embedding = np.random.rand(768).astype(np.float32)
         results = search_related_memories("test query", query_embedding)
 
         assert results == []
-        mock_redis.zrevrange.assert_called_once_with("memory_index", 0, -1)
+        mock_redis.zcard.assert_called_once_with("memory_index")
 
-    def test_search_with_memories(self, mock_redis):
-        """Test search with existing memories."""
-        # Mock memory IDs in index
-        memory_ids = [b"stm_1", b"stm_2", b"stm_3"]
-        mock_redis.zrevrange.return_value = memory_ids
+    def test_search_with_memories_vector_index_failure(self, mock_redis):
+        """Test search fails gracefully when vector index cannot be created."""
+        # Mock that we have memories but vector search fails (no fallback)
+        mock_redis.zcard.return_value = 3  # 3 memories exist
 
-        # Mock memory data
-        similar_embedding = np.array([1.0, 0.0] + [0.0] * 766)  # Similar to query
-        different_embedding = np.array([0.0, 1.0] + [0.0] * 766)  # Different from query
+        # Mock FT.INFO to fail (index doesn't exist) and FT.CREATE to also fail
+        def mock_execute_command(cmd, *args):
+            if cmd == "FT.INFO":
+                from redis import ResponseError
 
-        memory_data = {
-            b"stm_1": {
-                b"content": b"This is about AI and embeddings",
-                b"created_at": b"2025-07-07T12:00:00+00:00",
-                b"id": b"stm_1",
-                b"semantic_vector": json.dumps(similar_embedding.tolist()).encode(),
-            },
-            b"stm_2": {
-                b"content": b"This is about cooking pasta",
-                b"created_at": b"2025-07-07T11:00:00+00:00",
-                b"id": b"stm_2",
-                b"semantic_vector": json.dumps(different_embedding.tolist()).encode(),
-            },
-            b"stm_3": {
-                b"content": b"Another memory about machine learning",
-                b"created_at": b"2025-07-07T10:00:00+00:00",
-                b"id": b"stm_3",
-                b"semantic_vector": json.dumps(similar_embedding.tolist()).encode(),
-            },
-        }
+                raise ResponseError("Unknown index name")
+            elif cmd == "FT.CREATE":
+                raise Exception("Could not create index")
+            raise Exception("Unexpected command")
 
-        def mock_hgetall(key):
-            memory_id = key.split(":")[1]
-            return memory_data.get(memory_id.encode(), {})
+        mock_redis.execute_command.side_effect = mock_execute_command
 
-        mock_redis.hgetall.side_effect = mock_hgetall
-
-        # Query embedding similar to similar_embedding
         query_embedding = np.array([0.9, 0.1] + [0.0] * 766)
 
         results = search_related_memories("test query about AI", query_embedding)
 
-        # Should return the two similar memories, sorted by similarity
-        assert len(results) <= 5  # Limited to top 5
-        assert len(results) >= 1  # Should find at least one similar memory
+        # Should return empty list when vector index setup fails
+        assert results == []
 
-        # Verify all results have the expected structure
-        for result in results:
-            assert "content" in result
-            assert "similarity_score" in result
-            assert "created_at" in result
-            assert "id" in result
-            assert "source" in result
-            assert result["source"] == "redis_search"
-            assert result["similarity_score"] > 0.3  # Above threshold
+    def test_search_with_working_vector_index(self, mock_redis):
+        """Test successful vector search when index exists and works."""
+        mock_redis.zcard.return_value = 2
 
-    def test_exclude_memory_id(self, mock_redis):
-        """Test that exclude_id parameter works correctly."""
-        memory_ids = [b"stm_1", b"stm_2"]
-        mock_redis.zrevrange.return_value = memory_ids
+        # Mock successful vector index check and search
+        def mock_execute_command(cmd, *args):
+            if cmd == "FT.INFO":
+                return "index info response"
+            elif cmd == "FT.SEARCH":
+                # Mock successful search result with 1 result
+                return [
+                    1,  # Total results
+                    b"memory:stm_1",  # Document key
+                    [
+                        b"content",
+                        b"Test memory",
+                        b"created_at",
+                        b"2025-07-07T12:00:00+00:00",
+                        b"id",
+                        b"stm_1",
+                        b"similarity_score",
+                        b"0.1",
+                    ],  # Field-value pairs
+                ]
+            raise Exception("Unexpected command")
 
-        # Mock memory data
-        similar_embedding = np.array([1.0, 0.0] + [0.0] * 766)
+        mock_redis.execute_command.side_effect = mock_execute_command
 
-        memory_data = {
-            b"stm_1": {
-                b"content": b"Memory 1",
-                b"created_at": b"2025-07-07T12:00:00+00:00",
-                b"id": b"stm_1",
-                b"semantic_vector": json.dumps(similar_embedding.tolist()).encode(),
-            },
-            b"stm_2": {
-                b"content": b"Memory 2",
-                b"created_at": b"2025-07-07T11:00:00+00:00",
-                b"id": b"stm_2",
-                b"semantic_vector": json.dumps(similar_embedding.tolist()).encode(),
-            },
-        }
+        query_embedding = np.array([1.0, 0.0] + [0.0] * 766)
+        results = search_related_memories("test", query_embedding)
 
-        def mock_hgetall(key):
-            memory_id = key.split(":")[1]
-            return memory_data.get(memory_id.encode(), {})
-
-        mock_redis.hgetall.side_effect = mock_hgetall
-
-        query_embedding = similar_embedding
-
-        # Search excluding stm_1
-        results = search_related_memories("test", query_embedding, exclude_id="stm_1")
-
-        # Should only return stm_2
+        # Should return results from Redis vector search
         assert len(results) == 1
-        assert results[0]["id"] == "stm_2"
+        assert results[0]["source"] == "redis_vector_search"
+        assert results[0]["id"] == "stm_1"
 
-    def test_cosine_similarity_calculation(self, mock_redis):
-        """Test that cosine similarity is calculated correctly."""
-        memory_ids = [b"stm_1"]
-        mock_redis.zrevrange.return_value = memory_ids
+    def test_vector_search_runtime_failure(self, mock_redis):
+        """Test graceful failure when vector search fails at runtime."""
+        mock_redis.zcard.return_value = 1
 
-        # Create specific vectors for testing cosine similarity
-        stored_vector = np.array([1.0, 0.0, 0.0])  # Unit vector along x-axis
-        query_vector = np.array(
-            [0.5, 0.866, 0.0]
-        )  # 60-degree angle, should give cos(60°) = 0.5
+        # Mock index exists but search fails
+        def mock_execute_command(cmd, *args):
+            if cmd == "FT.INFO":
+                return "index exists"
+            elif cmd == "FT.SEARCH":
+                raise Exception("Search failed")
+            raise Exception("Unexpected command")
 
-        # Pad to expected dimensions
-        stored_vector = np.pad(stored_vector, (0, 765))
-        query_vector = np.pad(query_vector, (0, 765))
+        mock_redis.execute_command.side_effect = mock_execute_command
 
-        memory_data = {
-            b"stm_1": {
-                b"content": b"Test memory",
-                b"created_at": b"2025-07-07T12:00:00+00:00",
-                b"id": b"stm_1",
-                b"semantic_vector": json.dumps(stored_vector.tolist()).encode(),
-            }
-        }
+        query_embedding = np.array([1.0, 0.0] + [0.0] * 766)
+        results = search_related_memories("test", query_embedding)
 
-        mock_redis.hgetall.return_value = memory_data[b"stm_1"]
-
-        results = search_related_memories("test", query_vector)
-
-        assert len(results) == 1
-        # Should be approximately 0.5 (cos of 60 degrees)
-        assert abs(results[0]["similarity_score"] - 0.5) < 0.01
+        # Should return empty list when vector search fails at runtime
+        assert results == []
 
     def test_error_handling(self, mock_redis):
         """Test error handling in search function."""
-        # Make Redis operations raise an exception
-        mock_redis.zrevrange.side_effect = Exception("Redis connection failed")
+        # Make Redis operations raise an exception early
+        mock_redis.zcard.side_effect = Exception("Redis connection failed")
 
         query_embedding = np.random.rand(768).astype(np.float32)
         results = search_related_memories("test query", query_embedding)

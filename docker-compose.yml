@@ -33,8 +33,8 @@ services:
       - memgraph
       - redis
     environment:
-      - FASTMCP_LOG_LEVEL=DEBUG
-      - LOG_LEVEL=DEBUG
+      - FASTMCP_LOG_LEVEL=INFO
+      - LOG_LEVEL=INFO
       - LOG_FORMAT=rich
       - MEMGRAPH_URI=bolt://memgraph:7687
       - REDIS_URI=redis://redis:6379/0

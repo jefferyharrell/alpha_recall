@@ -21,6 +21,12 @@ __all__ = ["remember_shortterm", "register_shortterm_memory_tools"]
 
 def get_redis_client() -> redis.Redis:
     """Get a Redis client instance."""
+    logger = get_logger("tools.redis_client")
+    logger.info(
+        "Creating Redis client",
+        redis_uri=settings.redis_uri,
+        operation="redis_client_create",
+    )
     return redis.from_url(settings.redis_uri)
 
 
@@ -53,15 +59,29 @@ def store_memory_to_redis(
         # Store memory content and metadata as a hash
         memory_key = f"memory:{memory_id}"
 
-        # Store basic fields
+        # Store basic fields and vectors
+        # Convert embeddings to Python lists for storage
+        if isinstance(semantic_embedding, np.ndarray):
+            semantic_list = semantic_embedding.tolist()
+        else:
+            semantic_list = semantic_embedding
+
+        if isinstance(emotional_embedding, np.ndarray):
+            emotional_list = emotional_embedding.tolist()
+        else:
+            emotional_list = emotional_embedding
+
+        # Store semantic vector as binary for Redis vector search
+        semantic_vector_binary = np.array(semantic_list, dtype=np.float32).tobytes()
+
         client.hset(
             memory_key,
             mapping={
                 "content": content,
                 "created_at": created_at,
                 "id": memory_id,
-                "semantic_vector": json.dumps(semantic_embedding.tolist()),
-                "emotional_vector": json.dumps(emotional_embedding.tolist()),
+                "semantic_vector": semantic_vector_binary,  # Binary format for vector search
+                "emotional_vector": json.dumps(emotional_list),
             },
         )
 
@@ -96,13 +116,85 @@ def store_memory_to_redis(
         return False
 
 
+def ensure_vector_index_exists(client: redis.Redis) -> bool:
+    """Ensure Redis vector search index exists for memories.
+
+    Returns:
+        True if index exists or was created successfully, False otherwise
+    """
+    logger = get_logger("tools.vector_index")
+
+    try:
+        # Check if index already exists
+        client.execute_command("FT.INFO", "memory_semantic_index")
+        logger.debug("Vector index already exists", operation="vector_index_check")
+        return True
+    except Exception as e:
+        # Handle both redis.ResponseError and other Redis exceptions
+        error_str = str(e)
+        logger.debug(
+            f"Index check exception: {repr(error_str)}", operation="vector_index_check"
+        )
+        if "Unknown index name" in error_str or "no such index" in error_str:
+            # Index doesn't exist, create it
+            logger.info("Creating vector search index", operation="vector_index_create")
+
+            try:
+                # Create index for memory hashes with semantic vector field
+                client.execute_command(
+                    "FT.CREATE",
+                    "memory_semantic_index",
+                    "ON",
+                    "HASH",
+                    "PREFIX",
+                    "1",
+                    "memory:",
+                    "SCHEMA",
+                    "content",
+                    "TEXT",
+                    "created_at",
+                    "TEXT",
+                    "id",
+                    "TEXT",
+                    "semantic_vector",
+                    "VECTOR",
+                    "FLAT",
+                    "6",
+                    "TYPE",
+                    "FLOAT32",
+                    "DIM",
+                    "768",
+                    "DISTANCE_METRIC",
+                    "COSINE",
+                )
+                logger.info(
+                    "Vector search index created successfully",
+                    operation="vector_index_create",
+                )
+                return True
+            except Exception as create_error:
+                logger.error(
+                    "Failed to create vector index",
+                    error=str(create_error),
+                    operation="vector_index_create",
+                )
+                return False
+        else:
+            logger.error(
+                "Unexpected error checking vector index",
+                error=str(e),
+                operation="vector_index_check",
+            )
+            return False
+
+
 def search_related_memories(
     content: str, query_embedding: np.ndarray, exclude_id: str = None
 ) -> list[dict[str, Any]]:
-    """Search for related memories using cosine similarity (splash functionality).
+    """Search for related memories using Redis vector search (splash functionality).
 
     This function implements the 'splash' - finding related memories that come up
-    when a new memory is added to the system.
+    when a new memory is added to the system using Redis's native vector search.
 
     Args:
         content: The new memory content
@@ -119,82 +211,121 @@ def search_related_memories(
     try:
         client = get_redis_client()
 
-        # Get all memory IDs from the chronological index (most recent first)
-        memory_ids = client.zrevrange("memory_index", 0, -1)
-
-        if not memory_ids:
+        # First check if we have any memories to search
+        memory_count = client.zcard("memory_index")
+        if memory_count == 0:
             logger.info("No memories found in index", operation="splash_search")
             return []
 
-        related_memories = []
-        checked_count = 0
+        # Ensure vector index exists
+        if not ensure_vector_index_exists(client):
+            logger.error(
+                "Vector index unavailable and could not be created",
+                operation="splash_search",
+            )
+            return []
 
-        # Check each memory for similarity
-        for memory_id_bytes in memory_ids:
-            memory_id = memory_id_bytes.decode("utf-8")
+        # Convert embedding to binary format for Redis vector search
+        if isinstance(query_embedding, np.ndarray):
+            vector_bytes = query_embedding.astype(np.float32).tobytes()
+        else:
+            vector_bytes = np.array(query_embedding, dtype=np.float32).tobytes()
 
-            if exclude_id and memory_id == exclude_id:
-                continue
+        # Build the vector search query
+        # Search for top 6 results (we'll filter out exclude_id if needed)
+        search_limit = 6 if exclude_id else 5
 
-            checked_count += 1
+        search_query = f"*=>[KNN {search_limit} @semantic_vector $query_vector AS similarity_score]"
 
-            # Get memory data
-            memory_data = client.hgetall(f"memory:{memory_id}")
+        try:
+            # Execute vector search
+            search_result = client.execute_command(
+                "FT.SEARCH",
+                "memory_semantic_index",
+                search_query,
+                "PARAMS",
+                "2",
+                "query_vector",
+                vector_bytes,
+                "SORTBY",
+                "similarity_score",
+                "ASC",  # Lower scores = more similar in cosine distance
+                "RETURN",
+                "4",
+                "content",
+                "created_at",
+                "id",
+                "similarity_score",
+                "DIALECT",
+                "2",
+            )
 
-            if not memory_data:
-                continue
+            # Parse search results
+            total_results = search_result[0]
+            logger.info(
+                f"Vector search returned {total_results} results",
+                operation="splash_search",
+            )
 
-            # Decode bytes to strings
-            memory_data = {
-                k.decode("utf-8"): v.decode("utf-8") for k, v in memory_data.items()
-            }
+            related_memories = []
 
-            # Get semantic embedding for similarity calculation
-            semantic_vector_json = memory_data.get("semantic_vector")
+            # Results come in pairs: [doc_key, [field1, value1, field2, value2, ...]]
+            for i in range(1, len(search_result), 2):
+                doc_key = search_result[i].decode("utf-8")
+                doc_fields = search_result[i + 1]
 
-            if not semantic_vector_json:
-                continue
+                # Extract memory ID from document key (format: "memory:id")
+                memory_id = doc_key.replace("memory:", "")
 
-            # Parse vector data
-            stored_embedding = np.array(json.loads(semantic_vector_json))
+                # Skip if this is the excluded memory
+                if exclude_id and memory_id == exclude_id:
+                    continue
 
-            # Calculate cosine similarity
-            # Normalize vectors for cosine similarity
-            query_norm = query_embedding / np.linalg.norm(query_embedding)
-            stored_norm = stored_embedding / np.linalg.norm(stored_embedding)
+                # Parse field values (they come as [field, value, field, value, ...])
+                fields = {}
+                for j in range(0, len(doc_fields), 2):
+                    field_name = doc_fields[j].decode("utf-8")
+                    field_value = doc_fields[j + 1].decode("utf-8")
+                    fields[field_name] = field_value
 
-            # Cosine similarity
-            similarity = float(np.dot(query_norm, stored_norm))
+                # Convert similarity score from distance to similarity (1 - distance)
+                distance_score = float(fields.get("similarity_score", 1.0))
+                similarity_score = 1.0 - distance_score
 
-            # Only include memories with reasonable similarity (> 0.3)
-            if similarity > 0.3:
-                related_memories.append(
-                    {
-                        "content": memory_data.get("content", ""),
-                        "similarity_score": similarity,
-                        "created_at": memory_data.get("created_at", ""),
-                        "id": memory_data.get("id", memory_id),
-                        "source": "redis_search",
-                    }
-                )
+                # Only include memories with reasonable similarity (> 0.3)
+                if similarity_score > 0.3:
+                    related_memories.append(
+                        {
+                            "content": fields.get("content", ""),
+                            "similarity_score": similarity_score,
+                            "created_at": fields.get("created_at", ""),
+                            "id": fields.get("id", memory_id),
+                            "source": "redis_vector_search",
+                        }
+                    )
 
-        # Sort by similarity score (highest first)
-        related_memories.sort(key=lambda x: x["similarity_score"], reverse=True)
+            # Results are already sorted by similarity from Redis
+            # Limit to top 5 results
+            related_memories = related_memories[:5]
 
-        # Limit to top 5 results
-        related_memories = related_memories[:5]
+            logger.info(
+                "Vector search completed",
+                related_found=len(related_memories),
+                top_similarity=(
+                    related_memories[0]["similarity_score"] if related_memories else 0.0
+                ),
+                operation="splash_search",
+            )
 
-        logger.info(
-            "Splash search completed",
-            related_found=len(related_memories),
-            top_similarity=(
-                related_memories[0]["similarity_score"] if related_memories else 0.0
-            ),
-            checked_memories=checked_count,
-            operation="splash_search",
-        )
+            return related_memories
 
-        return related_memories
+        except Exception as search_error:
+            logger.error(
+                "Vector search failed",
+                error=str(search_error),
+                operation="splash_search",
+            )
+            return []
 
     except Exception as e:
         logger.error("Splash search failed", error=str(e), operation="splash_search")
