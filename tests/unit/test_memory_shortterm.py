@@ -49,6 +49,7 @@ class TestStoreMemoryToRedis:
         """Test successful memory storage to Redis."""
         # Test the storage function
         result = store_memory_to_redis(
+            client=mock_redis,
             memory_id=sample_memory_data["memory_id"],
             content=sample_memory_data["content"],
             semantic_embedding=sample_memory_data["semantic_embedding"],
@@ -104,6 +105,7 @@ class TestStoreMemoryToRedis:
         mock_redis.hset.side_effect = Exception("Redis connection failed")
 
         result = store_memory_to_redis(
+            client=mock_redis,
             memory_id=sample_memory_data["memory_id"],
             content=sample_memory_data["content"],
             semantic_embedding=sample_memory_data["semantic_embedding"],
@@ -117,6 +119,7 @@ class TestStoreMemoryToRedis:
     def test_vector_serialization(self, mock_redis, sample_memory_data):
         """Test that numpy arrays are correctly serialized to binary and JSON."""
         store_memory_to_redis(
+            client=mock_redis,
             memory_id=sample_memory_data["memory_id"],
             content=sample_memory_data["content"],
             semantic_embedding=sample_memory_data["semantic_embedding"],
@@ -151,7 +154,7 @@ class TestSearchRelatedMemories:
         mock_redis.zcard.return_value = 0  # No memories in index
 
         query_embedding = np.random.rand(768).astype(np.float32)
-        results = search_related_memories("test query", query_embedding)
+        results = search_related_memories(mock_redis, "test query", query_embedding)
 
         assert results == []
         mock_redis.zcard.assert_called_once_with("memory_index")
@@ -175,7 +178,9 @@ class TestSearchRelatedMemories:
 
         query_embedding = np.array([0.9, 0.1] + [0.0] * 766)
 
-        results = search_related_memories("test query about AI", query_embedding)
+        results = search_related_memories(
+            mock_redis, "test query about AI", query_embedding
+        )
 
         # Should return empty list when vector index setup fails
         assert results == []
@@ -209,7 +214,7 @@ class TestSearchRelatedMemories:
         mock_redis.execute_command.side_effect = mock_execute_command
 
         query_embedding = np.array([1.0, 0.0] + [0.0] * 766)
-        results = search_related_memories("test", query_embedding)
+        results = search_related_memories(mock_redis, "test", query_embedding)
 
         # Should return results from Redis vector search
         assert len(results) == 1
@@ -231,7 +236,7 @@ class TestSearchRelatedMemories:
         mock_redis.execute_command.side_effect = mock_execute_command
 
         query_embedding = np.array([1.0, 0.0] + [0.0] * 766)
-        results = search_related_memories("test", query_embedding)
+        results = search_related_memories(mock_redis, "test", query_embedding)
 
         # Should return empty list when vector search fails at runtime
         assert results == []
@@ -242,7 +247,7 @@ class TestSearchRelatedMemories:
         mock_redis.zcard.side_effect = Exception("Redis connection failed")
 
         query_embedding = np.random.rand(768).astype(np.float32)
-        results = search_related_memories("test query", query_embedding)
+        results = search_related_memories(mock_redis, "test query", query_embedding)
 
         # Should return empty list on error
         assert results == []

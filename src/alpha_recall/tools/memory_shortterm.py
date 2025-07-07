@@ -31,6 +31,7 @@ def get_redis_client() -> redis.Redis:
 
 
 def store_memory_to_redis(
+    client: redis.Redis,
     memory_id: str,
     content: str,
     semantic_embedding: np.ndarray,
@@ -40,6 +41,7 @@ def store_memory_to_redis(
     """Store a memory with its embeddings to Redis.
 
     Args:
+        client: Redis client instance
         memory_id: Unique identifier for the memory
         content: The memory content
         semantic_embedding: The semantic embedding vector
@@ -54,8 +56,6 @@ def store_memory_to_redis(
     set_correlation_id(store_corr_id)
 
     try:
-        client = get_redis_client()
-
         # Store memory content and metadata as a hash
         memory_key = f"memory:{memory_id}"
 
@@ -189,7 +189,10 @@ def ensure_vector_index_exists(client: redis.Redis) -> bool:
 
 
 def search_related_memories(
-    content: str, query_embedding: np.ndarray, exclude_id: str = None
+    client: redis.Redis,
+    content: str,
+    query_embedding: np.ndarray,
+    exclude_id: str = None,
 ) -> list[dict[str, Any]]:
     """Search for related memories using Redis vector search (splash functionality).
 
@@ -197,6 +200,7 @@ def search_related_memories(
     when a new memory is added to the system using Redis's native vector search.
 
     Args:
+        client: Redis client instance
         content: The new memory content
         query_embedding: The semantic embedding of the new content
         exclude_id: Memory ID to exclude from results (e.g., the memory we just stored)
@@ -209,8 +213,6 @@ def search_related_memories(
     set_correlation_id(search_corr_id)
 
     try:
-        client = get_redis_client()
-
         # First check if we have any memories to search
         memory_count = client.zcard("memory_index")
         if memory_count == 0:
@@ -372,9 +374,13 @@ def remember_shortterm(content: str) -> str:
     memory_id = f"stm_{int(time.time() * 1000)}_{str(uuid.uuid4())[:8]}"
     created_at = datetime.now(UTC).isoformat()
 
+    # Create single Redis client for this tool call
+    client = get_redis_client()
+
     # Store memory with embeddings to Redis
     store_start = time.perf_counter()
     store_success = store_memory_to_redis(
+        client=client,
         memory_id=memory_id,
         content=content,
         semantic_embedding=semantic_embedding,
@@ -434,7 +440,10 @@ def remember_shortterm(content: str) -> str:
     # SPLASH: Search for related memories using cosine similarity (exclude the one we just stored)
     splash_start = time.perf_counter()
     related_memories = search_related_memories(
-        content, semantic_embedding, exclude_id=memory_id if store_success else None
+        client,
+        content,
+        semantic_embedding,
+        exclude_id=memory_id if store_success else None,
     )
     splash_time = time.perf_counter() - splash_start
 
