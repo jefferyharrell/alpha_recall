@@ -158,3 +158,80 @@ async def test_full_server_lifecycle(test_stack):
 
     # If we get here, the server started and responded
     # The fixture cleanup will test that teardown works
+
+
+@pytest.mark.asyncio
+async def test_remember_shortterm_tool(test_stack):
+    """Test the remember_shortterm tool via MCP interface."""
+    async with Client(test_stack) as client:
+        # Test with short content
+        result = await client.call_tool(
+            "remember_shortterm",
+            {"content": "This is a simple test memory to check performance."},
+        )
+
+        # Parse the JSON response
+        response_data = json.loads(result.content[0].text)
+
+        # Verify the response structure
+        assert "status" in response_data
+        assert response_data["status"] == "processed"
+        assert "content_length" in response_data
+        assert "content_tokens" in response_data
+        assert "semantic_embedding_dims" in response_data
+        assert "emotional_embedding_dims" in response_data
+        assert "timing" in response_data
+        assert "performance" in response_data
+        assert "correlation_id" in response_data
+
+        # Verify embedding dimensions
+        assert response_data["semantic_embedding_dims"] == 768
+        assert response_data["emotional_embedding_dims"] == 1024
+
+        # Verify performance metrics are reasonable
+        assert response_data["performance"]["semantic_tokens_per_sec"] > 0
+        assert response_data["performance"]["emotional_tokens_per_sec"] > 0
+        assert response_data["timing"]["total_ms"] > 0
+
+        print(
+            f"✅ Short content: {response_data['performance']['total_tokens_per_sec']} tokens/sec"
+        )
+
+
+@pytest.mark.asyncio
+async def test_remember_shortterm_performance(test_stack):
+    """Test remember_shortterm performance with longer content."""
+    async with Client(test_stack) as client:
+        long_content = """
+        This is a comprehensive test of the remember_shortterm functionality
+        with sentence-transformers v5.0.0. We are testing the performance
+        improvements that come from upgrading from v2.7.0 to v5.0.0, which
+        should provide significant speed improvements for both semantic and
+        emotional embedding generation. The goal is to measure real-world
+        performance in a containerized environment where we cannot use
+        Metal Performance Shaders and are limited to CPU-only processing.
+        """
+
+        result = await client.call_tool(
+            "remember_shortterm", {"content": long_content.strip()}
+        )
+
+        response_data = json.loads(result.content[0].text)
+
+        # Verify faster processing for longer content
+        assert response_data["content_tokens"] > 50  # Should be substantial content
+        assert (
+            response_data["performance"]["total_tokens_per_sec"] > 10
+        )  # Better than old baseline
+
+        print(
+            f"✅ Long content: {response_data['content_tokens']} tokens in {response_data['timing']['total_ms']}ms"
+        )
+        print(
+            f"📊 Performance: {response_data['performance']['total_tokens_per_sec']} tokens/sec"
+        )
+
+        # Verify this is much better than the old ~10 tokens/sec baseline
+        assert (
+            response_data["performance"]["total_tokens_per_sec"] > 50
+        ), "Should be significantly faster than v2.x baseline"
