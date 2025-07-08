@@ -14,8 +14,8 @@ import pytest
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from alpha_recall.tools.memory_shortterm import (
-    browse_shortterm,
+from alpha_recall.tools.browse_shortterm import browse_shortterm
+from alpha_recall.tools.utils.redis_stm import (
     get_redis_client,
     search_related_memories,
     store_memory_to_redis,
@@ -25,7 +25,7 @@ from alpha_recall.tools.memory_shortterm import (
 @pytest.fixture
 def mock_redis():
     """Mock Redis client for testing."""
-    with patch("alpha_recall.tools.memory_shortterm.get_redis_client") as mock:
+    with patch("alpha_recall.tools.utils.redis_stm.get_redis_client") as mock:
         client = MagicMock()
         mock.return_value = client
         yield client
@@ -257,8 +257,8 @@ class TestSearchRelatedMemories:
 class TestGetRedisClient:
     """Test the get_redis_client function."""
 
-    @patch("alpha_recall.tools.memory_shortterm.redis.from_url")
-    @patch("alpha_recall.tools.memory_shortterm.settings")
+    @patch("alpha_recall.tools.utils.redis_stm.redis.from_url")
+    @patch("alpha_recall.tools.utils.redis_stm.settings")
     def test_redis_client_creation(self, mock_settings, mock_redis_from_url):
         """Test that Redis client is created with correct URI."""
         mock_settings.redis_uri = "redis://localhost:6379/0"
@@ -271,7 +271,7 @@ class TestGetRedisClient:
 class TestBrowseShortterm:
     """Test the browse_shortterm function."""
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_empty_memories(self, mock_get_redis):
         """Test browsing when no memories exist."""
         mock_redis = MagicMock()
@@ -291,7 +291,7 @@ class TestBrowseShortterm:
         assert data["pagination"]["total_in_range"] == 0
         assert not data["pagination"]["has_more"]
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_with_memories(self, mock_get_redis):
         """Test browsing with existing memories."""
         mock_redis = MagicMock()
@@ -326,7 +326,7 @@ class TestBrowseShortterm:
         assert data["pagination"]["total_in_range"] == 2
         assert not data["pagination"]["has_more"]
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_with_pagination(self, mock_get_redis):
         """Test browsing with pagination (offset and limit)."""
         mock_redis = MagicMock()
@@ -371,7 +371,7 @@ class TestBrowseShortterm:
             withscores=True,  # offset=2, end=offset+limit-1=3
         )
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_with_search_filter(self, mock_get_redis):
         """Test browsing with search text filtering."""
         mock_redis = MagicMock()
@@ -419,7 +419,7 @@ class TestBrowseShortterm:
         assert data["memories"][0]["content"] == "Memory about Python programming"
         assert data["filters"]["search"] == "python"
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_with_since_duration(self, mock_get_redis):
         """Test browsing with 'since' time filtering."""
         mock_redis = MagicMock()
@@ -449,7 +449,7 @@ class TestBrowseShortterm:
         # Verify ZREVRANGEBYSCORE was called instead of ZREVRANGE
         mock_redis.zrevrangebyscore.assert_called_once()
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_ascending_order(self, mock_get_redis):
         """Test browsing with ascending order (oldest first)."""
         mock_redis = MagicMock()
@@ -483,7 +483,7 @@ class TestBrowseShortterm:
         # Verify ZRANGE was called instead of ZREVRANGE for ascending order
         mock_redis.zrange.assert_called_once()
 
-    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    @patch("alpha_recall.tools.browse_shortterm.get_redis_client")
     def test_browse_error_handling(self, mock_get_redis):
         """Test error handling when Redis operations fail."""
         mock_redis = MagicMock()

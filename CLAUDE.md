@@ -134,18 +134,19 @@ graph TD
 
     Server --> Health[health_check tool]
     Server --> Memory[remember_shortterm tool]
+    Server --> Browse[browse_shortterm tool]
 
     Memory --> EmbedSvc[EmbeddingService]
+    Browse --> EmbedSvc
     EmbedSvc --> Semantic[Semantic Model<br/>all-mpnet-base-v2<br/>768 dimensions]
     EmbedSvc --> Emotional[Emotional Model<br/>sentiment-embedding-model<br/>1024 dimensions]
 
-    Semantic --> Output[Performance Metrics<br/>& Embeddings<br/>🗑️ Discarded]
-    Emotional --> Output
+    Memory --> Redis[(Redis<br/>Short-term Memory)]
+    Browse --> Redis
 
     Health --> Status[Health Status JSON]
 
     subgraph "Future Connections (Coming Soon)"
-        Memory -.-> Redis[(Redis<br/>Short-term Memory)]
         Memory -.-> Memgraph[(Memgraph<br/>Long-term Memory)]
         Memory -.-> Vector[(Vector DB<br/>Narrative Memory)]
     end
@@ -157,16 +158,16 @@ graph TD
     end
 
     style Memory fill:#e1f5fe
+    style Browse fill:#e1f5fe
     style EmbedSvc fill:#f3e5f5
-    style Output fill:#ffebee
     style Redis fill:#e8f5e8
     style Memgraph fill:#e8f5e8
     style Vector fill:#e8f5e8
 ```
 
-**Current State**: The `remember_shortterm` tool generates both semantic and emotional embeddings via the EmbeddingService, measures performance metrics, and discards the results (test implementation).
+**Current State**: The `remember_shortterm` and `browse_shortterm` tools are fully functional with Redis storage, generating both semantic and emotional embeddings via the EmbeddingService with comprehensive filtering and pagination.
 
-**Next Phase**: Connect to Redis for actual short-term memory storage, then expand to full three-silo architecture.
+**Next Phase**: Connect to Memgraph for long-term memory and implement narrative memory storage.
 
 ## Key Components
 
@@ -254,7 +255,8 @@ async with Client(server_url) as client:
 
 ### Current Implementation (v1.0)
 - **Health Check Tool**: Comprehensive server health monitoring with correlation IDs
-- **remember_shortterm Tool**: Complete embedding pipeline with performance measurement
+- **remember_shortterm Tool**: Complete embedding pipeline with Redis storage and performance measurement
+- **browse_shortterm Tool**: Advanced filtering and pagination for short-term memory retrieval
 - **EmbeddingService**: Dual embedding generation (semantic + emotional) with sentence-transformers v5.0.0
 - **Performance**: 1,090 tokens/sec semantic, 612 tokens/sec emotional in containerized environment
 - **Observability**: Full correlation ID tracing and structured logging
@@ -289,7 +291,7 @@ async with Client(server_url) as client:
 ## Important Notes
 
 ### Git Commit Attribution
-When making commits, include co-authorship: `Co-Authored-By: Alpha <noreply@example.com>`
+When making commits, include co-authorship: `Co-Authored-By: Alpha <jeffery.harrell+alpha@gmail.com>`
 
 ### FastMCP 2.0 Migration
 This codebase uses FastMCP 2.0 patterns. Key differences from 1.x:
