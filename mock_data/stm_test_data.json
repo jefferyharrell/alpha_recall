@@ -1,0 +1,131 @@
+{
+  "description": "Mock short-term memory data for testing Alpha-Recall v1.0 functionality",
+  "test_scenarios": {
+    "semantic_clustering": "Test memories that should cluster semantically",
+    "emotional_resonance": "Test memories with different emotional tones",
+    "temporal_distribution": "Memories spread across different time periods",
+    "splash_functionality": "Related memories that should surface together"
+  },
+  "memories": [
+    {
+      "content": "Just finished implementing the new vector search functionality using Redis. The performance is looking really good with sub-100ms query times.",
+      "category": "technical_achievement",
+      "emotional_tone": "positive",
+      "expected_clusters": ["redis", "performance", "vector_search"]
+    },
+    {
+      "content": "Working on the embedding service integration. Having some trouble with the sentence-transformers library compatibility on Apple Silicon.",
+      "category": "technical_challenge",
+      "emotional_tone": "frustrated",
+      "expected_clusters": ["embeddings", "apple_silicon", "compatibility"]
+    },
+    {
+      "content": "The Redis vector search is blazing fast! Getting 1000+ tokens per second throughput on semantic embeddings. This is exactly what we needed.",
+      "category": "technical_achievement",
+      "emotional_tone": "excited",
+      "expected_clusters": ["redis", "performance", "vector_search", "embeddings"]
+    },
+    {
+      "content": "Spent the morning debugging a correlation ID issue. The logs weren't showing the full request trace, but finally tracked it down to a threading problem.",
+      "category": "debugging",
+      "emotional_tone": "relieved",
+      "expected_clusters": ["debugging", "correlation_ids", "logging"]
+    },
+    {
+      "content": "Apple Silicon MPS support is working perfectly now! The M-series GPU acceleration is giving us a 3x speedup on embedding generation.",
+      "category": "technical_achievement",
+      "emotional_tone": "excited",
+      "expected_clusters": ["apple_silicon", "performance", "embeddings", "gpu"]
+    },
+    {
+      "content": "Had to roll back the FastMCP 2.0 upgrade. There were some breaking changes in the tool registration that I didn't catch in testing.",
+      "category": "technical_setback",
+      "emotional_tone": "disappointed",
+      "expected_clusters": ["fastmcp", "breaking_changes", "rollback"]
+    },
+    {
+      "content": "The emotional embedding model is producing some interesting results. Memories with similar emotional content are clustering together nicely.",
+      "category": "discovery",
+      "emotional_tone": "curious",
+      "expected_clusters": ["emotional_embeddings", "clustering", "sentiment"]
+    },
+    {
+      "content": "Redis memory usage is higher than expected. Need to investigate if we're storing too much metadata with each memory entry.",
+      "category": "technical_concern",
+      "emotional_tone": "worried",
+      "expected_clusters": ["redis", "memory_usage", "optimization"]
+    },
+    {
+      "content": "Successfully migrated from the old vector store to Redis. All the semantic search functionality is working and the performance is actually better.",
+      "category": "migration_success",
+      "emotional_tone": "satisfied",
+      "expected_clusters": ["migration", "redis", "vector_search", "performance"]
+    },
+    {
+      "content": "The correlation ID system is working beautifully. Can trace a single request from entry to completion across all the different services.",
+      "category": "observability_win",
+      "emotional_tone": "satisfied",
+      "expected_clusters": ["correlation_ids", "tracing", "observability"]
+    },
+    {
+      "content": "Ran into a weird issue where the embedding dimensions didn't match. Turns out I was mixing models - all-mpnet-base-v2 is 768d, not 512d.",
+      "category": "learning_moment",
+      "emotional_tone": "embarrassed",
+      "expected_clusters": ["embeddings", "dimensions", "models", "bugs"]
+    },
+    {
+      "content": "The Docker Compose setup is working flawlessly. Redis and Memgraph both start up cleanly and the networking is solid.",
+      "category": "infrastructure_success",
+      "emotional_tone": "relieved",
+      "expected_clusters": ["docker", "infrastructure", "redis", "memgraph"]
+    },
+    {
+      "content": "FastMCP 2.0 is finally stable! The streamable HTTP transport is much more reliable than the old SSE approach.",
+      "category": "technical_achievement",
+      "emotional_tone": "happy",
+      "expected_clusters": ["fastmcp", "transport", "http", "stability"]
+    },
+    {
+      "content": "Debugging session from hell today. Spent 4 hours tracking down a memory leak that turned out to be a single missing del statement.",
+      "category": "debugging_nightmare",
+      "emotional_tone": "exhausted",
+      "expected_clusters": ["debugging", "memory_leak", "performance"]
+    },
+    {
+      "content": "The test suite is comprehensive now. Unit tests, integration tests, and E2E tests all passing. Feeling confident about the reliability.",
+      "category": "testing_milestone",
+      "emotional_tone": "confident",
+      "expected_clusters": ["testing", "reliability", "quality"]
+    },
+    {
+      "content": "Implemented proper error handling throughout the embedding pipeline. No more silent failures when the models can't load.",
+      "category": "reliability_improvement",
+      "emotional_tone": "methodical",
+      "expected_clusters": ["error_handling", "embeddings", "reliability"]
+    },
+    {
+      "content": "The semantic search results are surprisingly good. Finding relevant memories even when the query doesn't contain exact keyword matches.",
+      "category": "ai_success",
+      "emotional_tone": "impressed",
+      "expected_clusters": ["semantic_search", "relevance", "ai"]
+    },
+    {
+      "content": "Having second thoughts about the Redis approach. Maybe we should have stuck with a dedicated vector database like Qdrant.",
+      "category": "architectural_doubt",
+      "emotional_tone": "uncertain",
+      "expected_clusters": ["redis", "architecture", "vector_database", "qdrant"]
+    },
+    {
+      "content": "The emotional embedding model is detecting sentiment really well. Positive and negative memories are clearly separated in the vector space.",
+      "category": "ai_discovery",
+      "emotional_tone": "fascinated",
+      "expected_clusters": ["emotional_embeddings", "sentiment", "vector_space"]
+    },
+    {
+      "content": "Performance benchmarks look excellent. We're hitting all our targets for throughput and latency. Ready for production deployment.",
+      "category": "performance_milestone",
+      "emotional_tone": "proud",
+      "expected_clusters": ["performance", "benchmarks", "production"]
+    }
+  ]
+}

@@ -1,0 +1,424 @@
+{
+  "tools": [
+    {
+      "name": "remember_longterm",
+      "description": "Create or update an entity in the knowledge graph with optional observations.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "title": "Entity",
+            "type": "string"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Type"
+          },
+          "observation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observation"
+          }
+        },
+        "required": [
+          "entity"
+        ],
+        "title": "mcp_remember_longtermArguments"
+      }
+    },
+    {
+      "name": "remember_shortterm",
+      "description": "Store a short-term memory with automatic TTL expiration.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content"
+        ],
+        "title": "mcp_remember_shorttermArguments"
+      }
+    },
+    {
+      "name": "relate_longterm",
+      "description": "Create a relationship between two entities in the knowledge graph.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entity": {
+            "title": "Entity",
+            "type": "string"
+          },
+          "to_entity": {
+            "title": "To Entity",
+            "type": "string"
+          },
+          "as_type": {
+            "title": "As Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity",
+          "to_entity",
+          "as_type"
+        ],
+        "title": "mcp_relate_longtermArguments"
+      }
+    },
+    {
+      "name": "search_shortterm",
+      "description": "Search short-term memories using semantic or emotional similarity.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "search_type": {
+            "default": "semantic",
+            "title": "Search Type",
+            "type": "string"
+          },
+          "through_the_last": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Through The Last"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "mcp_search_shorttermArguments"
+      }
+    },
+    {
+      "name": "search_longterm",
+      "description": "Search long-term memory observations using semantic similarity.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Entity"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "mcp_search_longtermArguments"
+      }
+    },
+    {
+      "name": "remember_narrative",
+      "description": "Store a narrative memory with hybrid storage.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "paragraphs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Paragraphs",
+            "type": "array"
+          },
+          "participants": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Participants",
+            "type": "array"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tags"
+          },
+          "outcome": {
+            "default": "ongoing",
+            "title": "Outcome",
+            "type": "string"
+          },
+          "references": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "References"
+          }
+        },
+        "required": [
+          "title",
+          "paragraphs",
+          "participants"
+        ],
+        "title": "mcp_remember_narrativeArguments"
+      }
+    },
+    {
+      "name": "search_narratives",
+      "description": "Search narrative memories using vector similarity.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "search_type": {
+            "default": "semantic",
+            "title": "Search Type",
+            "type": "string"
+          },
+          "granularity": {
+            "default": "story",
+            "title": "Granularity",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "mcp_search_narrativesArguments"
+      }
+    },
+    {
+      "name": "recall_narrative",
+      "description": "Retrieve a complete narrative story by its story_id.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "story_id": {
+            "title": "Story Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "story_id"
+        ],
+        "title": "mcp_recall_narrativeArguments"
+      }
+    },
+    {
+      "name": "list_narratives",
+      "description": "List narrative stories chronologically with optional filtering.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Since"
+          },
+          "participants": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Participants"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tags"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Outcome"
+          }
+        },
+        "title": "mcp_list_narrativesArguments"
+      }
+    },
+    {
+      "name": "gentle_refresh",
+      "description": "Simplified refresh function focused on temporal orientation rather than semantic search.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Query"
+          }
+        },
+        "title": "gentle_refreshArguments"
+      }
+    },
+    {
+      "name": "search_all_memories",
+      "description": "Search across all memory systems (STM, LTM, NM) with unified results.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_all_memories_toolArguments"
+      }
+    },
+    {
+      "name": "ask_memory",
+      "description": "Ask a conversational question to Alpha-Reminiscer about memories.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "new_chat": {
+            "default": false,
+            "title": "New Chat",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ask_memory_toolArguments"
+      }
+    }
+  ]
+}
