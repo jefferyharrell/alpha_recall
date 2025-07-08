@@ -9,7 +9,10 @@ from .logging import configure_logging, get_logger
 from .tools import (
     register_browse_shortterm_tool,
     register_health_tools,
+    register_relate_longterm_tools,
+    register_remember_longterm_tools,
     register_remember_shortterm_tool,
+    register_search_longterm_tools,
     register_search_shortterm_tool,
 )
 from .version import __version__
@@ -27,6 +30,9 @@ def create_server():
     register_remember_shortterm_tool(mcp)
     register_browse_shortterm_tool(mcp)
     register_search_shortterm_tool(mcp)
+    register_remember_longterm_tools(mcp)
+    register_relate_longterm_tools(mcp)
+    register_search_longterm_tools(mcp)
 
     logger.debug("All tools registered")
     return mcp

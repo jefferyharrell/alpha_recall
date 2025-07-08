@@ -35,11 +35,22 @@ def health_check() -> str:
     # Check Memgraph connection
     memgraph_start = time.perf_counter()
     try:
-        # TODO: Add actual Memgraph connection test when we implement it
-        checks["memgraph"] = "ok"
-        tool_logger.debug(
-            "Memgraph health check passed", service="memgraph", status="ok"
-        )
+        from ..services.memgraph import get_memgraph_service
+
+        memgraph_service = get_memgraph_service()
+        if memgraph_service.test_connection():
+            checks["memgraph"] = "ok"
+            tool_logger.debug(
+                "Memgraph health check passed", service="memgraph", status="ok"
+            )
+        else:
+            checks["memgraph"] = "error: connection test failed"
+            overall_status = "error"
+            tool_logger.error(
+                "Memgraph health check failed",
+                service="memgraph",
+                error="connection test failed",
+            )
     except Exception as e:
         checks["memgraph"] = f"error: {str(e)}"
         overall_status = "error"
