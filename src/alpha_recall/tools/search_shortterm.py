@@ -9,8 +9,8 @@ from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
+from ..services.redis import get_redis_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
-from .utils.redis_stm import ensure_vector_index_exists, get_redis_client
 
 __all__ = ["search_shortterm", "register_search_shortterm_tool"]
 
@@ -65,8 +65,9 @@ def search_shortterm(
             indent=2,
         )
 
-    # Create Redis client
-    client = get_redis_client()
+    # Get Redis service
+    redis_service = get_redis_service()
+    client = redis_service.client
 
     try:
         # Calculate time range if 'through_the_last' is provided
@@ -127,7 +128,9 @@ def search_shortterm(
 
         # For semantic search, use Redis vector search
         if search_type == "semantic":
-            memories = _search_semantic(client, query, limit, cutoff_timestamp, logger)
+            memories = _search_semantic(
+                redis_service, query, limit, cutoff_timestamp, logger
+            )
         else:
             # For emotional search, fall back to text matching for now
             # TODO: Implement proper emotional vector search when emotional embeddings are stored
@@ -188,7 +191,7 @@ def search_shortterm(
 
 
 def _search_semantic(
-    client, query: str, limit: int, cutoff_timestamp: float, logger
+    redis_service, query: str, limit: int, cutoff_timestamp: float, logger
 ) -> list[dict[str, Any]]:
     """Perform semantic vector search using Redis."""
     # Generate semantic embedding for the query
@@ -204,7 +207,7 @@ def _search_semantic(
     )
 
     # Ensure vector index exists
-    if not ensure_vector_index_exists(client):
+    if not redis_service.ensure_vector_index_exists():
         logger.error(
             "Vector index unavailable and could not be created",
             operation="search_shortterm_semantic",
@@ -226,7 +229,7 @@ def _search_semantic(
 
     try:
         # Execute vector search
-        search_result = client.execute_command(
+        search_result = redis_service.client.execute_command(
             "FT.SEARCH",
             "memory_semantic_index",
             search_query,

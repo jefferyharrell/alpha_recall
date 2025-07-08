@@ -9,12 +9,8 @@ from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
+from ..services.redis import get_redis_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
-from .utils.redis_stm import (
-    get_redis_client,
-    search_related_memories,
-    store_memory_to_redis,
-)
 
 __all__ = ["remember_shortterm", "register_remember_shortterm_tool"]
 
@@ -59,13 +55,12 @@ def remember_shortterm(content: str) -> str:
     memory_id = f"stm_{int(time.time() * 1000)}_{str(uuid.uuid4())[:8]}"
     created_at = datetime.now(UTC).isoformat()
 
-    # Create single Redis client for this tool call
-    client = get_redis_client()
+    # Get Redis service
+    redis_service = get_redis_service()
 
     # Store memory with embeddings to Redis
     store_start = time.perf_counter()
-    store_success = store_memory_to_redis(
-        client=client,
+    store_success = redis_service.store_memory(
         memory_id=memory_id,
         content=content,
         semantic_embedding=semantic_embedding,
@@ -124,10 +119,9 @@ def remember_shortterm(content: str) -> str:
 
     # SPLASH: Search for related memories using cosine similarity (exclude the one we just stored)
     splash_start = time.perf_counter()
-    related_memories = search_related_memories(
-        client,
-        content,
-        semantic_embedding,
+    related_memories = redis_service.search_related_memories(
+        content=content,
+        query_embedding=semantic_embedding,
         exclude_id=memory_id if store_success else None,
     )
     splash_time = time.perf_counter() - splash_start

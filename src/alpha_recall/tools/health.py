@@ -68,9 +68,20 @@ def health_check() -> str:
     # Check Redis connection
     redis_start = time.perf_counter()
     try:
-        # TODO: Add actual Redis connection test when we implement it
-        checks["redis"] = "ok"
-        tool_logger.debug("Redis health check passed", service="redis", status="ok")
+        from ..services.redis import get_redis_service
+
+        redis_service = get_redis_service()
+        if redis_service.test_connection():
+            checks["redis"] = "ok"
+            tool_logger.debug("Redis health check passed", service="redis", status="ok")
+        else:
+            checks["redis"] = "error: connection test failed"
+            overall_status = "error"
+            tool_logger.error(
+                "Redis health check failed",
+                service="redis",
+                error="connection test failed",
+            )
     except Exception as e:
         checks["redis"] = f"error: {str(e)}"
         overall_status = "error"

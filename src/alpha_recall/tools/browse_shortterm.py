@@ -7,8 +7,8 @@ import pendulum
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.redis import get_redis_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
-from .utils.redis_stm import get_redis_client
 
 __all__ = ["browse_shortterm", "register_browse_shortterm_tool"]
 
@@ -49,8 +49,9 @@ def browse_shortterm(
         operation="browse_shortterm",
     )
 
-    # Create Redis client
-    client = get_redis_client()
+    # Get Redis service
+    redis_service = get_redis_service()
+    client = redis_service.client
 
     try:
         # Calculate time range if 'since' is provided
