@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from alpha_recall.tools.memory_shortterm import (
+    browse_shortterm,
     get_redis_client,
     search_related_memories,
     store_memory_to_redis,
@@ -265,3 +266,238 @@ class TestGetRedisClient:
         get_redis_client()
 
         mock_redis_from_url.assert_called_once_with("redis://localhost:6379/0")
+
+
+class TestBrowseShortterm:
+    """Test the browse_shortterm function."""
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_empty_memories(self, mock_get_redis):
+        """Test browsing when no memories exist."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock empty memory index
+        mock_redis.zcard.return_value = 0
+        mock_redis.zrevrange.return_value = []
+
+        result = browse_shortterm()
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        assert data["memories"] == []
+        assert data["pagination"]["returned"] == 0
+        assert data["pagination"]["total_in_range"] == 0
+        assert not data["pagination"]["has_more"]
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_with_memories(self, mock_get_redis):
+        """Test browsing with existing memories."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock memory index with 2 memories
+        mock_redis.zcard.return_value = 2
+        mock_redis.zrevrange.return_value = [
+            (b"stm_1", 1625097600.0),  # July 1, 2021
+            (b"stm_2", 1625011200.0),  # June 30, 2021
+        ]
+
+        # Mock memory content retrieval
+        def mock_hmget(key, fields):
+            if key == "memory:stm_1":
+                return [b"First test memory", b"2021-07-01T00:00:00+00:00", b"stm_1"]
+            elif key == "memory:stm_2":
+                return [b"Second test memory", b"2021-06-30T00:00:00+00:00", b"stm_2"]
+            return [None, None, None]
+
+        mock_redis.hmget.side_effect = mock_hmget
+
+        result = browse_shortterm(limit=10)
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        assert len(data["memories"]) == 2
+        assert data["memories"][0]["content"] == "First test memory"
+        assert data["memories"][1]["content"] == "Second test memory"
+        assert data["pagination"]["returned"] == 2
+        assert data["pagination"]["total_in_range"] == 2
+        assert not data["pagination"]["has_more"]
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_with_pagination(self, mock_get_redis):
+        """Test browsing with pagination (offset and limit)."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock memory index with more memories than limit
+        mock_redis.zcard.return_value = 10
+        mock_redis.zrevrange.return_value = [
+            (
+                b"stm_3",
+                1625097600.0,
+            ),  # Should get memory 3 and 4 with offset=2, limit=2
+            (b"stm_4", 1625011200.0),
+        ]
+
+        # Mock memory content retrieval
+        def mock_hmget(key, fields):
+            if key == "memory:stm_3":
+                return [b"Third memory", b"2021-07-01T00:00:00+00:00", b"stm_3"]
+            elif key == "memory:stm_4":
+                return [b"Fourth memory", b"2021-06-30T00:00:00+00:00", b"stm_4"]
+            return [None, None, None]
+
+        mock_redis.hmget.side_effect = mock_hmget
+
+        result = browse_shortterm(limit=2, offset=2)
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        assert len(data["memories"]) == 2
+        assert data["pagination"]["returned"] == 2
+        assert data["pagination"]["total_in_range"] == 10
+        assert data["pagination"]["has_more"]
+        assert data["pagination"]["showing"] == "3-4 of 10"
+
+        # Verify the correct Redis call was made with offset and limit
+        mock_redis.zrevrange.assert_called_once_with(
+            "memory_index",
+            2,
+            3,
+            withscores=True,  # offset=2, end=offset+limit-1=3
+        )
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_with_search_filter(self, mock_get_redis):
+        """Test browsing with search text filtering."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock memory index
+        mock_redis.zcard.return_value = 3
+        mock_redis.zrevrange.return_value = [
+            (b"stm_1", 1625097600.0),
+            (b"stm_2", 1625011200.0),
+            (b"stm_3", 1624924800.0),
+        ]
+
+        # Mock memory content retrieval
+        def mock_hmget(key, fields):
+            if key == "memory:stm_1":
+                return [
+                    b"Memory about Python programming",
+                    b"2021-07-01T00:00:00+00:00",
+                    b"stm_1",
+                ]
+            elif key == "memory:stm_2":
+                return [
+                    b"Memory about JavaScript coding",
+                    b"2021-06-30T00:00:00+00:00",
+                    b"stm_2",
+                ]
+            elif key == "memory:stm_3":
+                return [
+                    b"Memory about cooking recipes",
+                    b"2021-06-29T00:00:00+00:00",
+                    b"stm_3",
+                ]
+            return [None, None, None]
+
+        mock_redis.hmget.side_effect = mock_hmget
+
+        result = browse_shortterm(search="python")
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        # Should only return the Python memory (case-insensitive search)
+        assert len(data["memories"]) == 1
+        assert data["memories"][0]["content"] == "Memory about Python programming"
+        assert data["filters"]["search"] == "python"
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_with_since_duration(self, mock_get_redis):
+        """Test browsing with 'since' time filtering."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock ZREVRANGEBYSCORE call for time-based filtering
+        mock_redis.zrevrangebyscore.return_value = [
+            (b"stm_recent", 1625097600.0),
+        ]
+        mock_redis.zcount.return_value = 1
+
+        # Mock memory content retrieval
+        mock_redis.hmget.return_value = [
+            b"Recent memory",
+            b"2021-07-01T00:00:00+00:00",
+            b"stm_recent",
+        ]
+
+        result = browse_shortterm(since="6h")
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        assert len(data["memories"]) == 1
+        assert data["filters"]["since"] == "6h"
+
+        # Verify ZREVRANGEBYSCORE was called instead of ZREVRANGE
+        mock_redis.zrevrangebyscore.assert_called_once()
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_ascending_order(self, mock_get_redis):
+        """Test browsing with ascending order (oldest first)."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Mock memory index
+        mock_redis.zcard.return_value = 2
+        mock_redis.zrange.return_value = [  # Note: zrange instead of zrevrange
+            (b"stm_old", 1625011200.0),
+            (b"stm_new", 1625097600.0),
+        ]
+
+        # Mock memory content retrieval
+        def mock_hmget(key, fields):
+            if key == "memory:stm_old":
+                return [b"Older memory", b"2021-06-30T00:00:00+00:00", b"stm_old"]
+            elif key == "memory:stm_new":
+                return [b"Newer memory", b"2021-07-01T00:00:00+00:00", b"stm_new"]
+            return [None, None, None]
+
+        mock_redis.hmget.side_effect = mock_hmget
+
+        result = browse_shortterm(order="asc")
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        assert len(data["memories"]) == 2
+        assert data["filters"]["order"] == "asc"
+
+        # Verify ZRANGE was called instead of ZREVRANGE for ascending order
+        mock_redis.zrange.assert_called_once()
+
+    @patch("alpha_recall.tools.memory_shortterm.get_redis_client")
+    def test_browse_error_handling(self, mock_get_redis):
+        """Test error handling when Redis operations fail."""
+        mock_redis = MagicMock()
+        mock_get_redis.return_value = mock_redis
+
+        # Make Redis operations raise an exception
+        mock_redis.zcard.side_effect = Exception("Redis connection failed")
+
+        result = browse_shortterm()
+
+        # Parse JSON result
+        data = json.loads(result)
+
+        # Should return error response
+        assert "error" in data
+        assert data["memories"] == []
+        assert data["pagination"]["returned"] == 0
