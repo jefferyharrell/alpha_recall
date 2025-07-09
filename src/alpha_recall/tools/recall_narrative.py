@@ -43,19 +43,8 @@ def recall_narrative(story_id: str) -> str:
         # Retrieve the story using NarrativeService
         narrative_service = get_narrative_service()
 
-        # Handle async call properly (avoid nested event loops)
-        try:
-            asyncio.get_running_loop()
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run, narrative_service.get_story(story_id)
-                )
-                story_data = future.result()
-        except RuntimeError:
-            # No existing event loop, safe to use asyncio.run
-            story_data = asyncio.run(narrative_service.get_story(story_id))
+        # Call async service method from sync context
+        story_data = asyncio.run(narrative_service.get_story(story_id))
 
         if not story_data:
             # Story not found

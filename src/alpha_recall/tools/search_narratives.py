@@ -62,31 +62,15 @@ def search_narratives(
         narrative_service = get_narrative_service()
 
         # Handle async call properly (avoid nested event loops)
-        try:
-            asyncio.get_running_loop()
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    narrative_service.search_stories(
-                        query=query,
-                        search_type=search_type,
-                        granularity=granularity,
-                        limit=limit,
-                    ),
-                )
-                results = future.result()
-        except RuntimeError:
-            # No existing event loop, safe to use asyncio.run
-            results = asyncio.run(
-                narrative_service.search_stories(
-                    query=query,
-                    search_type=search_type,
-                    granularity=granularity,
-                    limit=limit,
-                )
+        # Call async service method from sync context
+        results = asyncio.run(
+            narrative_service.search_stories(
+                query=query,
+                search_type=search_type,
+                granularity=granularity,
+                limit=limit,
             )
+        )
         search_time_ms = int((time.time() - start_time) * 1000)
 
         # Return response structure

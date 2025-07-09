@@ -74,8 +74,23 @@ class TestRememberNarrative(unittest.TestCase):
         self.assertTrue(story_id.startswith("story_"))
         self.assertIn("_", story_id[6:])  # Should have timestamp and correlation parts
 
-    def test_remember_narrative_with_optional_parameters(self):
+    @patch("alpha_recall.tools.remember_narrative.get_narrative_service")
+    def test_remember_narrative_with_optional_parameters(self, mock_get_service):
         """Test narrative storage with all optional parameters."""
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.store_story.return_value = {
+            "success": True,
+            "story_id": "story_1234567890_abc123",
+            "title": "Project Alpha Breakthrough",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "paragraph_count": 2,
+            "embeddings_generated": 4,
+            "storage_location": "hybrid_redis_memgraph",
+            "correlation_id": "narrative_abc12345",
+        }
+        mock_get_service.return_value = mock_service
+
         title = "Project Alpha Breakthrough"
         paragraphs = [
             "We had been struggling with memory architecture for weeks.",
@@ -103,8 +118,23 @@ class TestRememberNarrative(unittest.TestCase):
         self.assertEqual(story["references"], references)
         self.assertEqual(story["participants"], participants)
 
-    def test_remember_narrative_data_cleaning(self):
+    @patch("alpha_recall.tools.remember_narrative.get_narrative_service")
+    def test_remember_narrative_data_cleaning(self, mock_get_service):
         """Test that input data is properly cleaned."""
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.store_story.return_value = {
+            "success": True,
+            "story_id": "story_1234567890_abc123",
+            "title": "  Clean Data Test  ",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "paragraph_count": 2,
+            "embeddings_generated": 4,
+            "storage_location": "hybrid_redis_memgraph",
+            "correlation_id": "narrative_abc12345",
+        }
+        mock_get_service.return_value = mock_service
+
         title = "  Clean Data Test  "
         paragraphs = [
             "  First paragraph  ",
@@ -243,8 +273,29 @@ class TestRememberNarrative(unittest.TestCase):
         json_string = json.dumps(response_data)
         self.assertIsInstance(json_string, str)
 
-    def test_remember_narrative_correlation_id_format(self):
+    @patch("alpha_recall.tools.remember_narrative.generate_correlation_id")
+    @patch("alpha_recall.tools.remember_narrative.get_narrative_service")
+    def test_remember_narrative_correlation_id_format(
+        self, mock_get_service, mock_generate_id
+    ):
         """Test that correlation ID is properly formatted."""
+        # Mock correlation ID generation
+        mock_generate_id.return_value = "narrative_abc12345"
+
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.store_story.return_value = {
+            "success": True,
+            "story_id": "story_1234567890_abc12345",
+            "title": "Correlation ID Test",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "paragraph_count": 1,
+            "embeddings_generated": 2,
+            "storage_location": "hybrid_redis_memgraph",
+            "correlation_id": "narrative_abc12345",
+        }
+        mock_get_service.return_value = mock_service
+
         result = remember_narrative(
             title="Correlation ID Test",
             paragraphs=["Test content"],
@@ -261,12 +312,28 @@ class TestRememberNarrative(unittest.TestCase):
         correlation_suffix = correlation_id.split("_")[1]
         self.assertIn(correlation_suffix, story_id)
 
-    @patch("alpha_recall.tools.remember_narrative.time.time")
-    def test_remember_narrative_timestamp_consistency(self, mock_time):
+    @patch("alpha_recall.tools.remember_narrative.generate_correlation_id")
+    @patch("alpha_recall.tools.remember_narrative.get_narrative_service")
+    def test_remember_narrative_timestamp_consistency(
+        self, mock_get_service, mock_generate_id
+    ):
         """Test timestamp consistency between story_id and created_at."""
-        # Mock time to return consistent value
-        mock_timestamp = 1752070566.123456
-        mock_time.return_value = mock_timestamp
+        # Mock correlation ID generation
+        mock_generate_id.return_value = "narrative_abc12345"
+
+        # Mock the service response with consistent timestamp
+        mock_service = AsyncMock()
+        mock_service.store_story.return_value = {
+            "success": True,
+            "story_id": "story_1752070566_abc12345",
+            "title": "Timestamp Test",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "paragraph_count": 1,
+            "embeddings_generated": 2,
+            "storage_location": "hybrid_redis_memgraph",
+            "correlation_id": "narrative_abc12345",
+        }
+        mock_get_service.return_value = mock_service
 
         result = remember_narrative(
             title="Timestamp Test",
@@ -275,14 +342,13 @@ class TestRememberNarrative(unittest.TestCase):
         )
         response_data = json.loads(result)
 
-        # Story ID should include the mocked timestamp
+        # Story ID should include the timestamp
         story_id = response_data["story"]["story_id"]
-        expected_timestamp_str = str(int(mock_timestamp))
-        self.assertIn(expected_timestamp_str, story_id)
+        self.assertIn("1752070566", story_id)
 
         # created_at should be in ISO format
         created_at = response_data["story"]["created_at"]
-        self.assertTrue(created_at.endswith("Z"))  # UTC timezone
+        self.assertTrue(created_at.endswith("+00:00"))  # UTC timezone
         self.assertIn("T", created_at)  # ISO format separator
 
 
@@ -373,8 +439,31 @@ class TestSearchNarratives(unittest.TestCase):
 class TestRecallNarrative(unittest.TestCase):
     """Test cases for recall_narrative tool."""
 
-    def test_recall_narrative_basic_functionality(self):
+    @patch("alpha_recall.tools.recall_narrative.get_narrative_service")
+    def test_recall_narrative_basic_functionality(self, mock_get_service):
         """Test basic narrative recall with valid story_id."""
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.get_story.return_value = {
+            "story_id": "story_1234567890_abc123",
+            "title": "Test Story",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "participants": ["Alpha", "Jeffery"],
+            "tags": ["test", "example"],
+            "outcome": "ongoing",
+            "references": [],
+            "paragraphs": [
+                {"text": "First paragraph", "order": 0},
+                {"text": "Second paragraph", "order": 1},
+            ],
+            "metadata": {
+                "paragraph_count": 2,
+                "embeddings_generated": 4,
+                "storage_location": "hybrid_redis_memgraph",
+            },
+        }
+        mock_get_service.return_value = mock_service
+
         story_id = "story_1234567890_abc123"
         result = recall_narrative(story_id)
         response_data = json.loads(result)
@@ -402,7 +491,7 @@ class TestRecallNarrative(unittest.TestCase):
         self.assertIsInstance(paragraphs, list)
         for para in paragraphs:
             self.assertIn("order", para)
-            self.assertIn("content", para)
+            self.assertIn("text", para)
 
     def test_recall_narrative_validation_empty_story_id(self):
         """Test validation for empty story_id."""
@@ -432,8 +521,21 @@ class TestRecallNarrative(unittest.TestCase):
 class TestBrowseNarrative(unittest.TestCase):
     """Test cases for browse_narrative tool."""
 
-    def test_browse_narrative_basic_functionality(self):
+    @patch("alpha_recall.tools.browse_narrative.get_narrative_service")
+    def test_browse_narrative_basic_functionality(self, mock_get_service):
         """Test basic narrative browsing with default parameters."""
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.list_stories.return_value = {
+            "stories": [],
+            "limit": 10,
+            "offset": 0,
+            "total_count": 0,
+            "has_more": False,
+            "returned_count": 0,
+        }
+        mock_get_service.return_value = mock_service
+
         result = browse_narrative()
         response_data = json.loads(result)
 

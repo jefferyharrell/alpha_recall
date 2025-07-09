@@ -89,6 +89,14 @@ class NarrativeService:
             # Parse Redis URI
             redis_url = self.settings.redis_uri
             self._redis_client = redis.from_url(redis_url, decode_responses=False)
+        else:
+            # Check if the client is still usable (not closed)
+            try:
+                await self._redis_client.ping()
+            except Exception:
+                # Client is closed or unusable, create a new one
+                redis_url = self.settings.redis_uri
+                self._redis_client = redis.from_url(redis_url, decode_responses=False)
         return self._redis_client
 
     async def store_story(
