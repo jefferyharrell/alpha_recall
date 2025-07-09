@@ -111,16 +111,12 @@ pre-commit:
     uv run --group dev pre-commit run --all-files
 
 test:
-    @echo "Running all tests (unit → integration → e2e)..."
-    uv run pytest tests/unit/ tests/integration/ tests/e2e/ -v
+    @echo "Running all tests (unit → e2e)..."
+    uv run pytest tests/unit/ tests/e2e/ -v
 
 test-unit:
     @echo "Running unit tests..."
     uv run pytest tests/unit/ -v
-
-test-integration:
-    @echo "Running integration tests..."
-    uv run pytest tests/integration/ -v
 
 test-e2e:
     @echo "Running e2e tests..."

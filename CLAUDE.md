@@ -61,7 +61,6 @@ If you prefer not to use `just`:
 ```bash
 # Testing
 uv run pytest tests/unit/                    # Unit tests
-uv run pytest tests/integration/             # Integration tests
 uv run pytest tests/e2e/                     # E2E tests
 uv run pytest tests/unit/test_health.py      # Single test file
 
@@ -328,10 +327,9 @@ def test_stack():
     # Clean up automatically
 ```
 
-**Three Test Layers:**
-- `tests/unit/` - Fast unit tests for individual components
-- `tests/integration/` - Integration tests with real services
-- `tests/e2e/` - Full MCP protocol testing via Docker (`tests/docker/e2e.yml`)
+**Two Test Layers:**
+- `tests/unit/` - Fast unit tests for individual components (fully mocked, no database connections)
+- `tests/e2e/` - Full MCP protocol testing via isolated Docker stack (`tests/docker/e2e.yml`)
 
 **MCP Client Testing**: Uses `fastmcp.Client` for authentic MCP protocol testing:
 
@@ -427,10 +425,12 @@ result = await gentle_refresh()
 - **Type Hints**: Full type annotation expected
 
 ### Testing Strategy
-- **Test What Matters**: Focus on behavior over implementation
-- **Docker Isolation**: Each test gets fresh databases
-- **MCP Protocol**: Test real MCP interactions, not mocked interfaces
-- **Behavior Verification**: "Does search work?" not "Does it call Redis.get() 3 times?"
+- **Two-Tier Testing**: Unit tests (mocked) + E2E tests (isolated Docker stack)
+- **No Production Pollution**: All tests use either mocks or isolated test environments
+- **Unit Tests**: Fast, fully mocked, no database connections
+- **E2E Tests**: Full-stack testing with fresh Docker databases that are torn down after each test
+- **MCP Protocol**: E2E tests use real MCP client interactions via `fastmcp.Client`
+- **Behavior Verification**: Focus on "Does search work?" not "Does it call Redis.get() 3 times?"
 
 ### Container Development
 - **Docker Compose**: Full stack development environment with memgraph + redis
