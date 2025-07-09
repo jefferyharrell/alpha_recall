@@ -5,8 +5,8 @@ import json
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.time import time_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
-from ..utils.time import current_utc
 from ..version import __version__
 
 __all__ = ["health_check", "register_health_tools"]
@@ -100,7 +100,7 @@ def health_check() -> str:
         "status": overall_status,
         "version": __version__,
         "checks": checks,
-        "timestamp": current_utc(),
+        "timestamp": time_service.utc_isoformat(),
         "correlation_id": correlation_id,
     }
 

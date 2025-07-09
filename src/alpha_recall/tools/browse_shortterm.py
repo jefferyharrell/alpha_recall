@@ -3,11 +3,11 @@
 import json
 import time
 
-import pendulum
 from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.redis import get_redis_service
+from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
 __all__ = ["browse_shortterm", "register_browse_shortterm_tool"]
@@ -58,7 +58,7 @@ def browse_shortterm(
         if since:
             try:
                 # Try parsing as a duration string first (e.g., "6h", "2d", "1w")
-                now = pendulum.now()
+                now = time_service.utc_now()
 
                 # Handle common duration formats
                 if since.endswith("h"):
@@ -74,8 +74,8 @@ def browse_shortterm(
                     minutes = int(since[:-1])
                     cutoff_timestamp = now.subtract(minutes=minutes).timestamp()
                 else:
-                    # Try parsing as absolute datetime with Pendulum
-                    parsed_time = pendulum.parse(since)
+                    # Try parsing as absolute datetime with TimeService
+                    parsed_time = time_service.parse(since)
                     cutoff_timestamp = parsed_time.timestamp()
 
             except Exception as e:
@@ -133,7 +133,7 @@ def browse_shortterm(
         )
 
         memories = []
-        now = pendulum.now()
+        now = time_service.utc_now()
 
         # Fetch memory content for each ID
         for memory_id_bytes, timestamp in memory_ids_with_scores:
@@ -156,7 +156,7 @@ def browse_shortterm(
 
                 # Calculate human-readable age
                 try:
-                    created_time = pendulum.parse(created_at)
+                    created_time = time_service.parse(created_at)
                     age = created_time.diff_for_humans(now)
                 except Exception:
                     age = "unknown"

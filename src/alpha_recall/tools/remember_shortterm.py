@@ -3,13 +3,13 @@
 import json
 import time
 import uuid
-from datetime import UTC, datetime
 
 from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
 from ..services.redis import get_redis_service
+from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
 __all__ = ["remember_shortterm", "register_remember_shortterm_tool"]
@@ -53,7 +53,7 @@ def remember_shortterm(content: str) -> str:
 
     # Generate unique memory ID and timestamp
     memory_id = f"stm_{int(time.time() * 1000)}_{str(uuid.uuid4())[:8]}"
-    created_at = datetime.now(UTC).isoformat()
+    created_at = time_service.utc_isoformat()
 
     # Get Redis service
     redis_service = get_redis_service()

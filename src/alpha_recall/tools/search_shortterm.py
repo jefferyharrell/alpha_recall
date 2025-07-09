@@ -4,12 +4,12 @@ import json
 import time
 from typing import Any
 
-import pendulum
 from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
 from ..services.redis import get_redis_service
+from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
 __all__ = ["search_shortterm", "register_search_shortterm_tool"]
@@ -73,25 +73,14 @@ def search_shortterm(
         # Calculate time range if 'through_the_last' is provided
         if through_the_last:
             try:
-                # Parse duration string (e.g., "6h", "2d", "1w")
-                now = pendulum.now()
-
-                if through_the_last.endswith("h"):
-                    hours = int(through_the_last[:-1])
-                    cutoff_timestamp = now.subtract(hours=hours).timestamp()
-                elif through_the_last.endswith("d"):
-                    days = int(through_the_last[:-1])
-                    cutoff_timestamp = now.subtract(days=days).timestamp()
-                elif through_the_last.endswith("w"):
-                    weeks = int(through_the_last[:-1])
-                    cutoff_timestamp = now.subtract(weeks=weeks).timestamp()
-                elif through_the_last.endswith("m"):
-                    minutes = int(through_the_last[:-1])
-                    cutoff_timestamp = now.subtract(minutes=minutes).timestamp()
+                # Parse duration string (e.g., "6h", "2d", "1w") or absolute datetime
+                cutoff_time = time_service.parse_time_filter(through_the_last)
+                if cutoff_time:
+                    cutoff_timestamp = cutoff_time.timestamp()
                 else:
-                    # Try parsing as absolute datetime with Pendulum
-                    parsed_time = pendulum.parse(through_the_last)
-                    cutoff_timestamp = parsed_time.timestamp()
+                    # Try parsing as absolute datetime
+                    parsed_time = time_service.parse(through_the_last)
+                    cutoff_timestamp = parsed_time.timestamp() if parsed_time else None
 
             except Exception as e:
                 logger.warning(
@@ -258,7 +247,7 @@ def _search_semantic(
         )
 
         memories = []
-        now = pendulum.now()
+        now = time_service.utc_now()
 
         # Results come in pairs: [doc_key, [field1, value1, field2, value2, ...]]
         for i in range(1, len(search_result), 2):
@@ -279,7 +268,7 @@ def _search_semantic(
             if cutoff_timestamp > 0:
                 try:
                     created_at = fields.get("created_at", "")
-                    memory_timestamp = pendulum.parse(created_at).timestamp()
+                    memory_timestamp = time_service.parse(created_at).timestamp()
                     if memory_timestamp < cutoff_timestamp:
                         continue
                 except Exception:
@@ -292,7 +281,7 @@ def _search_semantic(
 
             # Calculate human-readable age
             try:
-                created_time = pendulum.parse(fields.get("created_at", ""))
+                created_time = time_service.parse(fields.get("created_at", ""))
                 age = created_time.diff_for_humans(now)
             except Exception:
                 age = "unknown"
@@ -339,7 +328,7 @@ def _search_emotional_fallback(
         )
 
     memories = []
-    now = pendulum.now()
+    now = time_service.utc_now()
     query_lower = query.lower()
 
     # Search through memories for text matches
@@ -359,7 +348,7 @@ def _search_emotional_fallback(
             if query_lower in content.lower():
                 # Calculate human-readable age
                 try:
-                    created_time = pendulum.parse(created_at)
+                    created_time = time_service.parse(created_at)
                     age = created_time.diff_for_humans(now)
                 except Exception:
                     age = "unknown"

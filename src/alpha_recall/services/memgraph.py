@@ -1,7 +1,6 @@
 """Memgraph service for long-term memory operations."""
 
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -10,6 +9,7 @@ from gqlalchemy import Memgraph
 from ..config import settings
 from ..logging import get_logger
 from ..services.embedding import get_embedding_service
+from ..services.time import time_service
 from ..utils.correlation import get_correlation_id
 
 logger = get_logger("services.memgraph")
@@ -234,7 +234,7 @@ class MemgraphService:
             self.create_or_update_entity(entity2)
 
             # Pre-calculate timestamp
-            now = datetime.now(UTC).isoformat()
+            now = time_service.utc_isoformat()
 
             # Create relationship
             query = """

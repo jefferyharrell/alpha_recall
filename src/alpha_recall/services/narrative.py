@@ -10,7 +10,6 @@ Compatible with alpha-recall 0.1.0 database schema.
 
 import json
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -19,6 +18,7 @@ import redis.asyncio as redis
 from ..config import AlphaRecallSettings
 from ..logging import get_logger
 from ..services.embedding import EmbeddingService
+from ..services.time import time_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 logger = get_logger("services.narrative")
@@ -138,11 +138,11 @@ class NarrativeService:
 
         try:
             # Generate unique story ID compatible with 0.1.0 format
-            timestamp = int(datetime.now(UTC).timestamp())
+            timestamp = int(time_service.utc_now().timestamp())
             story_id = f"story_{timestamp}_{uuid.uuid4().hex[:8]}"
 
             # Create timestamp in ISO format
-            created_at = datetime.now(UTC).isoformat()
+            created_at = time_service.utc_isoformat()
 
             # Prepare paragraph objects with order
             paragraph_objects = [
@@ -638,7 +638,7 @@ class NarrativeService:
             # Time filter
             if since and story.get("created_at"):
                 try:
-                    from datetime import datetime, timedelta
+                    from datetime import UTC, datetime, timedelta
 
                     story_time = datetime.fromisoformat(
                         story["created_at"].replace("Z", "+00:00")
