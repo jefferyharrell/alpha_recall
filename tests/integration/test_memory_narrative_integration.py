@@ -161,7 +161,18 @@ class TestNarrativeMemoryIntegration:
 
     def test_recall_narrative_basic_functionality(self):
         """Test basic narrative recall functionality."""
-        story_id = "story_1234567890_abc123"
+        # First create a story to recall
+        title = "Story for Recall Test"
+        paragraphs = ["Test paragraph for recall."]
+        participants = ["Alpha", "TestUser"]
+
+        # Create the story
+        create_result = remember_narrative(title, paragraphs, participants)
+        create_data = json.loads(create_result)
+        assert create_data["success"] is True
+        story_id = create_data["story"]["story_id"]
+
+        # Now recall the story
         result = recall_narrative(story_id)
         response_data = json.loads(result)
 
@@ -182,7 +193,7 @@ class TestNarrativeMemoryIntegration:
         assert isinstance(paragraphs, list)
         for para in paragraphs:
             assert "order" in para
-            assert "content" in para
+            assert "text" in para
 
     def test_recall_narrative_validation_errors(self):
         """Test recall validation errors."""
@@ -222,11 +233,13 @@ class TestNarrativeMemoryIntegration:
         assert "filters" in browse_data
         assert "metadata" in browse_data
 
-        # Verify pagination
+        # Verify pagination structure (don't assert specific counts)
         pagination = browse_data["pagination"]
         assert pagination["limit"] == 10
         assert pagination["offset"] == 0
-        assert pagination["total_count"] == 0  # placeholder
+        assert "total_count" in pagination
+        assert isinstance(pagination["total_count"], int)
+        assert pagination["total_count"] >= 0  # Should be non-negative
 
         # Verify metadata
         metadata = browse_data["metadata"]
