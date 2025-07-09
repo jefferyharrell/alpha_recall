@@ -8,7 +8,7 @@ Hey, Alph. Jeffery here. There's something important I need you to know: This pr
 
 # Package Management with UV
 
-This project uses `uv` as the package manager. When running Python commands:
+This project uses `uv` as the package manager with **Python 3.13**. When running Python commands:
 
 - Use `uv run python` to invoke Python within our virtual environment
 - Use `python3` only when you need to invoke the macOS system Python
@@ -74,6 +74,28 @@ uv run --group dev ruff check --fix src/ tests/
 # Run the server directly
 uv run python -m alpha_recall.server
 ```
+
+# Code Quality and Pre-commit Hooks
+
+This project uses extensive pre-commit hooks to maintain code quality:
+
+```bash
+# Install pre-commit hooks
+uv run pre-commit install
+
+# Run all pre-commit hooks manually
+just pre-commit
+# or
+uv run pre-commit run --all-files
+```
+
+**Pre-commit Configuration:**
+- **Code formatting**: isort, black, ruff-format
+- **Linting**: ruff with comprehensive rule set
+- **File validation**: YAML, TOML, JSON syntax checking
+- **Git hygiene**: trailing whitespace, end-of-file fixes, large file detection, merge conflict detection
+
+All formatting and linting must pass before commits are allowed.
 
 # Logging and Observability
 
@@ -252,6 +274,12 @@ def register_module_tools(mcp: FastMCP) -> None:
 - Registration functions use `mcp.tool(function_name)` to register module-level tools
 - Each module gets its own logger namespace
 
+**Current Tool Structure:**
+- `health.py` - Health check with comprehensive diagnostics and correlation IDs
+- `remember_shortterm.py`, `browse_shortterm.py`, `search_shortterm.py` - STM operations
+- `remember_longterm.py`, `relate_longterm.py`, `search_longterm.py` - Core LTM operations
+- `get_entity.py`, `get_relationships.py`, `browse_longterm.py` - LTM browsing and exploration
+
 ### EmbeddingService (`src/alpha_recall/services/embedding.py`)
 - **Dual Model Support**: Semantic (all-mpnet-base-v2, 768d) and emotional (sentiment-embedding-model, 1024d)
 - **Smart Device Detection**: Automatic Apple Silicon GPU detection with CPU fallback
@@ -283,7 +311,7 @@ def test_stack():
 **Three Test Layers:**
 - `tests/unit/` - Fast unit tests for individual components
 - `tests/integration/` - Integration tests with real services
-- `tests/e2e/` - Full MCP protocol testing via Docker
+- `tests/e2e/` - Full MCP protocol testing via Docker (`tests/docker/e2e.yml`)
 
 **MCP Client Testing**: Uses `fastmcp.Client` for authentic MCP protocol testing:
 
@@ -292,6 +320,12 @@ async with Client(server_url) as client:
     result = await client.call_tool("health_check", {})
     health_data = json.loads(result.content[0].text)
 ```
+
+**E2E Testing Strategy:**
+- Tests spin up fresh Docker stack with isolated databases
+- Extended 90-second timeout for model downloads during first run
+- Authentic MCP protocol testing, not mocked interfaces
+- Focus on behavior verification: "Does search work?" not implementation details
 
 ## Memory System Architecture
 
@@ -327,10 +361,13 @@ async with Client(server_url) as client:
 - **Behavior Verification**: "Does search work?" not "Does it call Redis.get() 3 times?"
 
 ### Container Development
-- **Docker Compose**: Full stack development environment
-- **Service Isolation**: Individual service start/stop/restart
-- **Volume Mounting**: Live code reloading during development
+- **Docker Compose**: Full stack development environment with memgraph + redis
+- **Service Isolation**: Individual service start/stop/restart (`just up redis`, `just down memgraph`)
+- **Volume Mounting**: Live code reloading with `./src` mounted to `/app/src`
+- **Named Volumes**: `.venv` and cache preservation via `alpha-recall-venv:/app/.venv`
 - **Port Configuration**: Configurable ports for multi-environment testing
+- **Internal Networking**: Services communicate via `memgraph:7687` and `redis:6379` internally
+- **Security**: Ports bound to localhost only for development safety
 
 ## Important Notes
 
@@ -345,11 +382,14 @@ This codebase uses FastMCP 2.0 patterns. Key differences from 1.x:
 
 ### Environment Variables
 Critical environment variables (all optional with defaults):
-- `MEMGRAPH_URI`: Graph database connection
-- `REDIS_URI`: Short-term memory storage
-- `MCP_TRANSPORT`: "sse" or "streamable-http"
-- `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-- `LOG_FORMAT`: "rich", "json", or "rich_json"
+- `MEMGRAPH_URI`: Graph database connection (default: bolt://localhost:7687)
+- `REDIS_URI`: Short-term memory storage (default: redis://localhost:6379)
+- `MCP_TRANSPORT`: "sse" or "streamable-http" (default: "sse")
+- `ALPHA_RECALL_DEV_PORT`: Development server port (default: 19005)
+- `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL" (default: "INFO")
+- `LOG_FORMAT`: "rich", "json", or "rich_json" (default: "rich")
 - `EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
 - `EMOTIONAL_EMBEDDING_MODEL`: Emotional embedding model name (default: ng3owb/sentiment-embedding-model)
 - `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
+- `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)
+- `CORE_IDENTITY_NODE`: Core identity entity name (default: "Alpha Core Identity")
