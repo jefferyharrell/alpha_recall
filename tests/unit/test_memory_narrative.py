@@ -4,7 +4,7 @@ import json
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -18,8 +18,23 @@ from alpha_recall.tools.search_narratives import search_narratives
 class TestRememberNarrative(unittest.TestCase):
     """Test cases for remember_narrative tool."""
 
-    def test_remember_narrative_basic_functionality(self):
+    @patch("alpha_recall.tools.remember_narrative.get_narrative_service")
+    def test_remember_narrative_basic_functionality(self, mock_get_service):
         """Test basic narrative storage with all required parameters."""
+        # Mock the service response
+        mock_service = AsyncMock()
+        mock_service.store_story.return_value = {
+            "success": True,
+            "story_id": "story_1234567890_abc123",
+            "title": "The Great Debugging Session",
+            "created_at": "2025-07-09T08:00:00+00:00",
+            "paragraph_count": 3,
+            "embeddings_generated": 8,
+            "storage_location": "hybrid_redis_memgraph",
+            "correlation_id": "narrative_store_12345678",
+        }
+        mock_get_service.return_value = mock_service
+
         title = "The Great Debugging Session"
         paragraphs = [
             "We started with a mysterious bug that was causing random crashes.",

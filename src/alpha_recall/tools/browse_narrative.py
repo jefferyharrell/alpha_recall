@@ -65,16 +65,37 @@ def browse_narrative(
         # Perform the actual browse using NarrativeService
         start_time = time.time()
         narrative_service = get_narrative_service()
-        browse_result = asyncio.run(
-            narrative_service.list_stories(
-                limit=limit,
-                offset=offset,
-                since=since,
-                participants=clean_participants,
-                tags=clean_tags,
-                outcome=clean_outcome,
+
+        # Handle async call properly (avoid nested event loops)
+        try:
+            asyncio.get_running_loop()
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    narrative_service.list_stories(
+                        limit=limit,
+                        offset=offset,
+                        since=since,
+                        participants=clean_participants,
+                        tags=clean_tags,
+                        outcome=clean_outcome,
+                    ),
+                )
+                browse_result = future.result()
+        except RuntimeError:
+            # No existing event loop, safe to use asyncio.run
+            browse_result = asyncio.run(
+                narrative_service.list_stories(
+                    limit=limit,
+                    offset=offset,
+                    since=since,
+                    participants=clean_participants,
+                    tags=clean_tags,
+                    outcome=clean_outcome,
+                )
             )
-        )
         query_time_ms = int((time.time() - start_time) * 1000)
 
         # Return response structure

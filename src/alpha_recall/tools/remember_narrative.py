@@ -65,16 +65,38 @@ def remember_narrative(
 
         # Get narrative service and store the story
         narrative_service = get_narrative_service()
-        result = asyncio.run(
-            narrative_service.store_story(
-                title=title.strip(),
-                paragraphs=clean_paragraphs,
-                participants=clean_participants,
-                tags=clean_tags,
-                outcome=outcome,
-                references=clean_references,
+
+        # Handle async call properly (avoid nested event loops)
+        try:
+            asyncio.get_running_loop()
+            # We're in an existing event loop, create a new task
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    narrative_service.store_story(
+                        title=title.strip(),
+                        paragraphs=clean_paragraphs,
+                        participants=clean_participants,
+                        tags=clean_tags,
+                        outcome=outcome,
+                        references=clean_references,
+                    ),
+                )
+                result = future.result()
+        except RuntimeError:
+            # No existing event loop, safe to use asyncio.run
+            result = asyncio.run(
+                narrative_service.store_story(
+                    title=title.strip(),
+                    paragraphs=clean_paragraphs,
+                    participants=clean_participants,
+                    tags=clean_tags,
+                    outcome=outcome,
+                    references=clean_references,
+                )
             )
-        )
 
         # If storage failed, return error response
         if not result.get("success", False):
