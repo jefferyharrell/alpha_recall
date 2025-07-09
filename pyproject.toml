@@ -3,7 +3,7 @@ name = "alpha-recall"
 version = "1.0.0"
 description = "alpha-recall is the memory server component of Project Alpha"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "fastmcp>=2.0.0,<3.0.0",
     "gqlalchemy>=1.2.0,<2.0.0",
