@@ -39,5 +39,4 @@ services:
       - PORT=8000
       - PYTHONUNBUFFERED=1
       # Disable optional components for testing
-      - ALPHA_SNOOZE_ENABLED=false
-      - REMINISCER_ENABLED=false
+      - MEMORY_CONSOLIDATION_ENABLED=false

@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from ..config import settings
 from ..logging import get_logger
+from ..services.consolidation import consolidation_service
 from ..services.memgraph import get_memgraph_service
 from ..services.redis import get_redis_service
 from ..services.time import time_service
@@ -22,12 +23,12 @@ async def gentle_refresh(query: str | None = None) -> str:
     1. Current time information for temporal grounding
     2. Core identity observations (natural language facts, not relationship triples)
     3. 10 most recent short-term memories for contextual orientation
-    4. Alpha-Snooze memory consolidation (if enabled) - processes recent memories for insights
+    4. Memory consolidation (if enabled) - processes recent memories for insights
     5. 5 most recent observations for slow-changing facts
 
     Eliminates cognitive overload from semantic search and prioritizes temporal
-    orientation over semantic relevance. When Alpha-Snooze is enabled, provides
-    additional memory consolidation insights extracted from recent interactions.
+    orientation over semantic relevance. When memory consolidation is enabled, provides
+    additional insights extracted from recent interactions.
 
     Args:
         query: Optional query parameter (accepted for compatibility but ignored)
@@ -37,7 +38,7 @@ async def gentle_refresh(query: str | None = None) -> str:
         - time: Current time information
         - core_identity: Essential identity observations (observations only, no relationships)
         - shortterm_memories: 10 most recent short-term memories
-        - memory_consolidation: Alpha-Snooze insights (if enabled and available)
+        - memory_consolidation: Memory consolidation insights (if enabled and available)
         - recent_observations: 5 most recent observations
     """
     correlation_id = generate_correlation_id("gentle_refresh")
@@ -125,19 +126,25 @@ async def gentle_refresh(query: str | None = None) -> str:
             logger.error(f"Error retrieving short-term memories: {e}")
             response["shortterm_memories"] = []
 
-        # TODO: Alpha-Snooze memory consolidation (placeholder for now)
-        # This would integrate with the alpha-snooze system from v0.1.0
-        response["memory_consolidation"] = {
-            "entities": [],
-            "relationships": [],
-            "insights": [],
-            "summary": "",
-            "emotional_context": "",
-            "next_steps": [],
-            "processed_memories_count": 0,
-            "consolidation_timestamp": time_service.utc_isoformat(),
-            "model_used": "placeholder",
-        }
+        # Memory consolidation: Process recent memories for insights
+        try:
+            logger.info("Running memory consolidation")
+            response["memory_consolidation"] = (
+                await consolidation_service.consolidate_memories()
+            )
+        except Exception as e:
+            logger.error(f"Error in memory consolidation: {e}")
+            response["memory_consolidation"] = {
+                "entities": [],
+                "relationships": [],
+                "insights": [],
+                "summary": "",
+                "emotional_context": "",
+                "next_steps": [],
+                "processed_memories_count": 0,
+                "consolidation_timestamp": time_service.utc_isoformat(),
+                "model_used": "error",
+            }
 
         # Recent observations: Get 5 most recent for slow-changing facts
         try:

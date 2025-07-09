@@ -121,3 +121,8 @@ test-unit:
 test-e2e:
     @echo "Running e2e tests..."
     uv run pytest tests/e2e/ -v
+
+# Export dependencies to requirements.txt
+export-requirements:
+    @echo "Exporting dependencies to requirements.txt..."
+    uv export --format requirements-txt > requirements.txt

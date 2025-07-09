@@ -50,6 +50,8 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - PYTHONUNBUFFERED=1
+      # Consolidation
+      - CONSOLIDATION_OLLAMA_HOST=host.docker.internal
       # Alpha-Snooze Configuration
       - ALPHA_SNOOZE_ENABLED=true
       - ALPHA_SNOOZE_OLLAMA_HOST=host.docker.internal
@@ -63,5 +65,6 @@ services:
       - REMINISCER_MODEL=qwen2.5:7b
     volumes:
       - ./src:/app/src
+      - ./prompts:/app/prompts
       - ./huggingface-cache:/root/.cache/huggingface
     command: ["python", "-m", "alpha_recall.server"]

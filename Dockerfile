@@ -4,18 +4,23 @@ FROM python:3.13-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies and uv
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     git \
     cmake \
     libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Add uv to PATH
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy pyproject.toml and install Python dependencies globally with uv
+COPY pyproject.toml .
+RUN uv pip install --system --no-cache --compile-bytecode .
 
 # Copy source code
 COPY src/ ./src/

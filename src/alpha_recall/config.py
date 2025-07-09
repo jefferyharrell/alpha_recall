@@ -40,13 +40,13 @@ class AlphaRecallSettings(BaseSettings):
     # Core Configuration
     core_identity_node: str = "Alpha Core Identity"
 
-    # Alpha-Snooze Configuration
-    alpha_snooze_enabled: bool = False
-    alpha_snooze_ollama_host: str = "localhost"
-    alpha_snooze_ollama_port: int = Field(default=11434, ge=1, le=65535)
-    alpha_snooze_model: str = "qwen2.5:3b"
-    alpha_snooze_time_window: str = "24h"
-    alpha_snooze_timeout: int = Field(default=60, gt=0)
+    # Memory Consolidation Configuration
+    memory_consolidation_enabled: bool = True
+    helper_model: str = "llama3.2:1b"
+    consolidation_ollama_host: str = "localhost"
+    consolidation_ollama_port: int = Field(default=11434, ge=1, le=65535)
+    consolidation_time_window: str = "24h"
+    consolidation_timeout: int = Field(default=60, gt=0)
 
     # Alpha-Reminiscer Configuration
     reminiscer_enabled: bool = False
