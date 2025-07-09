@@ -8,14 +8,18 @@ from .config import settings
 from .logging import configure_logging, get_logger
 from .tools import (
     register_browse_longterm_tools,
+    register_browse_narrative_tools,
     register_browse_shortterm_tool,
     register_get_entity_tools,
     register_get_relationships_tools,
     register_health_tools,
+    register_recall_narrative_tools,
     register_relate_longterm_tools,
     register_remember_longterm_tools,
+    register_remember_narrative_tools,
     register_remember_shortterm_tool,
     register_search_longterm_tools,
+    register_search_narratives_tools,
     register_search_shortterm_tool,
 )
 from .version import __version__
@@ -39,6 +43,10 @@ def create_server():
     register_get_entity_tools(mcp)
     register_get_relationships_tools(mcp)
     register_browse_longterm_tools(mcp)
+    register_remember_narrative_tools(mcp)
+    register_search_narratives_tools(mcp)
+    register_recall_narrative_tools(mcp)
+    register_browse_narrative_tools(mcp)
 
     logger.debug("All tools registered")
     return mcp
