@@ -110,11 +110,34 @@ class MemgraphService:
                     correlation_id=correlation_id,
                 )
 
+                # Convert timestamps from Unix microseconds to ISO format
+                created_at_raw = getattr(entity, "created_at", None)
+                if created_at_raw and isinstance(created_at_raw, int | float):
+                    created_at_seconds = created_at_raw / 1_000_000
+                    entity_created_at = (
+                        time_service.utc_now()
+                        .from_timestamp(created_at_seconds)
+                        .isoformat()
+                    )
+                else:
+                    entity_created_at = created_at_raw
+
+                updated_at_raw = getattr(entity, "updated_at", None)
+                if updated_at_raw and isinstance(updated_at_raw, int | float):
+                    updated_at_seconds = updated_at_raw / 1_000_000
+                    entity_updated_at = (
+                        time_service.utc_now()
+                        .from_timestamp(updated_at_seconds)
+                        .isoformat()
+                    )
+                else:
+                    entity_updated_at = updated_at_raw
+
                 return {
                     "entity_name": entity_name,
                     "entity_type": entity_type,
-                    "created_at": getattr(entity, "created_at", None),
-                    "updated_at": getattr(entity, "updated_at", None),
+                    "created_at": entity_created_at,
+                    "updated_at": entity_updated_at,
                 }
             else:
                 raise Exception("Failed to create/update entity - no result returned")
@@ -199,11 +222,23 @@ class MemgraphService:
                     correlation_id=correlation_id,
                 )
 
+                # Convert timestamp from Unix microseconds to ISO format
+                created_at_raw = getattr(obs, "created_at", None)
+                if created_at_raw and isinstance(created_at_raw, int | float):
+                    created_at_seconds = created_at_raw / 1_000_000
+                    observation_created_at = (
+                        time_service.utc_now()
+                        .from_timestamp(created_at_seconds)
+                        .isoformat()
+                    )
+                else:
+                    observation_created_at = created_at_raw
+
                 return {
                     "entity_name": entity_name,
                     "observation_id": getattr(obs, "id", None),
                     "observation": observation,
-                    "created_at": getattr(obs, "created_at", None),
+                    "created_at": observation_created_at,
                 }
             else:
                 raise Exception("Failed to add observation - no result returned")
@@ -267,11 +302,23 @@ class MemgraphService:
                     correlation_id=correlation_id,
                 )
 
+                # Convert timestamp if needed (may already be ISO format)
+                created_at_raw = getattr(rel, "created_at", None)
+                if created_at_raw and isinstance(created_at_raw, int | float):
+                    created_at_seconds = created_at_raw / 1_000_000
+                    relationship_created_at = (
+                        time_service.utc_now()
+                        .from_timestamp(created_at_seconds)
+                        .isoformat()
+                    )
+                else:
+                    relationship_created_at = created_at_raw  # Already ISO format
+
                 return {
                     "entity1": entity1,
                     "entity2": entity2,
                     "relationship_type": relationship_type,
-                    "created_at": getattr(rel, "created_at", None),
+                    "created_at": relationship_created_at,
                 }
             else:
                 raise Exception("Failed to create relationship - no result returned")
@@ -476,11 +523,24 @@ class MemgraphService:
                 if (
                     obs is not None and obs.get("content") is not None
                 ):  # Skip null observations
+                    # Convert Unix microsecond timestamp to ISO format
+                    created_at_raw = obs.get("created_at")
+                    if created_at_raw and isinstance(created_at_raw, int | float):
+                        # Convert from microseconds to seconds for pendulum
+                        created_at_seconds = created_at_raw / 1_000_000
+                        created_at = (
+                            time_service.utc_now()
+                            .from_timestamp(created_at_seconds)
+                            .isoformat()
+                        )
+                    else:
+                        created_at = created_at_raw
+
                     observation_list.append(
                         {
                             "id": obs.get("id"),
                             "content": obs.get("content"),
-                            "created_at": obs.get("created_at"),
+                            "created_at": created_at,
                         }
                     )
 
@@ -494,11 +554,34 @@ class MemgraphService:
                 correlation_id=correlation_id,
             )
 
+            # Convert entity timestamps from Unix microseconds to ISO format
+            created_at_raw = getattr(entity, "created_at", None)
+            if created_at_raw and isinstance(created_at_raw, int | float):
+                created_at_seconds = created_at_raw / 1_000_000
+                entity_created_at = (
+                    time_service.utc_now()
+                    .from_timestamp(created_at_seconds)
+                    .isoformat()
+                )
+            else:
+                entity_created_at = created_at_raw
+
+            updated_at_raw = getattr(entity, "updated_at", None)
+            if updated_at_raw and isinstance(updated_at_raw, int | float):
+                updated_at_seconds = updated_at_raw / 1_000_000
+                entity_updated_at = (
+                    time_service.utc_now()
+                    .from_timestamp(updated_at_seconds)
+                    .isoformat()
+                )
+            else:
+                entity_updated_at = updated_at_raw
+
             return {
                 "entity_name": getattr(entity, "name", None),
                 "entity_type": getattr(entity, "type", None),
-                "created_at": getattr(entity, "created_at", None),
-                "updated_at": getattr(entity, "updated_at", None),
+                "created_at": entity_created_at,
+                "updated_at": entity_updated_at,
                 "observations": observation_list,
                 "observations_count": len(observation_list),
             }
