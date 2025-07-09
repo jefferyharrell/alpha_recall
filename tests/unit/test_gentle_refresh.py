@@ -479,3 +479,26 @@ def test_gentle_refresh_return_type():
                     assert isinstance(result, str)
                     # Should be valid JSON
                     json.loads(result)
+
+
+@patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
+@patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
+@patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+def test_gentle_refresh_no_query_parameter(mock_redis_service, mock_memgraph_service):
+    """Test gentle_refresh works correctly when called with no query parameter."""
+    # This test catches the "None is not of type string" schema validation bug
+    mock_memgraph_service.return_value = MockMemgraphService()
+    mock_redis_service.return_value = MockRedisService()
+
+    # Call without any arguments - this should NOT raise a schema validation error
+    result = gentle_refresh()
+    data = json.loads(result)
+
+    # Should work normally
+    assert data["success"] is True
+    assert "time" in data
+    assert "core_identity" in data
+    assert "shortterm_memories" in data
+    assert "memory_consolidation" in data
+    assert "recent_observations" in data

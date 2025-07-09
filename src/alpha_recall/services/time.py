@@ -9,6 +9,7 @@ Key principles:
 - Naive datetimes are assumed to be local time (not UTC)
 - Comprehensive "now" method for tools that need rich time context
 - Consistent parsing with clear error handling
+- Timezone detection via IP geolocation for portable timezone handling
 """
 
 from typing import Any
@@ -16,13 +17,15 @@ from typing import Any
 import pendulum
 from pendulum import DateTime
 
+from .geolocation import geolocation_service
+
 
 class TimeService:
     """Centralized time service for Alpha-Recall."""
 
     @staticmethod
-    def now() -> dict[str, Any]:
-        """Get comprehensive current time information.
+    async def now_async() -> dict[str, Any]:
+        """Get comprehensive current time information (async version).
 
         Returns a rich dictionary with multiple time representations for use
         in tools like gentle_refresh that need comprehensive time context.
@@ -37,8 +40,57 @@ class TimeService:
             - unix_timestamp: Unix timestamp (seconds since epoch)
             - day_of_week: Dict with day of week info
         """
+        # Get current UTC time (container should be in UTC)
         utc_now = pendulum.now("UTC")
-        local_now = pendulum.now()
+
+        # Get local timezone from geolocation
+        local_timezone_str = await geolocation_service.get_timezone(timeout=2.0)
+
+        # Convert UTC to local timezone
+        local_now = utc_now.in_timezone(local_timezone_str)
+
+        return {
+            "iso_datetime": utc_now.isoformat(),
+            "utc": utc_now.isoformat(),
+            "local": local_now.isoformat(),
+            "human_readable": local_now.format("dddd, MMMM DD, YYYY h:mm A"),
+            "timezone": {
+                "name": local_now.timezone.name,
+                "offset": local_now.format("ZZ"),  # e.g., "-0700"
+                "display": local_now.format("zz"),  # e.g., "PDT"
+            },
+            "unix_timestamp": int(utc_now.timestamp()),
+            "day_of_week": {
+                "integer": local_now.weekday(),  # 1=Monday, 7=Sunday
+                "name": local_now.format("dddd"),  # e.g., "Wednesday"
+            },
+        }
+
+    @staticmethod
+    def now() -> dict[str, Any]:
+        """Get comprehensive current time information (sync version).
+
+        Returns a rich dictionary with multiple time representations for use
+        in tools like gentle_refresh that need comprehensive time context.
+
+        Returns:
+            Dict containing:
+            - iso_datetime: UTC time in ISO format with +00:00 offset
+            - utc: UTC time in ISO format (same as iso_datetime)
+            - local: Local time in ISO format with local offset
+            - human_readable: Human-friendly local time string
+            - timezone: Dict with timezone information
+            - unix_timestamp: Unix timestamp (seconds since epoch)
+            - day_of_week: Dict with day of week info
+        """
+        # Get current UTC time (container should be in UTC)
+        utc_now = pendulum.now("UTC")
+
+        # Get local timezone from geolocation
+        local_timezone_str = geolocation_service.get_timezone_sync(timeout=2.0)
+
+        # Convert UTC to local timezone
+        local_now = utc_now.in_timezone(local_timezone_str)
 
         return {
             "iso_datetime": utc_now.isoformat(),

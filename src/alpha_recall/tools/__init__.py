@@ -3,6 +3,7 @@
 from .browse_longterm import register_browse_longterm_tools
 from .browse_narrative import register_browse_narrative_tools
 from .browse_shortterm import register_browse_shortterm_tool
+from .gentle_refresh import register_gentle_refresh_tools
 from .get_entity import register_get_entity_tools
 from .get_relationships import register_get_relationships_tools
 from .health import register_health_tools
@@ -18,6 +19,7 @@ from .search_shortterm import register_search_shortterm_tool
 
 __all__ = [
     "register_health_tools",
+    "register_gentle_refresh_tools",
     "register_remember_shortterm_tool",
     "register_browse_shortterm_tool",
     "register_search_shortterm_tool",

@@ -453,6 +453,86 @@ async def test_gentle_refresh_json_validity(dev_server_url):
 
 
 @pytest.mark.asyncio
+async def test_gentle_refresh_no_query_parameter_bug(dev_server_url):
+    """Test gentle_refresh works when called with no query parameter (regression test)."""
+    # This test catches the "None is not of type string" schema validation bug
+    try:
+        async with streamablehttp_client(dev_server_url) as (
+            read_stream,
+            write_stream,
+            get_session_id,
+        ):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Call gentle_refresh with no parameters at all - this should NOT raise a schema error
+                result = await session.call_tool("gentle_refresh", {})
+
+                # Should return valid response
+                assert result.content is not None
+                text_content = result.content[0].text
+                response_data = json.loads(text_content)
+
+                # Should work normally
+                assert response_data["success"] is True
+                assert "time" in response_data
+                assert "core_identity" in response_data
+                assert "shortterm_memories" in response_data
+
+    except Exception as e:
+        pytest.fail(
+            f"Failed to test no query parameter bug via MCP at {dev_server_url}: {e}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_gentle_refresh_timezone_detection(dev_server_url):
+    """Test gentle_refresh correctly detects host timezone (not container UTC)."""
+    # This test catches the Docker timezone bug where container defaults to UTC
+    try:
+        async with streamablehttp_client(dev_server_url) as (
+            read_stream,
+            write_stream,
+            get_session_id,
+        ):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Call gentle_refresh
+                result = await session.call_tool("gentle_refresh", {})
+                response_data = json.loads(result.content[0].text)
+
+                # Verify timezone is NOT UTC (should be host timezone)
+                time_obj = response_data["time"]
+                timezone_info = time_obj["timezone"]
+
+                # Should NOT be UTC - should be host timezone
+                assert (
+                    timezone_info["name"] != "UTC"
+                ), f"Container should not be using UTC timezone, got: {timezone_info['name']}"
+                assert (
+                    timezone_info["name"] != "Etc/UTC"
+                ), f"Container should not be using Etc/UTC timezone, got: {timezone_info['name']}"
+
+                # Should be a real timezone (not just UTC)
+                assert (
+                    "/" in timezone_info["name"]
+                ), f"Expected real timezone like 'America/Los_Angeles', got: {timezone_info['name']}"
+
+                # Local time should have proper offset (not +00:00 unless actually UTC)
+                local_time = time_obj["local"]
+                if timezone_info["name"] not in ["UTC", "Etc/UTC"]:
+                    assert not local_time.endswith(
+                        "+00:00"
+                    ), f"Local time should not have UTC offset for non-UTC timezone, got: {local_time}"
+
+    except Exception as e:
+        pytest.fail(
+            f"Failed to test timezone detection via MCP at {dev_server_url}: {e}"
+        )
+
+
+@pytest.mark.asyncio
 async def test_gentle_refresh_error_resilience(dev_server_url):
     """Test gentle_refresh handles service failures gracefully."""
     try:
