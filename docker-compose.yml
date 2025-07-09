@@ -1,34 +1,43 @@
 volumes:
   alpha-recall-venv:
   alpha-recall-uv-cache:
-  memgraph-dev-data:
-  redis-dev-data:
 
 services:
   memgraph:
     image: memgraph/memgraph-mage:latest
-    container_name: memgraph-dev
+    container_name: memgraph
     ports:
       - "7687:7687"  # bolt://localhost:7687
     command: ["--log-level=TRACE"]
     volumes:
-      - memgraph-dev-data:/var/lib/memgraph
+      - ../../Alpha-Recall-Volumes/memgraph:/var/lib/memgraph
+
+  memgraph-lab:
+    image: memgraph/lab:latest
+    container_name: memgraph-lab
+    ports:
+      - "6002:3000"  # http://localhost:6002
+    depends_on:
+      - memgraph
+    environment:
+      - QUICK_CONNECT_MG_HOST=memgraph
+      - QUICK_CONNECT_MG_PORT=7687
 
   redis:
     image: redis:latest
-    container_name: redis-dev
+    container_name: redis
     ports:
       - "6379:6379"  # redis://localhost:6379
     volumes:
-      - redis-dev-data:/data
+      - ../../Alpha-Recall-Volumes/redis:/data
 
-  alpha-recall-1:
+  alpha-recall:
     build:
       dockerfile: Dockerfile
       target: dev
-    container_name: alpha-recall-1
+    container_name: alpha-recall
     ports:
-      - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-19005}:8000"  # Only bind to localhost for security
+      - "127.0.0.1:${ALPHA_RECALL_DEV_PORT:-9005}:8000"  # Only bind to localhost for security
     depends_on:
       - memgraph
       - redis
