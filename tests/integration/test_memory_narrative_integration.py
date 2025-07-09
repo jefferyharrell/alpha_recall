@@ -1,5 +1,6 @@
 """Integration tests for narrative memory tools."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -37,7 +38,7 @@ class TestNarrativeMemoryIntegration:
         ]
         participants = ["Alpha", "Jeffery", "TestUser"]
 
-        result = remember_narrative(title, paragraphs, participants)
+        result = asyncio.run(remember_narrative(title, paragraphs, participants))
         response_data = json.loads(result)
 
         # Verify successful storage
@@ -54,13 +55,15 @@ class TestNarrativeMemoryIntegration:
 
     def test_remember_narrative_with_all_options(self):
         """Test narrative storage with all optional parameters."""
-        result = remember_narrative(
-            title="Complete Integration Test",
-            paragraphs=["Test paragraph 1", "Test paragraph 2"],
-            participants=["Alpha", "Jeffery"],
-            outcome="breakthrough",
-            tags=["integration", "testing", "memory"],
-            references=["story_123_abc", "story_456_def"],
+        result = asyncio.run(
+            remember_narrative(
+                title="Complete Integration Test",
+                paragraphs=["Test paragraph 1", "Test paragraph 2"],
+                participants=["Alpha", "Jeffery"],
+                outcome="breakthrough",
+                tags=["integration", "testing", "memory"],
+                references=["story_123_abc", "story_456_def"],
+            )
         )
 
         response_data = json.loads(result)
@@ -74,19 +77,19 @@ class TestNarrativeMemoryIntegration:
     def test_remember_narrative_validation_errors(self):
         """Test that validation errors are properly handled."""
         # Test empty title
-        result = remember_narrative("", ["paragraph"], ["participant"])
+        result = asyncio.run(remember_narrative("", ["paragraph"], ["participant"]))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "Title cannot be empty" in response_data["error"]
 
         # Test empty paragraphs
-        result = remember_narrative("Title", [], ["participant"])
+        result = asyncio.run(remember_narrative("Title", [], ["participant"]))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "At least one non-empty paragraph required" in response_data["error"]
 
         # Test empty participants
-        result = remember_narrative("Title", ["paragraph"], [])
+        result = asyncio.run(remember_narrative("Title", ["paragraph"], []))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "At least one participant required" in response_data["error"]
@@ -102,7 +105,7 @@ class TestNarrativeMemoryIntegration:
 
     def test_search_narratives_basic_functionality(self):
         """Test basic narrative search functionality."""
-        result = search_narratives("test query")
+        result = asyncio.run(search_narratives("test query"))
         response_data = json.loads(result)
 
         # Verify successful search
@@ -120,11 +123,13 @@ class TestNarrativeMemoryIntegration:
 
     def test_search_narratives_with_parameters(self):
         """Test search with various parameter combinations."""
-        result = search_narratives(
-            query="advanced search",
-            search_type="both",
-            granularity="paragraph",
-            limit=5,
+        result = asyncio.run(
+            search_narratives(
+                query="advanced search",
+                search_type="both",
+                granularity="paragraph",
+                limit=5,
+            )
         )
 
         response_data = json.loads(result)
@@ -139,13 +144,13 @@ class TestNarrativeMemoryIntegration:
     def test_search_narratives_validation_errors(self):
         """Test search validation errors."""
         # Test empty query
-        result = search_narratives("")
+        result = asyncio.run(search_narratives(""))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "Query cannot be empty" in response_data["error"]
 
         # Test invalid search_type
-        result = search_narratives("query", search_type="invalid")
+        result = asyncio.run(search_narratives("query", search_type="invalid"))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "search_type must be" in response_data["error"]
@@ -167,13 +172,13 @@ class TestNarrativeMemoryIntegration:
         participants = ["Alpha", "TestUser"]
 
         # Create the story
-        create_result = remember_narrative(title, paragraphs, participants)
+        create_result = asyncio.run(remember_narrative(title, paragraphs, participants))
         create_data = json.loads(create_result)
         assert create_data["success"] is True
         story_id = create_data["story"]["story_id"]
 
         # Now recall the story
-        result = recall_narrative(story_id)
+        result = asyncio.run(recall_narrative(story_id))
         response_data = json.loads(result)
 
         # Verify successful recall
@@ -198,13 +203,13 @@ class TestNarrativeMemoryIntegration:
     def test_recall_narrative_validation_errors(self):
         """Test recall validation errors."""
         # Test empty story_id
-        result = recall_narrative("")
+        result = asyncio.run(recall_narrative(""))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "story_id cannot be empty" in response_data["error"]
 
         # Test invalid story_id format
-        result = recall_narrative("invalid_format")
+        result = asyncio.run(recall_narrative("invalid_format"))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "story_id must start with 'story_'" in response_data["error"]
@@ -220,7 +225,7 @@ class TestNarrativeMemoryIntegration:
 
     def test_browse_narrative_basic_functionality(self):
         """Test basic narrative browsing functionality."""
-        result = browse_narrative()
+        result = asyncio.run(browse_narrative())
         response_data = json.loads(result)
 
         # Verify successful browse
@@ -248,13 +253,15 @@ class TestNarrativeMemoryIntegration:
 
     def test_browse_narrative_with_filters(self):
         """Test browsing with various filter parameters."""
-        result = browse_narrative(
-            limit=5,
-            offset=10,
-            since="7d",
-            participants=["Alpha", "Jeffery"],
-            tags=["important", "breakthrough"],
-            outcome="resolution",
+        result = asyncio.run(
+            browse_narrative(
+                limit=5,
+                offset=10,
+                since="7d",
+                participants=["Alpha", "Jeffery"],
+                tags=["important", "breakthrough"],
+                outcome="resolution",
+            )
         )
 
         response_data = json.loads(result)
@@ -277,13 +284,13 @@ class TestNarrativeMemoryIntegration:
     def test_browse_narrative_validation_errors(self):
         """Test browse validation errors."""
         # Test invalid limit
-        result = browse_narrative(limit=0)
+        result = asyncio.run(browse_narrative(limit=0))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "limit must be between" in response_data["error"]
 
         # Test invalid offset
-        result = browse_narrative(offset=-1)
+        result = asyncio.run(browse_narrative(offset=-1))
         response_data = json.loads(result)
         assert response_data["success"] is False
         assert "offset must be non-negative" in response_data["error"]
@@ -291,25 +298,25 @@ class TestNarrativeMemoryIntegration:
     def test_narrative_tools_correlation_id_consistency(self):
         """Test that all narrative tools generate proper correlation IDs."""
         # Test remember_narrative
-        result = remember_narrative("Test", ["paragraph"], ["participant"])
+        result = asyncio.run(remember_narrative("Test", ["paragraph"], ["participant"]))
         response_data = json.loads(result)
         correlation_id = response_data["correlation_id"]
         assert correlation_id.startswith("narrative_")
 
         # Test search_narratives
-        result = search_narratives("query")
+        result = asyncio.run(search_narratives("query"))
         response_data = json.loads(result)
         correlation_id = response_data["correlation_id"]
         assert correlation_id.startswith("search_narratives_")
 
         # Test recall_narrative
-        result = recall_narrative("story_123_abc")
+        result = asyncio.run(recall_narrative("story_123_abc"))
         response_data = json.loads(result)
         correlation_id = response_data["correlation_id"]
         assert correlation_id.startswith("recall_narrative_")
 
         # Test browse_narrative
-        result = browse_narrative()
+        result = asyncio.run(browse_narrative())
         response_data = json.loads(result)
         correlation_id = response_data["correlation_id"]
         assert correlation_id.startswith("browse_narrative_")
@@ -326,9 +333,9 @@ class TestNarrativeMemoryIntegration:
 
         for tool_func, args in tools_and_invalid_args:
             if isinstance(args, dict):
-                result = tool_func(**args)
+                result = asyncio.run(tool_func(**args))
             else:
-                result = tool_func(*args)
+                result = asyncio.run(tool_func(*args))
 
             response_data = json.loads(result)
             assert response_data["success"] is False
@@ -347,7 +354,7 @@ class TestNarrativeMemoryIntegration:
         ]
 
         for tool_func, args in tools_and_valid_args:
-            result = tool_func(*args)
+            result = asyncio.run(tool_func(*args))
 
             # Should be valid JSON
             response_data = json.loads(result)

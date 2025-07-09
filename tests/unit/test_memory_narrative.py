@@ -1,5 +1,6 @@
 """Unit tests for narrative memory tools."""
 
+import asyncio
 import json
 import sys
 import unittest
@@ -43,7 +44,7 @@ class TestRememberNarrative(unittest.TestCase):
         ]
         participants = ["Alpha", "Jeffery"]
 
-        result = remember_narrative(title, paragraphs, participants)
+        result = asyncio.run(remember_narrative(title, paragraphs, participants))
         response_data = json.loads(result)
 
         # Verify response structure
@@ -101,13 +102,15 @@ class TestRememberNarrative(unittest.TestCase):
         tags = ["memory", "architecture", "collaboration"]
         references = ["story_123456_abc", "story_789012_def"]
 
-        result = remember_narrative(
-            title=title,
-            paragraphs=paragraphs,
-            participants=participants,
-            outcome=outcome,
-            tags=tags,
-            references=references,
+        result = asyncio.run(
+            remember_narrative(
+                title=title,
+                paragraphs=paragraphs,
+                participants=participants,
+                outcome=outcome,
+                tags=tags,
+                references=references,
+            )
         )
         response_data = json.loads(result)
 
@@ -158,12 +161,14 @@ class TestRememberNarrative(unittest.TestCase):
             "ref2",
         ]
 
-        result = remember_narrative(
-            title=title,
-            paragraphs=paragraphs,
-            participants=participants,
-            tags=tags,
-            references=references,
+        result = asyncio.run(
+            remember_narrative(
+                title=title,
+                paragraphs=paragraphs,
+                participants=participants,
+                tags=tags,
+                references=references,
+            )
         )
         response_data = json.loads(result)
 
@@ -188,10 +193,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_validation_empty_title(self):
         """Test validation for empty title."""
-        result = remember_narrative(
-            title="",
-            paragraphs=["Some content"],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="",
+                paragraphs=["Some content"],
+                participants=["Alpha"],
+            )
         )
         response_data = json.loads(result)
 
@@ -201,10 +208,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_validation_empty_paragraphs(self):
         """Test validation for empty paragraphs."""
-        result = remember_narrative(
-            title="Test Story",
-            paragraphs=[],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="Test Story",
+                paragraphs=[],
+                participants=["Alpha"],
+            )
         )
         response_data = json.loads(result)
 
@@ -216,10 +225,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_validation_whitespace_only_paragraphs(self):
         """Test validation for paragraphs with only whitespace."""
-        result = remember_narrative(
-            title="Test Story",
-            paragraphs=["   ", "\t\n", ""],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="Test Story",
+                paragraphs=["   ", "\t\n", ""],
+                participants=["Alpha"],
+            )
         )
         response_data = json.loads(result)
 
@@ -231,10 +242,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_validation_empty_participants(self):
         """Test validation for empty participants."""
-        result = remember_narrative(
-            title="Test Story",
-            paragraphs=["Some content"],
-            participants=[],
+        result = asyncio.run(
+            remember_narrative(
+                title="Test Story",
+                paragraphs=["Some content"],
+                participants=[],
+            )
         )
         response_data = json.loads(result)
 
@@ -244,10 +257,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_validation_whitespace_only_participants(self):
         """Test validation for participants with only whitespace."""
-        result = remember_narrative(
-            title="Test Story",
-            paragraphs=["Some content"],
-            participants=["   ", "\t\n", ""],
+        result = asyncio.run(
+            remember_narrative(
+                title="Test Story",
+                paragraphs=["Some content"],
+                participants=["   ", "\t\n", ""],
+            )
         )
         response_data = json.loads(result)
 
@@ -257,10 +272,12 @@ class TestRememberNarrative(unittest.TestCase):
 
     def test_remember_narrative_json_response_format(self):
         """Test that response is valid JSON."""
-        result = remember_narrative(
-            title="JSON Test",
-            paragraphs=["Test content"],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="JSON Test",
+                paragraphs=["Test content"],
+                participants=["Alpha"],
+            )
         )
 
         # Should not raise an exception
@@ -296,10 +313,12 @@ class TestRememberNarrative(unittest.TestCase):
         }
         mock_get_service.return_value = mock_service
 
-        result = remember_narrative(
-            title="Correlation ID Test",
-            paragraphs=["Test content"],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="Correlation ID Test",
+                paragraphs=["Test content"],
+                participants=["Alpha"],
+            )
         )
         response_data = json.loads(result)
 
@@ -335,10 +354,12 @@ class TestRememberNarrative(unittest.TestCase):
         }
         mock_get_service.return_value = mock_service
 
-        result = remember_narrative(
-            title="Timestamp Test",
-            paragraphs=["Test content"],
-            participants=["Alpha"],
+        result = asyncio.run(
+            remember_narrative(
+                title="Timestamp Test",
+                paragraphs=["Test content"],
+                participants=["Alpha"],
+            )
         )
         response_data = json.loads(result)
 
@@ -357,7 +378,7 @@ class TestSearchNarratives(unittest.TestCase):
 
     def test_search_narratives_basic_functionality(self):
         """Test basic narrative search with default parameters."""
-        result = search_narratives("test query")
+        result = asyncio.run(search_narratives("test query"))
         response_data = json.loads(result)
 
         # Verify response structure
@@ -383,11 +404,13 @@ class TestSearchNarratives(unittest.TestCase):
 
     def test_search_narratives_with_all_parameters(self):
         """Test search with all optional parameters."""
-        result = search_narratives(
-            query="complex query",
-            search_type="both",
-            granularity="paragraph",
-            limit=20,
+        result = asyncio.run(
+            search_narratives(
+                query="complex query",
+                search_type="both",
+                granularity="paragraph",
+                limit=20,
+            )
         )
         response_data = json.loads(result)
 
@@ -399,7 +422,7 @@ class TestSearchNarratives(unittest.TestCase):
 
     def test_search_narratives_validation_empty_query(self):
         """Test validation for empty query."""
-        result = search_narratives("")
+        result = asyncio.run(search_narratives(""))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -407,7 +430,7 @@ class TestSearchNarratives(unittest.TestCase):
 
     def test_search_narratives_validation_invalid_search_type(self):
         """Test validation for invalid search_type."""
-        result = search_narratives("query", search_type="invalid")
+        result = asyncio.run(search_narratives("query", search_type="invalid"))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -415,7 +438,7 @@ class TestSearchNarratives(unittest.TestCase):
 
     def test_search_narratives_validation_invalid_granularity(self):
         """Test validation for invalid granularity."""
-        result = search_narratives("query", granularity="invalid")
+        result = asyncio.run(search_narratives("query", granularity="invalid"))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -424,13 +447,13 @@ class TestSearchNarratives(unittest.TestCase):
     def test_search_narratives_validation_invalid_limit(self):
         """Test validation for invalid limit values."""
         # Test limit too small
-        result = search_narratives("query", limit=0)
+        result = asyncio.run(search_narratives("query", limit=0))
         response_data = json.loads(result)
         self.assertFalse(response_data["success"])
         self.assertIn("limit must be between", response_data["error"])
 
         # Test limit too large
-        result = search_narratives("query", limit=101)
+        result = asyncio.run(search_narratives("query", limit=101))
         response_data = json.loads(result)
         self.assertFalse(response_data["success"])
         self.assertIn("limit must be between", response_data["error"])
@@ -465,7 +488,7 @@ class TestRecallNarrative(unittest.TestCase):
         mock_get_service.return_value = mock_service
 
         story_id = "story_1234567890_abc123"
-        result = recall_narrative(story_id)
+        result = asyncio.run(recall_narrative(story_id))
         response_data = json.loads(result)
 
         # Verify response structure
@@ -495,7 +518,7 @@ class TestRecallNarrative(unittest.TestCase):
 
     def test_recall_narrative_validation_empty_story_id(self):
         """Test validation for empty story_id."""
-        result = recall_narrative("")
+        result = asyncio.run(recall_narrative(""))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -503,7 +526,7 @@ class TestRecallNarrative(unittest.TestCase):
 
     def test_recall_narrative_validation_invalid_story_id_format(self):
         """Test validation for invalid story_id format."""
-        result = recall_narrative("invalid_id")
+        result = asyncio.run(recall_narrative("invalid_id"))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -511,7 +534,7 @@ class TestRecallNarrative(unittest.TestCase):
 
     def test_recall_narrative_json_response_format(self):
         """Test that response is valid JSON."""
-        result = recall_narrative("story_1234567890_abc123")
+        result = asyncio.run(recall_narrative("story_1234567890_abc123"))
 
         # Should not raise an exception
         response_data = json.loads(result)
@@ -536,7 +559,7 @@ class TestBrowseNarrative(unittest.TestCase):
         }
         mock_get_service.return_value = mock_service
 
-        result = browse_narrative()
+        result = asyncio.run(browse_narrative())
         response_data = json.loads(result)
 
         # Verify response structure
@@ -566,13 +589,15 @@ class TestBrowseNarrative(unittest.TestCase):
 
     def test_browse_narrative_with_all_parameters(self):
         """Test browsing with all optional parameters."""
-        result = browse_narrative(
-            limit=20,
-            offset=10,
-            since="7d",
-            participants=["Alpha", "Jeffery"],
-            tags=["breakthrough", "memory"],
-            outcome="resolution",
+        result = asyncio.run(
+            browse_narrative(
+                limit=20,
+                offset=10,
+                since="7d",
+                participants=["Alpha", "Jeffery"],
+                tags=["breakthrough", "memory"],
+                outcome="resolution",
+            )
         )
         response_data = json.loads(result)
 
@@ -592,10 +617,12 @@ class TestBrowseNarrative(unittest.TestCase):
 
     def test_browse_narrative_parameter_cleaning(self):
         """Test that filter parameters are properly cleaned."""
-        result = browse_narrative(
-            participants=["  Alpha  ", "", "Jeffery"],
-            tags=["  tag1  ", "", "tag2"],
-            outcome="  resolution  ",
+        result = asyncio.run(
+            browse_narrative(
+                participants=["  Alpha  ", "", "Jeffery"],
+                tags=["  tag1  ", "", "tag2"],
+                outcome="  resolution  ",
+            )
         )
         response_data = json.loads(result)
 
@@ -613,20 +640,20 @@ class TestBrowseNarrative(unittest.TestCase):
     def test_browse_narrative_validation_invalid_limit(self):
         """Test validation for invalid limit values."""
         # Test limit too small
-        result = browse_narrative(limit=0)
+        result = asyncio.run(browse_narrative(limit=0))
         response_data = json.loads(result)
         self.assertFalse(response_data["success"])
         self.assertIn("limit must be between", response_data["error"])
 
         # Test limit too large
-        result = browse_narrative(limit=101)
+        result = asyncio.run(browse_narrative(limit=101))
         response_data = json.loads(result)
         self.assertFalse(response_data["success"])
         self.assertIn("limit must be between", response_data["error"])
 
     def test_browse_narrative_validation_invalid_offset(self):
         """Test validation for invalid offset values."""
-        result = browse_narrative(offset=-1)
+        result = asyncio.run(browse_narrative(offset=-1))
         response_data = json.loads(result)
 
         self.assertFalse(response_data["success"])
@@ -634,7 +661,7 @@ class TestBrowseNarrative(unittest.TestCase):
 
     def test_browse_narrative_json_response_format(self):
         """Test that response is valid JSON."""
-        result = browse_narrative()
+        result = asyncio.run(browse_narrative())
 
         # Should not raise an exception
         response_data = json.loads(result)
