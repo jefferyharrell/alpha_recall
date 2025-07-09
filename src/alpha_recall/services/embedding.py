@@ -50,16 +50,16 @@ class EmbeddingService:
         semantic_start = time.perf_counter()
         logger.info(
             "Loading semantic embedding model",
-            model_name=settings.embedding_model,
+            model_name=settings.semantic_embedding_model,
             device=self.device or "auto_detected",
         )
 
         if self.device is not None:
             self.semantic_model = SentenceTransformer(
-                settings.embedding_model, device=self.device
+                settings.semantic_embedding_model, device=self.device
             )
         else:
-            self.semantic_model = SentenceTransformer(settings.embedding_model)
+            self.semantic_model = SentenceTransformer(settings.semantic_embedding_model)
 
         semantic_time_ms = (time.perf_counter() - semantic_start) * 1000
 
@@ -69,7 +69,7 @@ class EmbeddingService:
 
         logger.info(
             "Semantic model loaded successfully",
-            model_name=settings.embedding_model,
+            model_name=settings.semantic_embedding_model,
             device=semantic_device,
             dimensions=model_dims,
             load_time_ms=round(semantic_time_ms, 2),

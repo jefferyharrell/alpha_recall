@@ -21,7 +21,7 @@ class TestEmbeddingService:
         """Test EmbeddingService initialization with explicit device configuration."""
         # Mock settings
         mock_settings.inference_device = "cuda"
-        mock_settings.embedding_model = "test-semantic-model"
+        mock_settings.semantic_embedding_model = "test-semantic-model"
         mock_settings.emotional_embedding_model = "test-emotional-model"
 
         # Mock SentenceTransformer
@@ -49,7 +49,7 @@ class TestEmbeddingService:
         """Test EmbeddingService initialization with auto device detection."""
         # Mock settings
         mock_settings.inference_device = None
-        mock_settings.embedding_model = "test-semantic-model"
+        mock_settings.semantic_embedding_model = "test-semantic-model"
         mock_settings.emotional_embedding_model = "test-emotional-model"
 
         # Mock SentenceTransformer
@@ -163,7 +163,7 @@ class TestEmbeddingService:
         """Test device determination with explicit configuration."""
         # Mock settings
         mock_settings.inference_device = "mps"
-        mock_settings.embedding_model = "test-model"
+        mock_settings.semantic_embedding_model = "test-model"
         mock_settings.emotional_embedding_model = "test-model"
 
         # Mock SentenceTransformer
@@ -186,7 +186,7 @@ class TestEmbeddingService:
         """Test device determination with auto-detection."""
         # Mock settings
         mock_settings.inference_device = None
-        mock_settings.embedding_model = "test-model"
+        mock_settings.semantic_embedding_model = "test-model"
         mock_settings.emotional_embedding_model = "test-model"
 
         # Mock SentenceTransformer

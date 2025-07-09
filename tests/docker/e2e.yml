@@ -31,7 +31,7 @@ services:
       - MEMGRAPH_URI=bolt://memgraph-test:7687
       - REDIS_URI=redis://redis-test:6379/0
       - REDIS_TTL=2000000
-      - EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
+      - SEMANTIC_EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
       - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
       - CORE_IDENTITY_NODE=Alpha Core Identity Test
       - MCP_TRANSPORT=streamable-http

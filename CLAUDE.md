@@ -460,7 +460,7 @@ Critical environment variables (all optional with defaults):
 - `ALPHA_RECALL_DEV_PORT`: Development server port (default: 19005)
 - `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL" (default: "INFO")
 - `LOG_FORMAT`: "rich", "json", or "rich_json" (default: "rich")
-- `EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
+- `SEMANTIC_EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
 - `EMOTIONAL_EMBEDDING_MODEL`: Emotional embedding model name (default: ng3owb/sentiment-embedding-model)
 - `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
 - `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)

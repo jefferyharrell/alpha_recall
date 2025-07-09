@@ -1,5 +1,6 @@
 """Unit tests for gentle_refresh functionality."""
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -118,6 +119,23 @@ class MockTimeService:
     def utc_isoformat():
         return "2025-07-09T19:39:00.747784+00:00"
 
+    @staticmethod
+    async def now_async():
+        """Async version of now() method."""
+        return {
+            "iso_datetime": "2025-07-09T19:39:00.747784+00:00",
+            "utc": "2025-07-09T19:39:00.747784+00:00",
+            "local": "2025-07-09T12:39:00.747881-07:00",
+            "human_readable": "Wednesday, July 09, 2025 12:39 PM",
+            "timezone": {
+                "name": "America/Los_Angeles",
+                "offset": "-0700",
+                "display": "PDT",
+            },
+            "unix_timestamp": 1752089940,
+            "day_of_week": {"integer": 2, "name": "Wednesday"},
+        }
+
 
 class MockRedisService:
     """Mock Redis service for testing."""
@@ -152,7 +170,7 @@ def test_gentle_refresh_response_structure(mock_redis_service, mock_memgraph_ser
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     # Test basic structure
@@ -175,7 +193,7 @@ def test_gentle_refresh_time_structure(mock_redis_service, mock_memgraph_service
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     time_obj = data["time"]
@@ -225,7 +243,7 @@ def test_gentle_refresh_with_core_identity(mock_redis_service, mock_memgraph_ser
     )
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     assert data["core_identity"] is not None
@@ -250,7 +268,7 @@ def test_gentle_refresh_missing_core_identity(
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     assert data["success"] is True
@@ -280,7 +298,7 @@ def test_gentle_refresh_shortterm_memories(mock_redis_service, mock_memgraph_ser
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService(memory_data)
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     assert "shortterm_memories" in data
@@ -314,7 +332,7 @@ def test_gentle_refresh_recent_observations(mock_redis_service, mock_memgraph_se
     )
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     assert "recent_observations" in data
@@ -340,7 +358,7 @@ def test_gentle_refresh_memory_consolidation_structure(
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     consolidation = data["memory_consolidation"]
@@ -373,13 +391,13 @@ def test_gentle_refresh_accepts_query_parameter(
     mock_redis_service.return_value = MockRedisService()
 
     # Test with query parameter
-    response = gentle_refresh("test query")
+    response = asyncio.run(gentle_refresh("test query"))
     data = json.loads(response)
 
     assert data["success"] is True
 
     # Test with None query
-    response = gentle_refresh(None)
+    response = asyncio.run(gentle_refresh(None))
     data = json.loads(response)
 
     assert data["success"] is True
@@ -395,7 +413,7 @@ def test_gentle_refresh_error_handling(mock_redis_service, mock_memgraph_service
     mock_memgraph_service.side_effect = Exception("Memgraph connection failed")
     mock_redis_service.side_effect = Exception("Redis connection failed")
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     # gentle_refresh is designed to handle partial failures gracefully
@@ -420,7 +438,7 @@ def test_gentle_refresh_partial_failures(mock_redis_service, mock_memgraph_servi
     mock_redis.client.zrevrange = MagicMock(side_effect=Exception("Redis error"))
     mock_redis_service.return_value = mock_redis
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
     data = json.loads(response)
 
     # Should still succeed overall
@@ -439,7 +457,7 @@ def test_gentle_refresh_json_validity(mock_redis_service, mock_memgraph_service)
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
 
-    response = gentle_refresh()
+    response = asyncio.run(gentle_refresh())
 
     # Should not raise exception
     data = json.loads(response)
@@ -461,7 +479,7 @@ def test_gentle_refresh_custom_core_identity_node(
         mock_memgraph_service.return_value = MockMemgraphService()
         mock_redis_service.return_value = MockRedisService()
 
-        response = gentle_refresh()
+        response = asyncio.run(gentle_refresh())
         data = json.loads(response)
 
         assert data["success"] is True
@@ -475,7 +493,7 @@ def test_gentle_refresh_return_type():
         with patch("alpha_recall.tools.gentle_refresh.settings", MockSettings()):
             with patch("alpha_recall.tools.gentle_refresh.get_memgraph_service"):
                 with patch("alpha_recall.tools.gentle_refresh.get_redis_service"):
-                    result = gentle_refresh()
+                    result = asyncio.run(gentle_refresh())
                     assert isinstance(result, str)
                     # Should be valid JSON
                     json.loads(result)
@@ -492,7 +510,7 @@ def test_gentle_refresh_no_query_parameter(mock_redis_service, mock_memgraph_ser
     mock_redis_service.return_value = MockRedisService()
 
     # Call without any arguments - this should NOT raise a schema validation error
-    result = gentle_refresh()
+    result = asyncio.run(gentle_refresh())
     data = json.loads(result)
 
     # Should work normally

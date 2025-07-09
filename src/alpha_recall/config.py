@@ -33,7 +33,7 @@ class AlphaRecallSettings(BaseSettings):
     redis_ttl: int = Field(default=2000000, gt=0)  # 2 megaseconds
 
     # Embedding Models
-    embedding_model: str = "sentence-transformers/all-mpnet-base-v2"
+    semantic_embedding_model: str = "sentence-transformers/all-mpnet-base-v2"
     emotional_embedding_model: str = "ng3owb/sentiment-embedding-model"
     inference_device: str | None = None
 
