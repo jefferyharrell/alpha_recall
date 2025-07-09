@@ -743,18 +743,14 @@ class NarrativeService:
                 [
                     "full_semantic_vector",
                     "VECTOR",
-                    "HNSW",
-                    "8",
+                    "FLAT",
+                    "6",
                     "TYPE",
                     "FLOAT32",
                     "DIM",
                     str(semantic_dim),
                     "DISTANCE_METRIC",
                     "COSINE",
-                    "M",
-                    "16",
-                    "EF_CONSTRUCTION",
-                    "200",
                 ]
             )
 
@@ -763,18 +759,14 @@ class NarrativeService:
                 [
                     "full_emotional_vector",
                     "VECTOR",
-                    "HNSW",
-                    "8",
+                    "FLAT",
+                    "6",
                     "TYPE",
                     "FLOAT32",
                     "DIM",
                     str(emotional_dim),
                     "DISTANCE_METRIC",
                     "COSINE",
-                    "M",
-                    "16",
-                    "EF_CONSTRUCTION",
-                    "200",
                 ]
             )
 

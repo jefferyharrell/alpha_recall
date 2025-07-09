@@ -1,6 +1,5 @@
 """Recall narrative tool for retrieving complete stories by ID."""
 
-import asyncio
 import json
 
 from fastmcp import FastMCP
@@ -12,7 +11,7 @@ from ..utils.correlation import generate_correlation_id, set_correlation_id
 __all__ = ["recall_narrative", "register_recall_narrative_tools"]
 
 
-def recall_narrative(story_id: str) -> str:
+async def recall_narrative(story_id: str) -> str:
     """Retrieve a complete narrative story by its story_id.
 
     Args:
@@ -43,8 +42,8 @@ def recall_narrative(story_id: str) -> str:
         # Retrieve the story using NarrativeService
         narrative_service = get_narrative_service()
 
-        # Call async service method from sync context
-        story_data = asyncio.run(narrative_service.get_story(story_id))
+        # Call async service method
+        story_data = await narrative_service.get_story(story_id)
 
         if not story_data:
             # Story not found

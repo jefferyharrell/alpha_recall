@@ -1,6 +1,5 @@
 """Remember narrative tool for storing experiential stories."""
 
-import asyncio
 import json
 
 from fastmcp import FastMCP
@@ -12,7 +11,7 @@ from ..utils.correlation import generate_correlation_id, set_correlation_id
 __all__ = ["remember_narrative", "register_remember_narrative_tools"]
 
 
-def remember_narrative(
+async def remember_narrative(
     title: str,
     paragraphs: list[str],
     participants: list[str],
@@ -66,16 +65,14 @@ def remember_narrative(
         # Get narrative service and store the story
         narrative_service = get_narrative_service()
 
-        # Call async service method from sync context
-        result = asyncio.run(
-            narrative_service.store_story(
-                title=title.strip(),
-                paragraphs=clean_paragraphs,
-                participants=clean_participants,
-                tags=clean_tags,
-                outcome=outcome,
-                references=clean_references,
-            )
+        # Call async service method
+        result = await narrative_service.store_story(
+            title=title.strip(),
+            paragraphs=clean_paragraphs,
+            participants=clean_participants,
+            tags=clean_tags,
+            outcome=outcome,
+            references=clean_references,
         )
 
         # If storage failed, return error response

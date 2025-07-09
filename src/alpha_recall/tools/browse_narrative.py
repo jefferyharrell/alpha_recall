@@ -1,6 +1,5 @@
 """Browse narrative tool for chronological listing with filtering."""
 
-import asyncio
 import json
 import time
 
@@ -13,7 +12,7 @@ from ..utils.correlation import generate_correlation_id, set_correlation_id
 __all__ = ["browse_narrative", "register_browse_narrative_tools"]
 
 
-def browse_narrative(
+async def browse_narrative(
     limit: int = 10,
     offset: int = 0,
     since: str | None = None,
@@ -66,16 +65,14 @@ def browse_narrative(
         start_time = time.time()
         narrative_service = get_narrative_service()
 
-        # Call async service method from sync context
-        browse_result = asyncio.run(
-            narrative_service.list_stories(
-                limit=limit,
-                offset=offset,
-                since=since,
-                participants=clean_participants,
-                tags=clean_tags,
-                outcome=clean_outcome,
-            )
+        # Call async service method
+        browse_result = await narrative_service.list_stories(
+            limit=limit,
+            offset=offset,
+            since=since,
+            participants=clean_participants,
+            tags=clean_tags,
+            outcome=clean_outcome,
         )
         query_time_ms = int((time.time() - start_time) * 1000)
 

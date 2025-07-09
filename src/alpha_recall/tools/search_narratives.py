@@ -1,6 +1,5 @@
 """Search narratives tool for vector similarity search across stories."""
 
-import asyncio
 import json
 import time
 
@@ -13,7 +12,7 @@ from ..utils.correlation import generate_correlation_id, set_correlation_id
 __all__ = ["search_narratives", "register_search_narratives_tools"]
 
 
-def search_narratives(
+async def search_narratives(
     query: str,
     search_type: str = "semantic",
     granularity: str = "story",
@@ -61,15 +60,12 @@ def search_narratives(
         start_time = time.time()
         narrative_service = get_narrative_service()
 
-        # Handle async call properly (avoid nested event loops)
-        # Call async service method from sync context
-        results = asyncio.run(
-            narrative_service.search_stories(
-                query=query,
-                search_type=search_type,
-                granularity=granularity,
-                limit=limit,
-            )
+        # Call async service method
+        results = await narrative_service.search_stories(
+            query=query,
+            search_type=search_type,
+            granularity=granularity,
+            limit=limit,
         )
         search_time_ms = int((time.time() - start_time) * 1000)
 
