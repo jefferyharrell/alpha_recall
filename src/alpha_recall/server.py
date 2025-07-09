@@ -18,6 +18,7 @@ from .tools import (
     register_remember_longterm_tools,
     register_remember_narrative_tools,
     register_remember_shortterm_tool,
+    register_search_all_memories_tools,
     register_search_longterm_tools,
     register_search_narratives_tools,
     register_search_shortterm_tool,
@@ -40,6 +41,7 @@ def create_server():
     register_remember_longterm_tools(mcp)
     register_relate_longterm_tools(mcp)
     register_search_longterm_tools(mcp)
+    register_search_all_memories_tools(mcp)
     register_get_entity_tools(mcp)
     register_get_relationships_tools(mcp)
     register_browse_longterm_tools(mcp)

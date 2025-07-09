@@ -11,6 +11,7 @@ from .relate_longterm import register_relate_longterm_tools
 from .remember_longterm import register_remember_longterm_tools
 from .remember_narrative import register_remember_narrative_tools
 from .remember_shortterm import register_remember_shortterm_tool
+from .search_all_memories import register_search_all_memories_tools
 from .search_longterm import register_search_longterm_tools
 from .search_narratives import register_search_narratives_tools
 from .search_shortterm import register_search_shortterm_tool
@@ -22,6 +23,7 @@ __all__ = [
     "register_search_shortterm_tool",
     "register_remember_longterm_tools",
     "register_relate_longterm_tools",
+    "register_search_all_memories_tools",
     "register_search_longterm_tools",
     "register_get_entity_tools",
     "register_get_relationships_tools",
