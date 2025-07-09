@@ -6,11 +6,14 @@ import time
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.embedding import get_embedding_service
+from ..services.search import (
+    search_longterm_with_embeddings,
+    search_narratives_with_embeddings,
+    search_shortterm_with_embeddings,
+)
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 from .get_entity import get_entity
-from .search_longterm import search_longterm
-from .search_narratives import search_narratives
-from .search_shortterm import search_shortterm
 
 __all__ = ["search_all_memories", "register_search_all_memories_tools"]
 
@@ -56,129 +59,157 @@ async def search_all_memories(
     try:
         all_results = []
 
+        # Generate embeddings ONCE for optimal performance
+        embedding_service = get_embedding_service()
+
+        try:
+            semantic_embedding = embedding_service.encode_semantic(query)
+            emotional_embedding = embedding_service.encode_emotional(query)
+
+            logger.info(
+                "Generated embeddings for unified search",
+                semantic_dims=len(semantic_embedding),
+                emotional_dims=len(emotional_embedding),
+                correlation_id=correlation_id,
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to generate embeddings: {e}")
+            return json.dumps(
+                {
+                    "success": False,
+                    "error": f"Failed to generate embeddings: {e}",
+                    "correlation_id": correlation_id,
+                }
+            )
+
         # Search STM (short-term memory) - both semantic and emotional
         try:
-            stm_semantic_result = search_shortterm(
-                query, limit=50, search_type="semantic"
+            stm_semantic_memories = search_shortterm_with_embeddings(
+                semantic_embedding=semantic_embedding,
+                emotional_embedding=emotional_embedding,
+                limit=50,
+                search_type="semantic",
             )
-            stm_semantic_data = json.loads(stm_semantic_result)
 
-            if "memories" in stm_semantic_data:
-                for memory in stm_semantic_data["memories"]:
-                    all_results.append(
-                        {
-                            "source": "STM",
-                            "search_type": "semantic",
-                            "content": memory.get("content", ""),
-                            "score": memory.get("similarity_score", 0.0),
-                            "created_at": memory.get("created_at"),
-                            "age": memory.get("age"),
-                            "id": f"stm_semantic_{memory.get('id', hash(memory.get('content', '')))}",
-                            "memory_id": memory.get("id"),
-                        }
-                    )
+            for memory in stm_semantic_memories:
+                all_results.append(
+                    {
+                        "source": "STM",
+                        "search_type": "semantic",
+                        "content": memory.get("content", ""),
+                        "score": memory.get("similarity_score", 0.0),
+                        "created_at": memory.get("created_at"),
+                        "age": memory.get("age"),
+                        "id": f"stm_semantic_{memory.get('id', hash(memory.get('content', '')))}",
+                        "memory_id": memory.get("id"),
+                    }
+                )
         except Exception as e:
             logger.warning(f"STM semantic search failed: {e}")
 
         try:
-            stm_emotional_result = search_shortterm(
-                query, limit=50, search_type="emotional"
+            stm_emotional_memories = search_shortterm_with_embeddings(
+                semantic_embedding=semantic_embedding,
+                emotional_embedding=emotional_embedding,
+                limit=50,
+                search_type="emotional",
             )
-            stm_emotional_data = json.loads(stm_emotional_result)
 
-            if "memories" in stm_emotional_data:
-                for memory in stm_emotional_data["memories"]:
-                    all_results.append(
-                        {
-                            "source": "STM",
-                            "search_type": "emotional",
-                            "content": memory.get("content", ""),
-                            "score": memory.get(
-                                "similarity_score", memory.get("relevance_score", 0.0)
-                            ),
-                            "created_at": memory.get("created_at"),
-                            "age": memory.get("age"),
-                            "id": f"stm_emotional_{memory.get('id', hash(memory.get('content', '')))}",
-                            "memory_id": memory.get("id"),
-                        }
-                    )
+            for memory in stm_emotional_memories:
+                all_results.append(
+                    {
+                        "source": "STM",
+                        "search_type": "emotional",
+                        "content": memory.get("content", ""),
+                        "score": memory.get(
+                            "similarity_score", memory.get("relevance_score", 0.0)
+                        ),
+                        "created_at": memory.get("created_at"),
+                        "age": memory.get("age"),
+                        "id": f"stm_emotional_{memory.get('id', hash(memory.get('content', '')))}",
+                        "memory_id": memory.get("id"),
+                    }
+                )
         except Exception as e:
             logger.warning(f"STM emotional search failed: {e}")
 
         # Search LTM (long-term memory observations)
         try:
-            ltm_result = search_longterm(query, limit=50)
-            ltm_data = json.loads(ltm_result)
+            ltm_observations = search_longterm_with_embeddings(
+                semantic_embedding=semantic_embedding,
+                emotional_embedding=emotional_embedding,
+                limit=50,
+            )
 
-            if "observations" in ltm_data:
-                for obs in ltm_data["observations"]:
-                    all_results.append(
-                        {
-                            "source": "LTM",
-                            "search_type": "semantic",
-                            "content": obs.get("observation", obs.get("content", "")),
-                            "score": obs.get("similarity_score", obs.get("score", 0.0)),
-                            "created_at": obs.get("created_at"),
-                            "entity_name": obs.get("entity_name"),
-                            "id": f"ltm_{obs.get('entity_name', '')}_{hash(obs.get('observation', obs.get('content', '')))}",
-                            "observation_id": obs.get("id"),
-                        }
-                    )
+            for obs in ltm_observations:
+                all_results.append(
+                    {
+                        "source": "LTM",
+                        "search_type": obs.get("search_type", "semantic"),
+                        "content": obs.get("observation", obs.get("content", "")),
+                        "score": obs.get("similarity_score", 0.0),
+                        "created_at": obs.get("created_at"),
+                        "entity_name": obs.get("entity_name"),
+                        "id": f"ltm_{obs.get('entity_name', '')}_{hash(obs.get('observation', obs.get('content', '')))}",
+                        "observation_id": obs.get("id"),
+                    }
+                )
         except Exception as e:
             logger.warning(f"LTM search failed: {e}")
 
         # Search NM (narrative memory) - both semantic and emotional
         try:
-            narrative_semantic_result = await search_narratives(
-                query, search_type="semantic", granularity="both", limit=25
+            narrative_semantic_results = await search_narratives_with_embeddings(
+                semantic_embedding=semantic_embedding,
+                emotional_embedding=emotional_embedding,
+                search_type="semantic",
+                granularity="story",
+                limit=25,
             )
-            narrative_semantic_data = json.loads(narrative_semantic_result)
 
-            if "results" in narrative_semantic_data:
-                for result in narrative_semantic_data["results"]:
-                    all_results.append(
-                        {
-                            "source": "NM",
-                            "search_type": "semantic",
-                            "content": result.get("content", result.get("title", "")),
-                            "score": result.get(
-                                "similarity_score", result.get("score", 0.0)
-                            ),
-                            "created_at": result.get("created_at"),
-                            "story_id": result.get("story_id"),
-                            "title": result.get("title"),
-                            "participants": result.get("participants", []),
-                            "granularity": result.get("granularity"),
-                            "id": f"nm_semantic_{result.get('story_id', hash(result.get('content', '')))}",
-                        }
-                    )
+            for result in narrative_semantic_results:
+                all_results.append(
+                    {
+                        "source": "NM",
+                        "search_type": "semantic",
+                        "content": result.get("content", result.get("title", "")),
+                        "score": result.get("similarity_score", 0.0),
+                        "created_at": result.get("created_at"),
+                        "story_id": result.get("story_id"),
+                        "title": result.get("title"),
+                        "participants": result.get("participants", []),
+                        "granularity": result.get("granularity"),
+                        "id": f"nm_semantic_{result.get('story_id', hash(result.get('content', '')))}",
+                    }
+                )
         except Exception as e:
             logger.warning(f"NM semantic search failed: {e}")
 
         try:
-            narrative_emotional_result = await search_narratives(
-                query, search_type="emotional", granularity="both", limit=25
+            narrative_emotional_results = await search_narratives_with_embeddings(
+                semantic_embedding=semantic_embedding,
+                emotional_embedding=emotional_embedding,
+                search_type="emotional",
+                granularity="story",
+                limit=25,
             )
-            narrative_emotional_data = json.loads(narrative_emotional_result)
 
-            if "results" in narrative_emotional_data:
-                for result in narrative_emotional_data["results"]:
-                    all_results.append(
-                        {
-                            "source": "NM",
-                            "search_type": "emotional",
-                            "content": result.get("content", result.get("title", "")),
-                            "score": result.get(
-                                "similarity_score", result.get("score", 0.0)
-                            ),
-                            "created_at": result.get("created_at"),
-                            "story_id": result.get("story_id"),
-                            "title": result.get("title"),
-                            "participants": result.get("participants", []),
-                            "granularity": result.get("granularity"),
-                            "id": f"nm_emotional_{result.get('story_id', hash(result.get('content', '')))}",
-                        }
-                    )
+            for result in narrative_emotional_results:
+                all_results.append(
+                    {
+                        "source": "NM",
+                        "search_type": "emotional",
+                        "content": result.get("content", result.get("title", "")),
+                        "score": result.get("similarity_score", 0.0),
+                        "created_at": result.get("created_at"),
+                        "story_id": result.get("story_id"),
+                        "title": result.get("title"),
+                        "participants": result.get("participants", []),
+                        "granularity": result.get("granularity"),
+                        "id": f"nm_emotional_{result.get('story_id', hash(result.get('content', '')))}",
+                    }
+                )
         except Exception as e:
             logger.warning(f"NM emotional search failed: {e}")
 
@@ -247,7 +278,8 @@ async def search_all_memories(
                     "ENTITIES",
                 ],
                 "search_time_ms": search_time_ms,
-                "search_method": "unified_cross_system",
+                "search_method": "unified_cross_system_optimized",
+                "embedding_optimization": "single_generation_fanout",
             },
             "correlation_id": correlation_id,
         }
