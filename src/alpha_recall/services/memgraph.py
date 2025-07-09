@@ -4,6 +4,7 @@ import time
 from typing import Any
 
 import numpy as np
+import pendulum
 from gqlalchemy import Memgraph
 
 from ..config import settings
@@ -114,22 +115,18 @@ class MemgraphService:
                 created_at_raw = getattr(entity, "created_at", None)
                 if created_at_raw and isinstance(created_at_raw, int | float):
                     created_at_seconds = created_at_raw / 1_000_000
-                    entity_created_at = (
-                        time_service.utc_now()
-                        .from_timestamp(created_at_seconds)
-                        .isoformat()
-                    )
+                    entity_created_at = pendulum.from_timestamp(
+                        created_at_seconds, tz="UTC"
+                    ).isoformat()
                 else:
                     entity_created_at = created_at_raw
 
                 updated_at_raw = getattr(entity, "updated_at", None)
                 if updated_at_raw and isinstance(updated_at_raw, int | float):
                     updated_at_seconds = updated_at_raw / 1_000_000
-                    entity_updated_at = (
-                        time_service.utc_now()
-                        .from_timestamp(updated_at_seconds)
-                        .isoformat()
-                    )
+                    entity_updated_at = pendulum.from_timestamp(
+                        updated_at_seconds, tz="UTC"
+                    ).isoformat()
                 else:
                     entity_updated_at = updated_at_raw
 
@@ -226,11 +223,9 @@ class MemgraphService:
                 created_at_raw = getattr(obs, "created_at", None)
                 if created_at_raw and isinstance(created_at_raw, int | float):
                     created_at_seconds = created_at_raw / 1_000_000
-                    observation_created_at = (
-                        time_service.utc_now()
-                        .from_timestamp(created_at_seconds)
-                        .isoformat()
-                    )
+                    observation_created_at = pendulum.from_timestamp(
+                        created_at_seconds, tz="UTC"
+                    ).isoformat()
                 else:
                     observation_created_at = created_at_raw
 
@@ -306,11 +301,9 @@ class MemgraphService:
                 created_at_raw = getattr(rel, "created_at", None)
                 if created_at_raw and isinstance(created_at_raw, int | float):
                     created_at_seconds = created_at_raw / 1_000_000
-                    relationship_created_at = (
-                        time_service.utc_now()
-                        .from_timestamp(created_at_seconds)
-                        .isoformat()
-                    )
+                    relationship_created_at = pendulum.from_timestamp(
+                        created_at_seconds, tz="UTC"
+                    ).isoformat()
                 else:
                     relationship_created_at = created_at_raw  # Already ISO format
 
@@ -528,11 +521,9 @@ class MemgraphService:
                     if created_at_raw and isinstance(created_at_raw, int | float):
                         # Convert from microseconds to seconds for pendulum
                         created_at_seconds = created_at_raw / 1_000_000
-                        created_at = (
-                            time_service.utc_now()
-                            .from_timestamp(created_at_seconds)
-                            .isoformat()
-                        )
+                        created_at = pendulum.from_timestamp(
+                            created_at_seconds, tz="UTC"
+                        ).isoformat()
                     else:
                         created_at = created_at_raw
 
@@ -558,22 +549,18 @@ class MemgraphService:
             created_at_raw = getattr(entity, "created_at", None)
             if created_at_raw and isinstance(created_at_raw, int | float):
                 created_at_seconds = created_at_raw / 1_000_000
-                entity_created_at = (
-                    time_service.utc_now()
-                    .from_timestamp(created_at_seconds)
-                    .isoformat()
-                )
+                entity_created_at = pendulum.from_timestamp(
+                    created_at_seconds, tz="UTC"
+                ).isoformat()
             else:
                 entity_created_at = created_at_raw
 
             updated_at_raw = getattr(entity, "updated_at", None)
             if updated_at_raw and isinstance(updated_at_raw, int | float):
                 updated_at_seconds = updated_at_raw / 1_000_000
-                entity_updated_at = (
-                    time_service.utc_now()
-                    .from_timestamp(updated_at_seconds)
-                    .isoformat()
-                )
+                entity_updated_at = pendulum.from_timestamp(
+                    updated_at_seconds, tz="UTC"
+                ).isoformat()
             else:
                 entity_updated_at = updated_at_raw
 
