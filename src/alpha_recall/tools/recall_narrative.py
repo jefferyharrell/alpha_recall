@@ -1,10 +1,12 @@
 """Recall narrative tool for retrieving complete stories by ID."""
 
+import asyncio
 import json
 
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.factory import get_narrative_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["recall_narrative", "register_recall_narrative_tools"]
@@ -38,34 +40,37 @@ def recall_narrative(story_id: str) -> str:
         if not story_id.startswith("story_"):
             raise ValueError("story_id must start with 'story_'")
 
-        # TODO: Implement actual retrieval
-        # This is a placeholder until we implement the NarrativeService
-        logger.info(
-            "Narrative recall placeholder",
-            story_id=story_id,
-            correlation_id=correlation_id,
-        )
+        # Retrieve the story using NarrativeService
+        narrative_service = get_narrative_service()
+        story_data = asyncio.run(narrative_service.get_story(story_id))
+
+        if not story_data:
+            # Story not found
+            error_response = {
+                "success": False,
+                "error": f"Story with ID '{story_id}' not found",
+                "error_type": "StoryNotFound",
+                "correlation_id": correlation_id,
+            }
+            return json.dumps(error_response, indent=2)
 
         # Return response structure
         response = {
             "success": True,
             "story": {
-                "story_id": story_id,
-                "title": "Placeholder Story",
-                "created_at": "2025-07-09T14:30:00.000000Z",
-                "participants": ["Alpha", "Jeffery"],
-                "tags": ["placeholder", "implementation"],
-                "outcome": "ongoing",
-                "references": [],
-                "paragraphs": [
-                    {
-                        "order": 0,
-                        "content": "This is a placeholder story that would be retrieved from storage.",
-                    }
-                ],
+                "story_id": story_data["story_id"],
+                "title": story_data["title"],
+                "created_at": story_data["created_at"],
+                "participants": story_data["participants"],
+                "tags": story_data["tags"],
+                "outcome": story_data["outcome"],
+                "references": story_data.get("references", []),
+                "paragraphs": story_data["paragraphs"],
                 "metadata": {
-                    "paragraph_count": 1,
-                    "word_count": 12,
+                    "paragraph_count": len(story_data["paragraphs"]),
+                    "word_count": sum(
+                        len(p["text"].split()) for p in story_data["paragraphs"]
+                    ),
                     "storage_location": "hybrid_redis_memgraph",
                 },
             },

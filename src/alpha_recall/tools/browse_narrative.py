@@ -1,10 +1,13 @@
 """Browse narrative tool for chronological listing with filtering."""
 
+import asyncio
 import json
+import time
 
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.factory import get_narrative_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["browse_narrative", "register_browse_narrative_tools"]
@@ -59,29 +62,31 @@ def browse_narrative(
         clean_tags = [t.strip() for t in (tags or []) if t.strip()]
         clean_outcome = outcome.strip() if outcome else None
 
-        # TODO: Implement actual browsing
-        # This is a placeholder until we implement the NarrativeService
-        logger.info(
-            "Narrative browse placeholder",
-            limit=limit,
-            offset=offset,
-            since=since,
-            participants=clean_participants,
-            tags=clean_tags,
-            outcome=clean_outcome,
-            correlation_id=correlation_id,
+        # Perform the actual browse using NarrativeService
+        start_time = time.time()
+        narrative_service = get_narrative_service()
+        browse_result = asyncio.run(
+            narrative_service.list_stories(
+                limit=limit,
+                offset=offset,
+                since=since,
+                participants=clean_participants,
+                tags=clean_tags,
+                outcome=clean_outcome,
+            )
         )
+        query_time_ms = int((time.time() - start_time) * 1000)
 
         # Return response structure
         response = {
             "success": True,
             "browse_data": {
-                "stories": [],  # Will be populated when implemented
+                "stories": browse_result["stories"],
                 "pagination": {
-                    "limit": limit,
-                    "offset": offset,
-                    "total_count": 0,
-                    "has_more": False,
+                    "limit": browse_result["limit"],
+                    "offset": browse_result["offset"],
+                    "total_count": browse_result["total_count"],
+                    "has_more": browse_result["has_more"],
                 },
                 "filters": {
                     "since": since,
@@ -90,7 +95,7 @@ def browse_narrative(
                     "outcome": clean_outcome,
                 },
                 "metadata": {
-                    "query_time_ms": 0,
+                    "query_time_ms": query_time_ms,
                     "storage_location": "hybrid_redis_memgraph",
                     "sort_order": "chronological_desc",
                 },
@@ -100,7 +105,8 @@ def browse_narrative(
 
         logger.info(
             "Narrative browse completed",
-            results_count=0,
+            results_count=browse_result["returned_count"],
+            total_count=browse_result["total_count"],
             correlation_id=correlation_id,
         )
 

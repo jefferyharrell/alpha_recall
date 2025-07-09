@@ -1,10 +1,13 @@
 """Search narratives tool for vector similarity search across stories."""
 
+import asyncio
 import json
+import time
 
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.factory import get_narrative_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["search_narratives", "register_search_narratives_tools"]
@@ -54,16 +57,18 @@ def search_narratives(
         if limit < 1 or limit > 100:
             raise ValueError("limit must be between 1 and 100")
 
-        # TODO: Implement actual search
-        # This is a placeholder until we implement the NarrativeService
-        logger.info(
-            "Narrative search placeholder",
-            query=query,
-            search_type=search_type,
-            granularity=granularity,
-            limit=limit,
-            correlation_id=correlation_id,
+        # Perform the actual search using NarrativeService
+        start_time = time.time()
+        narrative_service = get_narrative_service()
+        results = asyncio.run(
+            narrative_service.search_stories(
+                query=query,
+                search_type=search_type,
+                granularity=granularity,
+                limit=limit,
+            )
         )
+        search_time_ms = int((time.time() - start_time) * 1000)
 
         # Return response structure
         response = {
@@ -74,10 +79,10 @@ def search_narratives(
                 "granularity": granularity,
                 "limit": limit,
             },
-            "results": [],  # Will be populated when implemented
+            "results": results,
             "metadata": {
-                "results_count": 0,
-                "search_time_ms": 0,
+                "results_count": len(results),
+                "search_time_ms": search_time_ms,
                 "search_method": "vector_similarity",
                 "embedding_model": "dual_semantic_emotional",
             },

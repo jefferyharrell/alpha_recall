@@ -1,11 +1,12 @@
 """Remember narrative tool for storing experiential stories."""
 
+import asyncio
 import json
-import time
 
 from fastmcp import FastMCP
 
 from ..logging import get_logger
+from ..services.factory import get_narrative_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["remember_narrative", "register_remember_narrative_tools"]
@@ -48,9 +49,6 @@ def remember_narrative(
     )
 
     try:
-        # Generate story ID with timestamp
-        story_id = f"story_{int(time.time())}_{correlation_id.split('_')[1]}"
-
         # Clean up data first
         clean_paragraphs = [p.strip() for p in paragraphs if p.strip()]
         clean_participants = [p.strip() for p in participants if p.strip()]
@@ -65,45 +63,53 @@ def remember_narrative(
         if not clean_participants:
             raise ValueError("At least one participant required")
 
-        current_time = time.time()
-        iso_timestamp = time.strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ", time.gmtime(current_time)
+        # Get narrative service and store the story
+        narrative_service = get_narrative_service()
+        result = asyncio.run(
+            narrative_service.store_story(
+                title=title.strip(),
+                paragraphs=clean_paragraphs,
+                participants=clean_participants,
+                tags=clean_tags,
+                outcome=outcome,
+                references=clean_references,
+            )
         )
 
-        # TODO: Implement actual storage
-        # This is a placeholder until we implement the NarrativeService
-        logger.info(
-            "Narrative storage placeholder",
-            story_id=story_id,
-            title=title,
-            paragraph_count=len(clean_paragraphs),
-            correlation_id=correlation_id,
-        )
+        # If storage failed, return error response
+        if not result.get("success", False):
+            error_response = {
+                "success": False,
+                "error": result.get("error", "Unknown error"),
+                "error_type": result.get("error_type", "UnknownError"),
+                "correlation_id": correlation_id,
+            }
+            return json.dumps(error_response, indent=2)
 
-        # Return response structure
+        # Return successful response
         response = {
             "success": True,
             "story": {
-                "story_id": story_id,
-                "title": title,
-                "created_at": iso_timestamp,
+                "story_id": result["story_id"],
+                "title": result["title"],
+                "created_at": result["created_at"],
                 "participants": clean_participants,
                 "tags": clean_tags,
                 "outcome": outcome,
-                "paragraph_count": len(clean_paragraphs),
+                "paragraph_count": result["paragraph_count"],
                 "references": clean_references,
             },
             "processing": {
-                "paragraphs_processed": len(clean_paragraphs),
-                "embeddings_generated": "pending",  # Will be actual count when implemented
-                "storage_location": "hybrid_redis_memgraph",
+                "paragraphs_processed": result["paragraph_count"],
+                "embeddings_generated": result["embeddings_generated"],
+                "storage_location": result["storage_location"],
             },
             "correlation_id": correlation_id,
         }
 
         logger.info(
             "Narrative storage completed",
-            story_id=story_id,
+            story_id=result["story_id"],
             success=True,
             correlation_id=correlation_id,
         )
