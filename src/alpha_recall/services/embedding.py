@@ -319,3 +319,8 @@ class EmbeddingService:
 
 # Global embedding service instance
 embedding_service = EmbeddingService()
+
+
+def get_embedding_service() -> EmbeddingService:
+    """Get the global EmbeddingService instance."""
+    return embedding_service

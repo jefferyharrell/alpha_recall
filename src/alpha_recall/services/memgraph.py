@@ -4,10 +4,12 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+import numpy as np
 from gqlalchemy import Memgraph
 
 from ..config import settings
 from ..logging import get_logger
+from ..services.embedding import get_embedding_service
 from ..utils.correlation import get_correlation_id
 
 logger = get_logger("services.memgraph")
@@ -131,7 +133,7 @@ class MemgraphService:
             raise
 
     def add_observation(self, entity_name: str, observation: str) -> dict[str, Any]:
-        """Add an observation to an entity."""
+        """Add an observation to an entity with dual embeddings."""
         start_time = time.perf_counter()
         correlation_id = get_correlation_id()
 
@@ -139,13 +141,36 @@ class MemgraphService:
             # First ensure entity exists
             self.create_or_update_entity(entity_name)
 
-            # Create observation node and relationship using Cypher functions
+            # Ensure vector indices exist - this will fail fast if vector search isn't supported
+            indices_status = self.check_vector_indices()
+            if (
+                not indices_status["semantic_index_exists"]
+                or not indices_status["emotional_index_exists"]
+            ):
+                logger.info(
+                    "Vector indices missing, creating them",
+                    correlation_id=correlation_id,
+                )
+                self.create_vector_indices()
+
+            # Generate dual embeddings for the observation
+            embedding_service = get_embedding_service()
+            semantic_embedding = np.array(
+                embedding_service.encode_semantic(observation), dtype=np.float32
+            )
+            emotional_embedding = np.array(
+                embedding_service.encode_emotional(observation), dtype=np.float32
+            )
+
+            # Create observation node with embeddings using original alpha-recall property names
             query = """
             MATCH (e:Entity {name: $entity_name})
             CREATE (o:Observation {
                 content: $observation,
                 created_at: timestamp(),
-                id: randomUUID()
+                id: randomUUID(),
+                semantic_vector: $semantic_vector,
+                emotional_vector: $emotional_vector
             })
             CREATE (e)-[:HAS_OBSERVATION]->(o)
             RETURN o
@@ -154,6 +179,8 @@ class MemgraphService:
             params = {
                 "entity_name": entity_name,
                 "observation": observation,
+                "semantic_vector": semantic_embedding.tolist(),
+                "emotional_vector": emotional_embedding.tolist(),
             }
 
             result = list(self.db.execute_and_fetch(query, params))
@@ -163,9 +190,11 @@ class MemgraphService:
                 operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
                 logger.info(
-                    "Observation added successfully",
+                    "Observation added successfully with dual embeddings",
                     entity_name=entity_name,
                     observation_length=len(observation),
+                    semantic_embedding_dims=semantic_embedding.shape[0],
+                    emotional_embedding_dims=emotional_embedding.shape[0],
                     operation_time_ms=operation_time_ms,
                     correlation_id=correlation_id,
                 )
@@ -264,48 +293,141 @@ class MemgraphService:
     def search_observations(
         self, query: str, entity_filter: str | None = None, limit: int = 10
     ) -> list[dict[str, Any]]:
-        """Search observations using text matching."""
+        """Search observations using dual vector similarity with Memgraph vector_search.search() procedure."""
         start_time = time.perf_counter()
         correlation_id = get_correlation_id()
 
         try:
-            # Build query with optional entity filter
-            cypher_query = """
-            MATCH (e:Entity)-[:HAS_OBSERVATION]->(o:Observation)
-            WHERE o.content CONTAINS $query
+            # Generate query embeddings
+            embedding_service = get_embedding_service()
+            query_semantic = np.array(
+                embedding_service.encode_semantic(query), dtype=np.float32
+            )
+            query_emotional = np.array(
+                embedding_service.encode_emotional(query), dtype=np.float32
+            )
+
+            # Convert numpy arrays to lists for Memgraph query parameters
+            semantic_vector = query_semantic.tolist()
+            emotional_vector = query_emotional.tolist()
+
+            # Search using Memgraph's vector_search.search() procedure (following original alpha-recall pattern)
+
+            # Semantic search
+            semantic_query = """
+            CALL vector_search.search("semantic_vector_index", $limit, $query_vector)
+            YIELD node, similarity
+            MATCH (e:Entity)-[:HAS_OBSERVATION]->(node)
             """
 
-            params = {"query": query, "limit": limit}
+            semantic_params = {
+                "limit": limit * 2,  # Get more results since we'll merge and filter
+                "query_vector": semantic_vector,
+            }
 
             if entity_filter:
-                cypher_query += " AND e.name = $entity_filter"
-                params["entity_filter"] = entity_filter
+                semantic_query += " WHERE e.name = $entity_filter"
+                semantic_params["entity_filter"] = entity_filter
 
-            cypher_query += """
-            RETURN e.name as entity_name, o.content as observation, o.created_at as created_at
-            ORDER BY o.created_at DESC
-            LIMIT $limit
+            semantic_query += """
+            RETURN e.name as entity_name,
+                   node.content as observation,
+                   node.created_at as created_at,
+                   similarity,
+                   "semantic" as search_type
+            ORDER BY similarity DESC
             """
 
-            result = list(self.db.execute_and_fetch(cypher_query, params))
+            semantic_results = list(
+                self.db.execute_and_fetch(semantic_query, semantic_params)
+            )
 
-            observations = []
-            for row in result:
-                observations.append(
+            # Emotional search
+            emotional_query = """
+            CALL vector_search.search("emotional_vector_index", $limit, $query_vector)
+            YIELD node, similarity
+            MATCH (e:Entity)-[:HAS_OBSERVATION]->(node)
+            """
+
+            emotional_params = {
+                "limit": limit * 2,  # Get more results since we'll merge and filter
+                "query_vector": emotional_vector,
+            }
+
+            if entity_filter:
+                emotional_query += " WHERE e.name = $entity_filter"
+                emotional_params["entity_filter"] = entity_filter
+
+            emotional_query += """
+            RETURN e.name as entity_name,
+                   node.content as observation,
+                   node.created_at as created_at,
+                   similarity,
+                   "emotional" as search_type
+            ORDER BY similarity DESC
+            """
+
+            emotional_results = list(
+                self.db.execute_and_fetch(emotional_query, emotional_params)
+            )
+
+            # Combine and process results
+            all_results = []
+
+            # Process semantic results
+            for row in semantic_results:
+                all_results.append(
                     {
                         "entity_name": row["entity_name"],
                         "observation": row["observation"],
                         "created_at": row["created_at"],
+                        "similarity_score": float(row["similarity"]),
+                        "search_type": row["search_type"],
                     }
                 )
+
+            # Process emotional results
+            for row in emotional_results:
+                all_results.append(
+                    {
+                        "entity_name": row["entity_name"],
+                        "observation": row["observation"],
+                        "created_at": row["created_at"],
+                        "similarity_score": float(row["similarity"]),
+                        "search_type": row["search_type"],
+                    }
+                )
+
+            # Filter by similarity threshold (0.3 like STM)
+            similarity_threshold = 0.3
+            filtered_results = [
+                r for r in all_results if r["similarity_score"] >= similarity_threshold
+            ]
+
+            # Merge and deduplicate results
+            seen = set()
+            unique_results = []
+
+            for result in filtered_results:
+                # Create a unique key based on entity and observation content
+                key = (result["entity_name"], result["observation"])
+                if key not in seen:
+                    seen.add(key)
+                    unique_results.append(result)
+
+            # Sort by similarity score (highest first) and limit
+            unique_results.sort(key=lambda x: x["similarity_score"], reverse=True)
+            observations = unique_results[:limit]
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
             logger.info(
-                "Observation search completed",
+                "Observation search completed with vector_search.search() procedure",
                 query=query,
                 entity_filter=entity_filter,
-                results_count=len(observations),
+                semantic_results=len(semantic_results),
+                emotional_results=len(emotional_results),
+                final_results=len(observations),
                 operation_time_ms=operation_time_ms,
                 correlation_id=correlation_id,
             )
@@ -315,7 +437,7 @@ class MemgraphService:
         except Exception as e:
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
             logger.error(
-                "Failed to search observations",
+                "Failed to search observations with vector_search.search() procedure",
                 query=query,
                 entity_filter=entity_filter,
                 error=str(e),
@@ -545,6 +667,139 @@ class MemgraphService:
                 "Failed to browse entities",
                 limit=limit,
                 offset=offset,
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def create_vector_indices(self) -> dict[str, Any]:
+        """Create vector indices for semantic and emotional embeddings using official Memgraph syntax."""
+        start_time = time.perf_counter()
+        correlation_id = get_correlation_id()
+
+        try:
+            # Create semantic vector index (768 dimensions) - using official syntax
+            semantic_index_query = """
+            CREATE VECTOR INDEX semantic_vector_index ON :Observation(semantic_vector)
+            WITH CONFIG {"dimension": 768, "capacity": 1024}
+            """
+
+            # Create emotional vector index (1024 dimensions) - using official syntax
+            emotional_index_query = """
+            CREATE VECTOR INDEX emotional_vector_index ON :Observation(emotional_vector)
+            WITH CONFIG {"dimension": 1024, "capacity": 1024}
+            """
+
+            # Execute index creation queries with proper error handling
+            logger.info("Creating semantic vector index", correlation_id=correlation_id)
+            semantic_result = list(self.db.execute_and_fetch(semantic_index_query))
+            logger.info(
+                "Semantic index created",
+                result=semantic_result,
+                correlation_id=correlation_id,
+            )
+
+            logger.info(
+                "Creating emotional vector index", correlation_id=correlation_id
+            )
+            emotional_result = list(self.db.execute_and_fetch(emotional_index_query))
+            logger.info(
+                "Emotional index created",
+                result=emotional_result,
+                correlation_id=correlation_id,
+            )
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.info(
+                "Vector indices created successfully",
+                semantic_dimensions=768,
+                emotional_dimensions=1024,
+                capacity=1024,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "semantic_index": {
+                    "name": "semantic_vector_index",
+                    "dimensions": 768,
+                    "capacity": 1024,
+                    "status": "created",
+                },
+                "emotional_index": {
+                    "name": "emotional_vector_index",
+                    "dimensions": 1024,
+                    "capacity": 1024,
+                    "status": "created",
+                },
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Failed to create vector indices",
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def check_vector_indices(self) -> dict[str, Any]:
+        """Check if vector indices exist using SHOW INDEX INFO (following original pattern)."""
+        start_time = time.perf_counter()
+        correlation_id = get_correlation_id()
+
+        try:
+            # Check vector indices using vector_search.show_index_info() procedure
+            query = "CALL vector_search.show_index_info() YIELD *"
+            result = list(self.db.execute_and_fetch(query))
+
+            indices = {}
+            semantic_exists = False
+            emotional_exists = False
+
+            for row in result:
+                # Look for our specific vector indices
+                if row.get("index_name") == "semantic_vector_index":
+                    semantic_exists = True
+                    indices["semantic_index"] = {
+                        "name": "semantic_vector_index",
+                        "property": "semantic_vector",
+                        "status": "exists",
+                    }
+                elif row.get("index_name") == "emotional_vector_index":
+                    emotional_exists = True
+                    indices["emotional_index"] = {
+                        "name": "emotional_vector_index",
+                        "property": "emotional_vector",
+                        "status": "exists",
+                    }
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.info(
+                "Vector indices checked successfully",
+                indices_found=len(indices),
+                semantic_exists=semantic_exists,
+                emotional_exists=emotional_exists,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "indices": indices,
+                "semantic_index_exists": semantic_exists,
+                "emotional_index_exists": emotional_exists,
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Failed to check vector indices",
                 error=str(e),
                 error_type=type(e).__name__,
                 operation_time_ms=operation_time_ms,

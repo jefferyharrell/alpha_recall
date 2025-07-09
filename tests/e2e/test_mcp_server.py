@@ -459,7 +459,12 @@ async def test_search_longterm_tool(test_stack):
         response_data = json.loads(result.content[0].text)
 
         # Verify response structure
+        print(f"DEBUG: search_longterm response: {response_data}")
         assert "success" in response_data
+        if not response_data["success"]:
+            print(
+                f"DEBUG: Error in search_longterm: {response_data.get('error', 'Unknown error')}"
+            )
         assert response_data["success"] is True
         assert "query" in response_data
         assert response_data["query"] == search_query
