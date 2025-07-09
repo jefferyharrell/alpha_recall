@@ -1,7 +1,3 @@
-volumes:
-  venv-cache:
-  uv-cache:
-
 services:
   memgraph-test:
     image: memgraph/memgraph-mage:latest
@@ -18,19 +14,16 @@ services:
     build:
       context: ../..  # Build from repo root
       dockerfile: Dockerfile
-      target: dev
     container_name: alpha-recall-test-server
     ports:
       - "19006:8000"  # Expose test server on 19006
     volumes:
       - ../..:/app  # Bind mount source for fast iteration
-      - venv-cache:/app/.venv  # Preserve virtual environment
-      - uv-cache:/root/.cache/uv  # Preserve uv download cache
       - ../../huggingface-cache:/root/.cache/huggingface  # Share model cache to avoid re-downloads
     depends_on:
       - memgraph-test
       - redis-test
-    command: ["uv", "run", "python", "-m", "alpha_recall.server"]
+    command: ["python", "-m", "alpha_recall.server"]
     environment:
       - FASTMCP_LOG_LEVEL=WARNING  # Quieter for tests
       - LOG_LEVEL=WARNING

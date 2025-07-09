@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim AS base
+# Use Python 3.13 slim image
+FROM python:3.13-slim
 
 # Set working directory
 WORKDIR /app
@@ -13,29 +13,19 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast Python package management
-RUN pip install uv
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Install dependencies using uv
-RUN uv sync --frozen
+# Copy source code
+COPY src/ ./src/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app/src
 
 # Expose the HTTP port
-EXPOSE 8080
+EXPOSE 8000
 
-# Production stage (default)
-FROM base AS production
-COPY src/ ./src/
-CMD ["uv", "run", "python", "-m", "alpha_recall.server"]
-
-# Development stage (for bind mounting source code)
-FROM base AS dev
-# Don't copy source code - it will be bind mounted
-# Just wait for the source to be mounted and then start
-CMD ["uv", "run", "python", "-m", "alpha_recall.server"]
+# Run the application
+CMD ["python", "-m", "alpha_recall.server"]
