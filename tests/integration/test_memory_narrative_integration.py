@@ -119,7 +119,10 @@ class TestNarrativeMemoryIntegration:
         metadata = response_data["metadata"]
         assert metadata["search_method"] == "vector_similarity"
         assert metadata["embedding_model"] == "dual_semantic_emotional"
-        assert metadata["results_count"] == 0  # placeholder value
+        assert isinstance(metadata["results_count"], int)
+        assert (
+            metadata["results_count"] >= 0
+        )  # Could be 0 or more depending on database state
 
     def test_search_narratives_with_parameters(self):
         """Test search with various parameter combinations."""
