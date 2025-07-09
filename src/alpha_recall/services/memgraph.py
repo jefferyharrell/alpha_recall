@@ -1,6 +1,7 @@
 """Memgraph service for long-term memory operations."""
 
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 from gqlalchemy import Memgraph
@@ -75,20 +76,23 @@ class MemgraphService:
         correlation_id = get_correlation_id()
 
         try:
-            # Use MERGE to create or update entity
-            query = """
-            MERGE (e:Entity {name: $entity_name})
-            ON CREATE SET e.created_at = datetime(), e.updated_at = datetime()
-            ON MATCH SET e.updated_at = datetime()
-            """
-
-            params = {"entity_name": entity_name}
-
+            # Use timestamp() function in Cypher instead of passing ISO strings
             if entity_type:
-                query += ", e.type = $entity_type"
-                params["entity_type"] = entity_type
-
-            query += " RETURN e"
+                query = """
+                MERGE (e:Entity {name: $entity_name})
+                ON CREATE SET e.created_at = timestamp(), e.updated_at = timestamp(), e.type = $entity_type
+                ON MATCH SET e.updated_at = timestamp(), e.type = $entity_type
+                RETURN e
+                """
+                params = {"entity_name": entity_name, "entity_type": entity_type}
+            else:
+                query = """
+                MERGE (e:Entity {name: $entity_name})
+                ON CREATE SET e.created_at = timestamp(), e.updated_at = timestamp()
+                ON MATCH SET e.updated_at = timestamp()
+                RETURN e
+                """
+                params = {"entity_name": entity_name}
 
             result = list(self.db.execute_and_fetch(query, params))
 
@@ -107,8 +111,8 @@ class MemgraphService:
                 return {
                     "entity_name": entity_name,
                     "entity_type": entity_type,
-                    "created_at": entity.get("created_at"),
-                    "updated_at": entity.get("updated_at"),
+                    "created_at": getattr(entity, "created_at", None),
+                    "updated_at": getattr(entity, "updated_at", None),
                 }
             else:
                 raise Exception("Failed to create/update entity - no result returned")
@@ -135,12 +139,12 @@ class MemgraphService:
             # First ensure entity exists
             self.create_or_update_entity(entity_name)
 
-            # Create observation node and relationship
+            # Create observation node and relationship using Cypher functions
             query = """
             MATCH (e:Entity {name: $entity_name})
             CREATE (o:Observation {
                 content: $observation,
-                created_at: datetime(),
+                created_at: timestamp(),
                 id: randomUUID()
             })
             CREATE (e)-[:HAS_OBSERVATION]->(o)
@@ -168,9 +172,9 @@ class MemgraphService:
 
                 return {
                     "entity_name": entity_name,
-                    "observation_id": obs.get("id"),
+                    "observation_id": getattr(obs, "id", None),
                     "observation": observation,
-                    "created_at": obs.get("created_at"),
+                    "created_at": getattr(obs, "created_at", None),
                 }
             else:
                 raise Exception("Failed to add observation - no result returned")
@@ -200,12 +204,15 @@ class MemgraphService:
             self.create_or_update_entity(entity1)
             self.create_or_update_entity(entity2)
 
+            # Pre-calculate timestamp
+            now = datetime.now(UTC).isoformat()
+
             # Create relationship
             query = """
             MATCH (e1:Entity {name: $entity1})
             MATCH (e2:Entity {name: $entity2})
             MERGE (e1)-[r:RELATES_TO {type: $relationship_type}]->(e2)
-            ON CREATE SET r.created_at = datetime()
+            ON CREATE SET r.created_at = $timestamp
             RETURN r
             """
 
@@ -213,6 +220,7 @@ class MemgraphService:
                 "entity1": entity1,
                 "entity2": entity2,
                 "relationship_type": relationship_type,
+                "timestamp": now,
             }
 
             result = list(self.db.execute_and_fetch(query, params))
@@ -234,7 +242,7 @@ class MemgraphService:
                     "entity1": entity1,
                     "entity2": entity2,
                     "relationship_type": relationship_type,
-                    "created_at": rel.get("created_at"),
+                    "created_at": getattr(rel, "created_at", None),
                 }
             else:
                 raise Exception("Failed to create relationship - no result returned")
@@ -310,6 +318,233 @@ class MemgraphService:
                 "Failed to search observations",
                 query=query,
                 entity_filter=entity_filter,
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def get_entity_with_observations(self, entity_name: str) -> dict[str, Any]:
+        """Get entity information along with all its observations."""
+        start_time = time.perf_counter()
+        correlation_id = get_correlation_id()
+
+        try:
+            # Get entity with all observations - return properties explicitly
+            query = """
+            MATCH (e:Entity {name: $entity_name})
+            OPTIONAL MATCH (e)-[:HAS_OBSERVATION]->(o:Observation)
+            RETURN e,
+                   collect({id: o.id, content: o.content, created_at: o.created_at}) as observations
+            """
+
+            params = {"entity_name": entity_name}
+            result = list(self.db.execute_and_fetch(query, params))
+
+            if not result:
+                raise Exception(f"Entity '{entity_name}' not found")
+
+            entity = result[0]["e"]
+            observations = result[0]["observations"]
+
+            # Process observations
+            observation_list = []
+            for obs in observations:
+                if (
+                    obs is not None and obs.get("content") is not None
+                ):  # Skip null observations
+                    observation_list.append(
+                        {
+                            "id": obs.get("id"),
+                            "content": obs.get("content"),
+                            "created_at": obs.get("created_at"),
+                        }
+                    )
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.info(
+                "Entity with observations retrieved successfully",
+                entity_name=entity_name,
+                observations_count=len(observation_list),
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "entity_name": getattr(entity, "name", None),
+                "entity_type": getattr(entity, "type", None),
+                "created_at": getattr(entity, "created_at", None),
+                "updated_at": getattr(entity, "updated_at", None),
+                "observations": observation_list,
+                "observations_count": len(observation_list),
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Failed to get entity with observations",
+                entity_name=entity_name,
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def get_entity_relationships(self, entity_name: str) -> dict[str, Any]:
+        """Get all relationships for an entity (both incoming and outgoing)."""
+        start_time = time.perf_counter()
+        correlation_id = get_correlation_id()
+
+        try:
+            # Get both outgoing and incoming relationships
+            query = """
+            MATCH (e:Entity {name: $entity_name})
+            OPTIONAL MATCH (e)-[r_out:RELATES_TO]->(target:Entity)
+            OPTIONAL MATCH (source:Entity)-[r_in:RELATES_TO]->(e)
+            RETURN e,
+                   collect(DISTINCT {
+                       direction: 'outgoing',
+                       target: target.name,
+                       type: r_out.type,
+                       created_at: r_out.created_at
+                   }) as outgoing,
+                   collect(DISTINCT {
+                       direction: 'incoming',
+                       source: source.name,
+                       type: r_in.type,
+                       created_at: r_in.created_at
+                   }) as incoming
+            """
+
+            params = {"entity_name": entity_name}
+            result = list(self.db.execute_and_fetch(query, params))
+
+            if not result:
+                raise Exception(f"Entity '{entity_name}' not found")
+
+            entity = result[0]["e"]
+            outgoing = result[0]["outgoing"]
+            incoming = result[0]["incoming"]
+
+            # Filter out null relationships from OPTIONAL MATCH
+            outgoing_relationships = [
+                r for r in outgoing if r.get("target") is not None
+            ]
+            incoming_relationships = [
+                r for r in incoming if r.get("source") is not None
+            ]
+
+            total_relationships = len(outgoing_relationships) + len(
+                incoming_relationships
+            )
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.info(
+                "Entity relationships retrieved successfully",
+                entity_name=entity_name,
+                outgoing_count=len(outgoing_relationships),
+                incoming_count=len(incoming_relationships),
+                total_relationships=total_relationships,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "entity_name": getattr(entity, "name", None),
+                "entity_type": getattr(entity, "type", None),
+                "outgoing_relationships": outgoing_relationships,
+                "incoming_relationships": incoming_relationships,
+                "total_relationships": total_relationships,
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Failed to get entity relationships",
+                entity_name=entity_name,
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def browse_entities(self, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        """Browse entities with pagination."""
+        start_time = time.perf_counter()
+        correlation_id = get_correlation_id()
+
+        try:
+            # Get total count
+            count_query = "MATCH (e:Entity) RETURN count(e) as total_count"
+            count_result = list(self.db.execute_and_fetch(count_query))
+            total_count = count_result[0]["total_count"] if count_result else 0
+
+            # Get paginated entities with observation and relationship counts
+            query = """
+            MATCH (e:Entity)
+            OPTIONAL MATCH (e)-[:HAS_OBSERVATION]->(o:Observation)
+            WITH e, count(DISTINCT o) as observation_count
+            RETURN e.name as entity_name,
+                   e.type as entity_type,
+                   e.created_at as created_at,
+                   e.updated_at as updated_at,
+                   observation_count,
+                   0 as relationship_count
+            ORDER BY e.name ASC
+            SKIP $offset
+            LIMIT $limit
+            """
+
+            params = {"limit": limit, "offset": offset}
+            result = list(self.db.execute_and_fetch(query, params))
+
+            entities = []
+            for row in result:
+                entities.append(
+                    {
+                        "entity_name": row["entity_name"],
+                        "entity_type": row["entity_type"],
+                        "created_at": row["created_at"],
+                        "updated_at": row["updated_at"],
+                        "observation_count": row["observation_count"],
+                        "relationship_count": row["relationship_count"],
+                    }
+                )
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.info(
+                "Entity browsing completed successfully",
+                limit=limit,
+                offset=offset,
+                results_count=len(entities),
+                total_count=total_count,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "entities": entities,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "results_count": len(entities),
+                    "total_count": total_count,
+                    "has_more": offset + len(entities) < total_count,
+                },
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Failed to browse entities",
+                limit=limit,
+                offset=offset,
                 error=str(e),
                 error_type=type(e).__name__,
                 operation_time_ms=operation_time_ms,

@@ -8,6 +8,9 @@ from unittest.mock import Mock, patch
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
+from alpha_recall.tools.browse_longterm import browse_longterm
+from alpha_recall.tools.get_entity import get_entity
+from alpha_recall.tools.get_relationships import get_relationships
 from alpha_recall.tools.relate_longterm import relate_longterm
 from alpha_recall.tools.remember_longterm import remember_longterm
 from alpha_recall.tools.search_longterm import search_longterm
@@ -273,6 +276,239 @@ class TestSearchLongterm:
         mock_get_service.return_value = mock_service
 
         result = search_longterm("test query")
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "Database error" in data["error"]
+        assert data["error_type"] == "Exception"
+        assert "correlation_id" in data
+
+
+class TestGetEntity:
+    """Test cases for get_entity tool."""
+
+    @patch("alpha_recall.tools.get_entity.get_memgraph_service")
+    def test_get_entity_success(self, mock_get_service):
+        """Test successful entity retrieval with observations."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.get_entity_with_observations.return_value = {
+            "entity_name": "Alice",
+            "entity_type": "Person",
+            "created_at": "2025-07-08T15:00:00Z",
+            "updated_at": "2025-07-08T15:00:00Z",
+            "observations": [
+                {
+                    "id": "obs-1",
+                    "content": "Alice is a software engineer",
+                    "created_at": "2025-07-08T15:00:00Z",
+                },
+                {
+                    "id": "obs-2",
+                    "content": "Alice works at TechCorp",
+                    "created_at": "2025-07-08T14:00:00Z",
+                },
+            ],
+            "observations_count": 2,
+        }
+        mock_get_service.return_value = mock_service
+
+        result = get_entity("Alice")
+        data = json.loads(result)
+
+        assert data["success"] is True
+        assert data["entity"]["entity_name"] == "Alice"
+        assert data["entity"]["entity_type"] == "Person"
+        assert data["entity"]["observations_count"] == 2
+        assert len(data["entity"]["observations"]) == 2
+        assert "correlation_id" in data
+
+        mock_service.get_entity_with_observations.assert_called_once_with("Alice")
+
+    @patch("alpha_recall.tools.get_entity.get_memgraph_service")
+    def test_get_entity_connection_failure(self, mock_get_service):
+        """Test handling connection failure."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = False
+        mock_get_service.return_value = mock_service
+
+        result = get_entity("Alice")
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "connection test failed" in data["error"]
+        assert "correlation_id" in data
+
+    @patch("alpha_recall.tools.get_entity.get_memgraph_service")
+    def test_get_entity_service_error(self, mock_get_service):
+        """Test handling service errors."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.get_entity_with_observations.side_effect = Exception(
+            "Entity not found"
+        )
+        mock_get_service.return_value = mock_service
+
+        result = get_entity("NonExistent")
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "Entity not found" in data["error"]
+        assert data["error_type"] == "Exception"
+        assert "correlation_id" in data
+
+
+class TestGetRelationships:
+    """Test cases for get_relationships tool."""
+
+    @patch("alpha_recall.tools.get_relationships.get_memgraph_service")
+    def test_get_relationships_success(self, mock_get_service):
+        """Test successful relationship retrieval."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.get_entity_relationships.return_value = {
+            "entity_name": "Alice",
+            "entity_type": "Person",
+            "outgoing_relationships": [
+                {
+                    "direction": "outgoing",
+                    "target": "Bob",
+                    "type": "knows",
+                    "created_at": "2025-07-08T15:00:00Z",
+                },
+                {
+                    "direction": "outgoing",
+                    "target": "TechCorp",
+                    "type": "works_at",
+                    "created_at": "2025-07-08T14:00:00Z",
+                },
+            ],
+            "incoming_relationships": [
+                {
+                    "direction": "incoming",
+                    "source": "Bob",
+                    "type": "knows",
+                    "created_at": "2025-07-08T15:00:00Z",
+                }
+            ],
+            "total_relationships": 3,
+        }
+        mock_get_service.return_value = mock_service
+
+        result = get_relationships("Alice")
+        data = json.loads(result)
+
+        assert data["success"] is True
+        assert data["relationships"]["entity_name"] == "Alice"
+        assert data["relationships"]["total_relationships"] == 3
+        assert len(data["relationships"]["outgoing_relationships"]) == 2
+        assert len(data["relationships"]["incoming_relationships"]) == 1
+        assert "correlation_id" in data
+
+        mock_service.get_entity_relationships.assert_called_once_with("Alice")
+
+    @patch("alpha_recall.tools.get_relationships.get_memgraph_service")
+    def test_get_relationships_connection_failure(self, mock_get_service):
+        """Test handling connection failure."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = False
+        mock_get_service.return_value = mock_service
+
+        result = get_relationships("Alice")
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "connection test failed" in data["error"]
+        assert "correlation_id" in data
+
+    @patch("alpha_recall.tools.get_relationships.get_memgraph_service")
+    def test_get_relationships_service_error(self, mock_get_service):
+        """Test handling service errors."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.get_entity_relationships.side_effect = Exception("Database error")
+        mock_get_service.return_value = mock_service
+
+        result = get_relationships("Alice")
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "Database error" in data["error"]
+        assert data["error_type"] == "Exception"
+        assert "correlation_id" in data
+
+
+class TestBrowseLongterm:
+    """Test cases for browse_longterm tool."""
+
+    @patch("alpha_recall.tools.browse_longterm.get_memgraph_service")
+    def test_browse_longterm_success(self, mock_get_service):
+        """Test successful entity browsing."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.browse_entities.return_value = {
+            "entities": [
+                {
+                    "entity_name": "Alice",
+                    "entity_type": "Person",
+                    "created_at": "2025-07-08T15:00:00Z",
+                    "updated_at": "2025-07-08T15:00:00Z",
+                    "observation_count": 3,
+                    "relationship_count": 2,
+                },
+                {
+                    "entity_name": "Bob",
+                    "entity_type": "Person",
+                    "created_at": "2025-07-08T14:00:00Z",
+                    "updated_at": "2025-07-08T14:30:00Z",
+                    "observation_count": 1,
+                    "relationship_count": 1,
+                },
+            ],
+            "pagination": {
+                "limit": 20,
+                "offset": 0,
+                "results_count": 2,
+                "total_count": 15,
+                "has_more": True,
+            },
+        }
+        mock_get_service.return_value = mock_service
+
+        result = browse_longterm(limit=20, offset=0)
+        data = json.loads(result)
+
+        assert data["success"] is True
+        assert len(data["browse_data"]["entities"]) == 2
+        assert data["browse_data"]["pagination"]["total_count"] == 15
+        assert data["browse_data"]["pagination"]["has_more"] is True
+        assert "correlation_id" in data
+
+        mock_service.browse_entities.assert_called_once_with(20, 0)
+
+    @patch("alpha_recall.tools.browse_longterm.get_memgraph_service")
+    def test_browse_longterm_connection_failure(self, mock_get_service):
+        """Test handling connection failure."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = False
+        mock_get_service.return_value = mock_service
+
+        result = browse_longterm()
+        data = json.loads(result)
+
+        assert data["success"] is False
+        assert "connection test failed" in data["error"]
+        assert "correlation_id" in data
+
+    @patch("alpha_recall.tools.browse_longterm.get_memgraph_service")
+    def test_browse_longterm_service_error(self, mock_get_service):
+        """Test handling service errors."""
+        mock_service = Mock()
+        mock_service.test_connection.return_value = True
+        mock_service.browse_entities.side_effect = Exception("Database error")
+        mock_get_service.return_value = mock_service
+
+        result = browse_longterm()
         data = json.loads(result)
 
         assert data["success"] is False

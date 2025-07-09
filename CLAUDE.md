@@ -133,22 +133,38 @@ graph TD
     Client[MCP Client] --> Server[FastMCP Server]
 
     Server --> Health[health_check tool]
-    Server --> Memory[remember_shortterm tool]
-    Server --> Browse[browse_shortterm tool]
+    Server --> STMMemory[remember_shortterm tool]
+    Server --> STMBrowse[browse_shortterm tool]
+    Server --> STMSearch[search_shortterm tool]
+    Server --> LTMMemory[remember_longterm tool]
+    Server --> LTMRelate[relate_longterm tool]
+    Server --> LTMSearch[search_longterm tool]
+    Server --> LTMGetEntity[get_entity tool]
+    Server --> LTMGetRel[get_relationships tool]
+    Server --> LTMBrowse[browse_longterm tool]
 
-    Memory --> EmbedSvc[EmbeddingService]
-    Browse --> EmbedSvc
+    STMMemory --> EmbedSvc[EmbeddingService]
+    STMBrowse --> EmbedSvc
+    STMSearch --> EmbedSvc
+    LTMSearch --> EmbedSvc
     EmbedSvc --> Semantic[Semantic Model<br/>all-mpnet-base-v2<br/>768 dimensions]
     EmbedSvc --> Emotional[Emotional Model<br/>sentiment-embedding-model<br/>1024 dimensions]
 
-    Memory --> Redis[(Redis<br/>Short-term Memory)]
-    Browse --> Redis
+    STMMemory --> Redis[(Redis<br/>Short-term Memory)]
+    STMBrowse --> Redis
+    STMSearch --> Redis
+
+    LTMMemory --> Memgraph[(Memgraph<br/>Long-term Memory)]
+    LTMRelate --> Memgraph
+    LTMSearch --> Memgraph
+    LTMGetEntity --> Memgraph
+    LTMGetRel --> Memgraph
+    LTMBrowse --> Memgraph
 
     Health --> Status[Health Status JSON]
 
     subgraph "Future Connections (Coming Soon)"
-        Memory -.-> Memgraph[(Memgraph<br/>Long-term Memory)]
-        Memory -.-> Vector[(Vector DB<br/>Narrative Memory)]
+        Vector[(Vector DB<br/>Narrative Memory)]
     end
 
     subgraph "Embedding Pipeline"
@@ -157,17 +173,43 @@ graph TD
         Emotional
     end
 
-    style Memory fill:#e1f5fe
-    style Browse fill:#e1f5fe
+    subgraph "Short-term Memory (STM)"
+        STMMemory
+        STMBrowse
+        STMSearch
+    end
+
+    subgraph "Long-term Memory (LTM)"
+        LTMMemory
+        LTMRelate
+        LTMSearch
+        LTMGetEntity
+        LTMGetRel
+        LTMBrowse
+    end
+
+    style STMMemory fill:#e1f5fe
+    style STMBrowse fill:#e1f5fe
+    style STMSearch fill:#e1f5fe
+    style LTMMemory fill:#fff3e0
+    style LTMRelate fill:#fff3e0
+    style LTMSearch fill:#fff3e0
+    style LTMGetEntity fill:#fff3e0
+    style LTMGetRel fill:#fff3e0
+    style LTMBrowse fill:#fff3e0
     style EmbedSvc fill:#f3e5f5
     style Redis fill:#e8f5e8
     style Memgraph fill:#e8f5e8
     style Vector fill:#e8f5e8
 ```
 
-**Current State**: The `remember_shortterm` and `browse_shortterm` tools are fully functional with Redis storage, generating both semantic and emotional embeddings via the EmbeddingService with comprehensive filtering and pagination.
+**Current State**:
+- **Short-term Memory**: `remember_shortterm`, `browse_shortterm`, and `search_shortterm` tools are fully functional with Redis storage, generating both semantic and emotional embeddings via the EmbeddingService with comprehensive filtering and pagination.
+- **Long-term Memory**: Complete LTM tool suite with Memgraph integration:
+  - `remember_longterm`, `relate_longterm`, `search_longterm` - Core LTM operations
+  - `get_entity`, `get_relationships`, `browse_longterm` - LTM browsing and exploration
 
-**Next Phase**: Connect to Memgraph for long-term memory and implement narrative memory storage.
+**Next Phase**: Implement narrative memory storage and add unit tests for the new LTM browsing tools.
 
 ## Key Components
 
@@ -253,10 +295,12 @@ async with Client(server_url) as client:
 
 ## Memory System Architecture
 
-### Current Implementation (v1.0)
+### Current Implementation (v2.0)
 - **Health Check Tool**: Comprehensive server health monitoring with correlation IDs
-- **remember_shortterm Tool**: Complete embedding pipeline with Redis storage and performance measurement
-- **browse_shortterm Tool**: Advanced filtering and pagination for short-term memory retrieval
+- **Short-term Memory Tools**: `remember_shortterm`, `browse_shortterm`, `search_shortterm` with Redis storage and dual embedding pipeline
+- **Long-term Memory Tools**: Complete LTM suite with Memgraph integration:
+  - `remember_longterm`, `relate_longterm`, `search_longterm` - Core operations
+  - `get_entity`, `get_relationships`, `browse_longterm` - Browsing and exploration
 - **EmbeddingService**: Dual embedding generation (semantic + emotional) with sentence-transformers v5.0.0
 - **Performance**: 1,090 tokens/sec semantic, 612 tokens/sec emotional in containerized environment
 - **Observability**: Full correlation ID tracing and structured logging
