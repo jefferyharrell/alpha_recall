@@ -225,13 +225,15 @@ graph TD
     style Vector fill:#e8f5e8
 ```
 
-**Current State**:
-- **Short-term Memory**: `remember_shortterm`, `browse_shortterm`, and `search_shortterm` tools are fully functional with Redis storage, generating both semantic and emotional embeddings via the EmbeddingService with comprehensive filtering and pagination.
+**Current State (v2.0)**:
+- **Short-term Memory**: `remember_shortterm`, `browse_shortterm`, and `search_shortterm` tools fully functional with Redis storage and dual embedding pipeline
 - **Long-term Memory**: Complete LTM tool suite with Memgraph integration:
   - `remember_longterm`, `relate_longterm`, `search_longterm` - Core LTM operations
   - `get_entity`, `get_relationships`, `browse_longterm` - LTM browsing and exploration
-
-**Next Phase**: Implement narrative memory storage and add unit tests for the new LTM browsing tools.
+- **Narrative Memory**: Full narrative memory system with hybrid Redis+Memgraph storage:
+  - `remember_narrative`, `search_narratives`, `recall_narrative`, `browse_narrative` - Complete narrative tools
+  - Dual embedding pipeline (semantic + emotional) with vector search
+- **Unified Search**: `search_all_memories` - The crown jewel tool that searches across all memory systems with unified results
 
 ## Key Components
 
@@ -279,6 +281,8 @@ def register_module_tools(mcp: FastMCP) -> None:
 - `remember_shortterm.py`, `browse_shortterm.py`, `search_shortterm.py` - STM operations
 - `remember_longterm.py`, `relate_longterm.py`, `search_longterm.py` - Core LTM operations
 - `get_entity.py`, `get_relationships.py`, `browse_longterm.py` - LTM browsing and exploration
+- `remember_narrative.py`, `search_narratives.py`, `recall_narrative.py`, `browse_narrative.py` - Narrative memory tools
+- `search_all_memories.py` - Unified search across all memory systems
 
 ### EmbeddingService (`src/alpha_recall/services/embedding.py`)
 - **Dual Model Support**: Semantic (all-mpnet-base-v2, 768d) and emotional (sentiment-embedding-model, 1024d)
@@ -335,16 +339,35 @@ async with Client(server_url) as client:
 - **Long-term Memory Tools**: Complete LTM suite with Memgraph integration:
   - `remember_longterm`, `relate_longterm`, `search_longterm` - Core operations
   - `get_entity`, `get_relationships`, `browse_longterm` - Browsing and exploration
+- **Narrative Memory Tools**: Full narrative memory system with hybrid Redis+Memgraph storage:
+  - `remember_narrative`, `search_narratives`, `recall_narrative`, `browse_narrative` - Complete suite
+  - Dual embedding pipeline (semantic + emotional) with vector search
+- **Unified Search**: `search_all_memories` - Cross-system search across STM, LTM, NM, and entities
 - **EmbeddingService**: Dual embedding generation (semantic + emotional) with sentence-transformers v5.0.0
 - **Performance**: 1,090 tokens/sec semantic, 612 tokens/sec emotional in containerized environment
 - **Observability**: Full correlation ID tracing and structured logging
 - **Quality**: Ruff linting, pre-commit hooks, comprehensive test coverage
 
-### Target Architecture (from README)
-- **Long-term Memory**: Entity-relationship graph with observations
-- **Short-term Memory**: TTL-based ephemeral storage (2 megaseconds default)
-- **Semantic Search**: Vector embeddings for similarity search
-- **Emotional Search**: Emotional dimension vector search
+### Key Tools for AI Development
+
+#### Essential Memory Tools
+- **`search_all_memories`**: The crown jewel - unified search across all memory systems (STM, LTM, NM, entities)
+- **`remember_shortterm`**: Store ephemeral memories with 2-megasecond TTL
+- **`remember_longterm`**: Store persistent entity observations
+- **`remember_narrative`**: Store experiential stories with emotional context
+- **`search_shortterm`**: Semantic and emotional search of recent memories
+- **`search_longterm`**: Semantic search of entity observations
+- **`search_narratives`**: Semantic and emotional search of narrative memories
+
+#### Entity Management Tools
+- **`get_entity`**: Retrieve specific entities by name
+- **`get_relationships`**: Explore entity relationships
+- **`relate_longterm`**: Create relationships between entities
+- **`browse_longterm`**: Explore the knowledge graph
+
+#### Narrative Memory Tools
+- **`recall_narrative`**: Retrieve complete narrative stories
+- **`browse_narrative`**: Explore narrative collections
 
 ## Development Workflow
 
@@ -393,3 +416,25 @@ Critical environment variables (all optional with defaults):
 - `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
 - `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)
 - `CORE_IDENTITY_NODE`: Core identity entity name (default: "Alpha Core Identity")
+
+## Docker Architecture
+
+The development environment uses Docker Compose with:
+- **Memgraph**: Graph database for LTM on port 7687
+- **Redis**: Single instance for both STM and narrative memory on port 6379
+- **Alpha-Recall Server**: MCP server on port 19005
+
+Services communicate internally via Docker networks (`memgraph:7687`, `redis:6379`).
+
+## Testing Strategy
+
+**Three-tier testing approach:**
+1. **Unit tests** (`tests/unit/`): Fast, isolated component testing
+2. **Integration tests** (`tests/integration/`): Test with real services
+3. **E2E tests** (`tests/e2e/`): Full MCP protocol testing with Docker
+
+**Key testing patterns:**
+- E2E tests spin up fresh Docker infrastructure for each test
+- Use `fastmcp.Client` for authentic MCP protocol testing
+- Focus on behavior verification over implementation details
+- Extended timeouts for first-run model downloads (90 seconds)
