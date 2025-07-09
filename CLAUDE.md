@@ -278,6 +278,7 @@ def register_module_tools(mcp: FastMCP) -> None:
 
 **Current Tool Structure:**
 - `health.py` - Health check with comprehensive diagnostics and correlation IDs
+- `gentle_refresh.py` - Temporal orientation tool with geolocation-based timezone detection
 - `remember_shortterm.py`, `browse_shortterm.py`, `search_shortterm.py` - STM operations
 - `remember_longterm.py`, `relate_longterm.py`, `search_longterm.py` - Core LTM operations
 - `get_entity.py`, `get_relationships.py`, `browse_longterm.py` - LTM browsing and exploration
@@ -291,6 +292,21 @@ def register_module_tools(mcp: FastMCP) -> None:
 - **Correlation ID Integration**: Full request tracing through embedding pipeline
 - **Performance Monitoring**: Detailed timing and throughput metrics
 - **sentence-transformers v5.0.0**: Latest version with significant performance improvements
+
+### GeolocationService (`src/alpha_recall/services/geolocation.py`)
+- **IP-Based Timezone Detection**: Clean alternative to filesystem mounting for portable Docker deployment
+- **Multi-Provider Fallback**: worldtimeapi.org → ipinfo.io → ipapi.co for reliability
+- **Caching System**: Session-based timezone caching to prevent excessive API calls
+- **Free Service Usage**: Well within free tier limits for normal usage patterns
+- **Automatic Travel Adaptation**: Timezone automatically updates based on location without configuration
+- **Graceful Degradation**: Falls back to UTC if all geolocation services fail
+
+### TimeService (`src/alpha_recall/services/time.py`)
+- **Dual Interface**: Both sync (`now()`) and async (`now_async()`) methods for different contexts
+- **Proper UTC Handling**: Container runs in UTC, local timezone determined via geolocation
+- **Comprehensive Time Data**: ISO timestamps, human-readable formats, timezone metadata, Unix timestamps
+- **Geolocation Integration**: Async version uses GeolocationService for dynamic timezone detection
+- **Event Loop Aware**: Handles both sync and async calling contexts appropriately
 
 ### Configuration (`src/alpha_recall/config.py`)
 - **Pydantic Settings**: Type-safe configuration with validation
@@ -351,6 +367,7 @@ async with Client(server_url) as client:
 ### Key Tools for AI Development
 
 #### Essential Memory Tools
+- **`gentle_refresh`**: Temporal orientation tool providing current time, core identity, recent memories, and context
 - **`search_all_memories`**: The crown jewel - unified search across all memory systems (STM, LTM, NM, entities)
 - **`remember_shortterm`**: Store ephemeral memories with 2-megasecond TTL
 - **`remember_longterm`**: Store persistent entity observations
@@ -368,6 +385,38 @@ async with Client(server_url) as client:
 #### Narrative Memory Tools
 - **`recall_narrative`**: Retrieve complete narrative stories
 - **`browse_narrative`**: Explore narrative collections
+
+## Gentle Refresh Tool Architecture
+
+The `gentle_refresh` tool provides temporal orientation for AI agents with comprehensive context:
+
+### Core Functionality
+- **Current Time Information**: UTC and local times with proper timezone handling
+- **Core Identity**: Essential identity observations (Alpha Core Identity entity)
+- **Recent Memories**: 10 most recent short-term memories for context
+- **Memory Consolidation**: Placeholder for Alpha-Snooze integration
+- **Recent Observations**: 5 most recent entity observations
+
+### Timezone Detection System
+- **Geolocation-Based**: Uses IP geolocation for automatic timezone detection
+- **Multi-Provider Reliability**: Fallback chain of worldtimeapi.org → ipinfo.io → ipapi.co
+- **Portable Docker Deployment**: No filesystem mounting required - works anywhere
+- **Travel Adaptation**: Automatically detects new timezone when location changes
+- **Proper UTC Handling**: Container runs in UTC, local timezone calculated dynamically
+
+### Key Design Decisions
+- **Async Implementation**: Tool is async to support geolocation API calls
+- **Correlation ID Tracing**: Full request tracing for debugging
+- **Graceful Degradation**: Falls back to UTC if geolocation fails
+- **Session Caching**: Timezone cached per session to avoid excessive API calls
+- **No Configuration Required**: Zero-config timezone detection
+
+### Usage Pattern
+```python
+# Returns comprehensive context for AI temporal orientation
+result = await gentle_refresh()
+# Contains: time, core_identity, shortterm_memories, memory_consolidation, recent_observations
+```
 
 ## Development Workflow
 
@@ -417,6 +466,8 @@ Critical environment variables (all optional with defaults):
 - `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)
 - `CORE_IDENTITY_NODE`: Core identity entity name (default: "Alpha Core Identity")
 
+**Note**: The GeolocationService automatically detects timezone via IP geolocation (no configuration required).
+
 ## Docker Architecture
 
 The development environment uses Docker Compose with:
@@ -438,3 +489,10 @@ Services communicate internally via Docker networks (`memgraph:7687`, `redis:637
 - Use `fastmcp.Client` for authentic MCP protocol testing
 - Focus on behavior verification over implementation details
 - Extended timeouts for first-run model downloads (90 seconds)
+
+### Testing gentle_refresh Tool
+- **Unit Tests**: `tests/unit/test_gentle_refresh.py` - 15 comprehensive test cases with mocked services
+- **Integration Tests**: `tests/integration/test_gentle_refresh_integration.py` - 13 tests against real MCP server
+- **Timezone Detection Tests**: Specific regression tests for timezone bugs and schema validation
+- **Performance Tests**: Validates <5s response time requirement
+- **Error Resilience Tests**: Ensures graceful degradation when services fail
