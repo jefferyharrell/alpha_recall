@@ -13,6 +13,58 @@ from tests.e2e.fixtures.performance import performance_test, time_mcp_call
 
 
 @pytest.mark.asyncio
+@performance_test
+async def test_00_warm_up_embedding_models(test_stack):
+    """Warm up embedding models by triggering first search and verify load time.
+
+    This test intentionally runs first (test_00_) to trigger model loading.
+    It searches for a control word that won't exist in the fresh database,
+    but will force both semantic and emotional embedding models to load.
+
+    Subsequent tests can then assert faster response times since models
+    will already be cached in memory.
+    """
+    server_url = test_stack
+    async with Client(server_url) as client:
+        # Search for control word that definitely won't exist in fresh database
+        # This will trigger embedding model loading for both semantic and emotional
+        result = await time_mcp_call(
+            client, "search_all_memories", {"query": "Sparkle"}
+        )
+
+        data = json.loads(result.content[0].text)
+
+        # Should complete successfully even with model loading
+        assert data["success"] is True
+        assert isinstance(data["results"], list)
+
+        # Should return no results on fresh database
+        assert data["metadata"]["total_found"] == 0
+        assert len(data["results"]) == 0
+
+        # The important assertion: model loading should complete within reasonable time
+        # This includes both semantic and emotional model loading
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_all_memories":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for search_all_memories"
+        assert (
+            latest_duration < 10000
+        ), f"Model loading took {latest_duration:.1f}ms, should be <10000ms"
+
+        print(
+            f"🔥 Model warm-up completed in {latest_duration:.1f}ms - models now cached!"
+        )
+
+
+@pytest.mark.asyncio
 async def test_mcp_server_startup_and_health(test_stack):
     """Test that the MCP server starts up and responds to health checks."""
     server_url = test_stack
@@ -56,7 +108,11 @@ async def test_gentle_refresh_with_empty_database(test_stack):
 @pytest.mark.asyncio
 @performance_test
 async def test_first_memory_storage_works(test_stack):
-    """Test that the very first memory can be stored successfully."""
+    """Test that the very first memory can be stored successfully.
+
+    Since test_00_warm_up_embedding_models ran first, models should already
+    be loaded and this memory storage should be fast.
+    """
     server_url = test_stack
     async with Client(server_url) as client:
         # Store the first ever memory in this fresh database
@@ -70,6 +126,24 @@ async def test_first_memory_storage_works(test_stack):
         assert data["status"] == "stored"
         assert "memory_id" in data
         assert len(data["memory_id"]) > 0
+
+        # Assert fast performance since models should already be loaded
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_remember_shortterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for remember_shortterm"
+        assert (
+            latest_duration < 1500
+        ), f"Memory storage took {latest_duration:.1f}ms, should be <1500ms with warm models"
+
+        print(f"💾 Memory stored in {latest_duration:.1f}ms - models already warm!")
 
 
 @pytest.mark.asyncio
@@ -95,7 +169,11 @@ async def test_first_entity_creation_works(test_stack):
 @pytest.mark.asyncio
 @performance_test
 async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
-    """Test that unified search handles nonsensical queries gracefully."""
+    """Test that unified search handles nonsensical queries gracefully.
+
+    Since test_00_warm_up_embedding_models ran first, models should already
+    be loaded and this test should run much faster.
+    """
     server_url = test_stack
     async with Client(server_url) as client:
         # Test search tool handles completely nonsensical query gracefully
@@ -110,7 +188,23 @@ async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
         # Should return very few results for nonsensical query
         assert len(unified_data["results"]) <= 3
 
-        # Test the theory: second search should be much faster since models are loaded
+        # Assert fast performance since models should already be loaded
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_all_memories":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for search_all_memories"
+        assert (
+            latest_duration < 1000
+        ), f"Search took {latest_duration:.1f}ms, should be <1000ms with warm models"
+
+        # Test the theory: second search should also be fast since models are loaded
         unified_result2 = await time_mcp_call(
             client,
             "search_all_memories",
@@ -118,3 +212,21 @@ async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
         )
         unified_data2 = json.loads(unified_result2.content[0].text)
         assert unified_data2["success"] is True
+
+        # Second search should also be fast
+        latest_duration2 = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_all_memories":
+                latest_duration2 = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration2 is not None
+        ), "Should have recorded timing for second search"
+        assert (
+            latest_duration2 < 500
+        ), f"Second search took {latest_duration2:.1f}ms, should be <500ms"
+
+        print(
+            f"🚀 Warm searches: {latest_duration:.1f}ms and {latest_duration2:.1f}ms - models cached!"
+        )
