@@ -10,6 +10,7 @@ from .tools import (
     register_browse_longterm_tools,
     register_browse_narrative_tools,
     register_browse_shortterm_tool,
+    register_consolidate_shortterm_tools,
     register_gentle_refresh_tools,
     register_get_entity_tools,
     register_get_relationships_tools,
@@ -40,6 +41,7 @@ def create_server():
     register_remember_shortterm_tool(mcp)
     register_browse_shortterm_tool(mcp)
     register_search_shortterm_tool(mcp)
+    register_consolidate_shortterm_tools(mcp)
     register_remember_longterm_tools(mcp)
     register_relate_longterm_tools(mcp)
     register_search_longterm_tools(mcp)
