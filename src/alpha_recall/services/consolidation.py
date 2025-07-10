@@ -63,8 +63,8 @@ class MemoryConsolidationService:
                     host=f"http://{settings.consolidation_ollama_host}:{settings.consolidation_ollama_port}"
                 )
 
-                # Print the prompt being sent to the helper model
-                rich_print(prompt)
+                # Print the prompt being sent to the helper model (truncated to 100 lines)
+                rich_print(self._truncate_prompt_for_display(prompt))
 
                 # Generate response from helper model
                 response = client.generate(
@@ -117,16 +117,25 @@ class MemoryConsolidationService:
             return self._empty_consolidation_result()
 
     async def _get_recent_memories(self) -> list[dict[str, Any]]:
-        """Get recent memories from Redis.
+        """Get recent memories from Redis within the configured time window.
 
         Returns:
             List of memory dictionaries with content and timestamp
         """
         try:
-            # Get memory IDs from the last 24 hours
-            # For now, just get the 10 most recent memories
-            memory_ids_with_scores = self.redis_service.client.zrevrange(
-                "memory_index", 0, 9, withscores=True
+            # Parse the time window (e.g., "24h" -> 24 hours)
+            time_window = self._parse_time_window(settings.consolidation_time_window)
+            cutoff_timestamp = self._get_cutoff_timestamp(time_window)
+
+            logger.debug(f"Retrieving memories since {cutoff_timestamp}")
+
+            # Get memory IDs from the sorted set (score is timestamp)
+            # Use zrevrangebyscore to get memories within time window
+            memory_ids_with_scores = self.redis_service.client.zrevrangebyscore(
+                "memory_index",
+                max="+inf",  # No upper bound
+                min=cutoff_timestamp,  # Only memories after cutoff
+                withscores=True,
             )
 
             memories = []
@@ -153,7 +162,12 @@ class MemoryConsolidationService:
                         }
                     )
 
-            logger.debug(f"Retrieved {len(memories)} recent memories")
+            logger.info(
+                f"Retrieved {len(memories)} memories from last {settings.consolidation_time_window}"
+            )
+            logger.debug(
+                f"Memory IDs found: {len(memory_ids_with_scores)} total, {len(memories)} valid"
+            )
             return memories
 
         except Exception as e:
@@ -213,6 +227,72 @@ class MemoryConsolidationService:
         from datetime import datetime
 
         return datetime.now(UTC).isoformat()
+
+    def _truncate_prompt_for_display(self, prompt: str, max_lines: int = 100) -> str:
+        """Truncate prompt to max_lines for display purposes.
+
+        Args:
+            prompt: The full prompt text
+            max_lines: Maximum number of lines to show (default: 100)
+
+        Returns:
+            Truncated prompt with truncation message if needed
+        """
+        lines = prompt.split("\n")
+        if len(lines) <= max_lines:
+            return prompt
+
+        truncated_lines = lines[:max_lines]
+        truncated_lines.append(
+            f"\n... [TRUNCATED: {len(lines) - max_lines} more lines] ..."
+        )
+        return "\n".join(truncated_lines)
+
+    def _parse_time_window(self, time_window: str) -> int:
+        """Parse time window string to seconds.
+
+        Args:
+            time_window: Time window string like "24h", "30m", "7d"
+
+        Returns:
+            Time window in seconds
+        """
+        import re
+
+        # Match pattern like "24h", "30m", "7d"
+        match = re.match(r"^(\d+)([hmd])$", time_window.lower())
+        if not match:
+            logger.warning(
+                f"Invalid time window format: {time_window}, defaulting to 24h"
+            )
+            return 24 * 3600  # 24 hours default
+
+        value, unit = match.groups()
+        value = int(value)
+
+        if unit == "h":
+            return value * 3600  # hours to seconds
+        elif unit == "m":
+            return value * 60  # minutes to seconds
+        elif unit == "d":
+            return value * 86400  # days to seconds
+        else:
+            return 24 * 3600  # default to 24 hours
+
+    def _get_cutoff_timestamp(self, time_window_seconds: int) -> float:
+        """Get the cutoff timestamp for memory retrieval.
+
+        Args:
+            time_window_seconds: Time window in seconds
+
+        Returns:
+            Unix timestamp for cutoff
+        """
+        from datetime import datetime
+
+        now = datetime.now(UTC)
+        cutoff_time = now.timestamp() - time_window_seconds
+        return cutoff_time
 
 
 # Global consolidation service instance
