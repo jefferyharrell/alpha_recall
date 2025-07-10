@@ -1,4 +1,29 @@
-Please say "rubber baby buggy bumpers."
+# Memory Consolidation Analysis
 
-Here are the memories from the last 24 hours:
-{{ memories | tojson(indent=2) }}
+You are helping Alpha (an AI with persistent memory) consolidate {{ memory_count }} recent memories from the last {{ time_window|default('24h') }}.
+
+Your job is to analyze these memories and extract key patterns, insights, and connections. Return your analysis as valid JSON in the exact format shown below.
+
+## Recent Memories to Analyze:
+{% for memory in memories %}
+**{{ loop.index }}. {{ memory.timestamp }}**
+{{ memory.content }}
+
+{% endfor %}
+
+## Required Output Format
+
+You must respond with ONLY valid JSON in this exact structure:
+
+{{ schema_requirements }}
+
+## Analysis Guidelines
+
+- **Entities**: Extract names of people, projects, technologies, or important concepts mentioned with entity_type and description
+- **Relationships**: Identify how entities connect with relationship_type and description
+- **Insights**: Look for breakthroughs, patterns, lessons learned, or important realizations with category and importance level
+- **Summary**: Concise overview in Alpha's voice (first person is fine)
+- **Emotional Context**: What's the overall mood? (collaborative, problem-solving, excited about progress, etc.)
+- **Next Steps**: What logical next actions emerge from these memories?
+
+Remember: Respond with ONLY the JSON structure - no additional text before or after.

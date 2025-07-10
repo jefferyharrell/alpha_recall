@@ -19,9 +19,7 @@ async def test_search_all_memories_finds_known_entities(test_stack_seeded):
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for Alpha - should find across multiple systems
-        result = await time_mcp_call(
-            client, "search_all_memories", {"query": "Alpha"}
-        )
+        result = await time_mcp_call(client, "search_all_memories", {"query": "Alpha"})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -61,9 +59,7 @@ async def test_search_all_memories_finds_sparkle_bread_crimes(test_stack_seeded)
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for bread-related crimes
-        result = await time_mcp_call(
-            client, "search_all_memories", {"query": "bread"}
-        )
+        result = await time_mcp_call(client, "search_all_memories", {"query": "bread"})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -100,9 +96,7 @@ async def test_search_all_memories_technical_terms(test_stack_seeded):
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for Redis - should find in observations and narratives
-        result = await time_mcp_call(
-            client, "search_all_memories", {"query": "Redis"}
-        )
+        result = await time_mcp_call(client, "search_all_memories", {"query": "Redis"})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -242,7 +236,9 @@ async def test_search_all_memories_different_queries_different_results(
                 if len(search_durations) >= 2:
                     break
 
-        assert len(search_durations) >= 2, "Should have recorded timing for both searches"
+        assert (
+            len(search_durations) >= 2
+        ), "Should have recorded timing for both searches"
         for i, duration in enumerate(search_durations[:2]):
             assert (
                 duration < 600
@@ -370,7 +366,9 @@ async def test_search_all_memories_respects_limits(test_stack_seeded):
                 if len(search_durations) >= 2:
                     break
 
-        assert len(search_durations) >= 2, "Should have recorded timing for both searches"
+        assert (
+            len(search_durations) >= 2
+        ), "Should have recorded timing for both searches"
         for i, duration in enumerate(search_durations[:2]):
             assert (
                 duration < 600

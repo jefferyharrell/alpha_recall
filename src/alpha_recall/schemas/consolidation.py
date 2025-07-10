@@ -79,17 +79,20 @@ class ConsolidationInsight(BaseModel):
 
     insight: str = Field(..., min_length=1, description="The insight or pattern")
     category: str = Field(default="general", description="Category of insight")
-    importance: Annotated[
-        str,
-        Field(
-            default="medium",
-            pattern=r"^(low|medium|high|critical)$",
-            description="Importance level",
-        ),
-    ]
+    importance: str = Field(
+        default="medium",
+        description="Importance level (e.g., low, medium, high, critical)",
+    )
     evidence: list[str] = Field(
         default_factory=list, description="Evidence supporting this insight"
     )
+
+
+class ConsolidationNextStep(BaseModel):
+    """A suggested next step or action from consolidation."""
+
+    action: str = Field(..., min_length=1, description="The action to take")
+    description: str = Field(default="", description="Description of the action")
 
 
 class ConsolidationOutput(BaseModel):
@@ -108,7 +111,7 @@ class ConsolidationOutput(BaseModel):
     emotional_context: str = Field(
         default="", description="Emotional context and sentiment analysis"
     )
-    next_steps: list[str] = Field(
+    next_steps: list[ConsolidationNextStep] = Field(
         default_factory=list, description="Suggested next steps or actions"
     )
     consolidation_metadata: dict[str, Any] = Field(

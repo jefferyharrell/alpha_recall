@@ -280,18 +280,52 @@ Return only valid JSON."""
 
     def _get_schema_requirements_text(self) -> str:
         """Get human-readable schema requirements for the prompt."""
-        return """
-Required JSON structure:
-{
-  "entities": [{"name": "string", "entity_type": "string", "description": "string"}],
-  "relationships": [{"from_entity": "string", "to_entity": "string", "relationship_type": "string"}],
-  "insights": [{"insight": "string", "category": "string", "importance": "low|medium|high|critical"}],
-  "summary": "string",
-  "emotional_context": "string",
-  "next_steps": ["string"]
-}
+        import json
+
+        # Generate JSON schema from Pydantic model (for future auto-generation)
+        # schema = ConsolidationOutput.model_json_schema()
+        # Create a simplified example for the prompt
+        example = {
+            "entities": [
+                {
+                    "name": "string (required)",
+                    "entity_type": "string (optional)",
+                    "description": "string (optional)",
+                    "confidence": "number 0.0-1.0 (optional, default 1.0)",
+                }
+            ],
+            "relationships": [
+                {
+                    "from_entity": "string (required)",
+                    "to_entity": "string (required)",
+                    "relationship_type": "string (required)",
+                    "description": "string (optional)",
+                    "confidence": "number 0.0-1.0 (optional, default 1.0)",
+                }
+            ],
+            "insights": [
+                {
+                    "insight": "string (required)",
+                    "category": "string (optional, default 'general')",
+                    "importance": "string (optional, one of: low|medium|high|critical)",
+                    "evidence": "array of strings (optional)",
+                }
+            ],
+            "summary": "string (optional)",
+            "emotional_context": "string (optional)",
+            "next_steps": [
+                {"action": "string (required)", "description": "string (optional)"}
+            ],
+            "consolidation_metadata": "object (optional)",
+        }
+
+        return f"""
+Required JSON structure (auto-generated from Pydantic schema):
+
+{json.dumps(example, indent=2)}
 
 All fields are required, but arrays can be empty if no relevant information is found.
+The schema is automatically validated - ensure exact structure compliance.
         """.strip()
 
     async def _call_helper_model(
