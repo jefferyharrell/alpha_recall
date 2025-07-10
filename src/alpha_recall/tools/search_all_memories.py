@@ -90,6 +90,7 @@ async def search_all_memories(
                 emotional_embedding=emotional_embedding,
                 limit=50,
                 search_type="semantic",
+                query=query,
             )
 
             for memory in stm_semantic_memories:
@@ -114,6 +115,7 @@ async def search_all_memories(
                 emotional_embedding=emotional_embedding,
                 limit=50,
                 search_type="emotional",
+                query=query,
             )
 
             for memory in stm_emotional_memories:

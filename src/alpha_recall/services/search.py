@@ -18,6 +18,7 @@ def search_shortterm_with_embeddings(
     limit: int = 10,
     cutoff_timestamp: float = 0,
     search_type: str = "semantic",
+    query: str = "",
 ) -> list[dict[str, Any]]:
     """Search short-term memories using pre-generated embeddings.
 
@@ -27,6 +28,7 @@ def search_shortterm_with_embeddings(
         limit: Maximum number of memories to return
         cutoff_timestamp: Filter memories newer than this timestamp
         search_type: "semantic" or "emotional"
+        query: Original query string (for emotional search fallback)
 
     Returns:
         List of memory dictionaries with scores and metadata
@@ -51,7 +53,7 @@ def search_shortterm_with_embeddings(
         # For emotional search, we'd use emotional_embedding here
         # For now, fall back to text matching
         return _search_stm_emotional_fallback(
-            client, "", limit, cutoff_timestamp, logger
+            client, query, limit, cutoff_timestamp, logger
         )
 
 
