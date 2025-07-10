@@ -16,109 +16,71 @@ logger = get_logger("services.embedding")
 class EmbeddingService:
     """Service for generating semantic and emotional embeddings.
 
-    Eagerly loads both models at initialization and provides clean
-    encode methods for different embedding types.
+    Uses lazy loading - models are loaded on first use and cached thereafter.
     """
 
     def __init__(self):
-        """Initialize the embedding service with eager model loading."""
-        import time
-
-        start_time = time.perf_counter()
-        logger.info("Initializing EmbeddingService with eager model loading")
+        """Initialize the embedding service with lazy loading."""
+        logger.info("Initializing EmbeddingService with lazy loading")
 
         # Determine device to use
-        device_start = time.perf_counter()
         self.device = self._determine_device()
-        device_time_ms = (time.perf_counter() - device_start) * 1000
 
-        if self.device is not None:
+        # Models will be loaded on first use
+        self.semantic_model = None
+        self.emotional_model = None
+
+        logger.info("EmbeddingService initialized - models will load on first use")
+
+    def _load_semantic_model(self):
+        """Load semantic model on first use."""
+        if self.semantic_model is None:
+            import time
+
+            start = time.perf_counter()
             logger.info(
-                "Device configuration applied",
-                device=self.device,
-                device_detection_time_ms=round(device_time_ms, 2),
-                configuration_source="explicit",
+                "Loading semantic model on first use",
+                model=settings.semantic_embedding_model,
             )
-        else:
+
+            if self.device is not None:
+                self.semantic_model = SentenceTransformer(
+                    settings.semantic_embedding_model, device=self.device
+                )
+            else:
+                self.semantic_model = SentenceTransformer(
+                    settings.semantic_embedding_model
+                )
+
+            load_time_ms = (time.perf_counter() - start) * 1000
+            logger.info("Semantic model loaded", load_time_ms=round(load_time_ms, 2))
+
+        return self.semantic_model
+
+    def _load_emotional_model(self):
+        """Load emotional model on first use."""
+        if self.emotional_model is None:
+            import time
+
+            start = time.perf_counter()
             logger.info(
-                "Device auto-detection completed",
-                device_detection_time_ms=round(device_time_ms, 2),
-                configuration_source="auto_detect",
+                "Loading emotional model on first use",
+                model=settings.emotional_embedding_model,
             )
 
-        # Eagerly load semantic model
-        semantic_start = time.perf_counter()
-        logger.info(
-            "Loading semantic embedding model",
-            model_name=settings.semantic_embedding_model,
-            device=self.device or "auto_detected",
-        )
+            if self.device is not None:
+                self.emotional_model = SentenceTransformer(
+                    settings.emotional_embedding_model, device=self.device
+                )
+            else:
+                self.emotional_model = SentenceTransformer(
+                    settings.emotional_embedding_model
+                )
 
-        if self.device is not None:
-            self.semantic_model = SentenceTransformer(
-                settings.semantic_embedding_model, device=self.device
-            )
-        else:
-            self.semantic_model = SentenceTransformer(settings.semantic_embedding_model)
+            load_time_ms = (time.perf_counter() - start) * 1000
+            logger.info("Emotional model loaded", load_time_ms=round(load_time_ms, 2))
 
-        semantic_time_ms = (time.perf_counter() - semantic_start) * 1000
-
-        # Get model info after loading
-        semantic_device = str(self.semantic_model.device)
-        model_dims = self.semantic_model.get_sentence_embedding_dimension()
-
-        logger.info(
-            "Semantic model loaded successfully",
-            model_name=settings.semantic_embedding_model,
-            device=semantic_device,
-            dimensions=model_dims,
-            load_time_ms=round(semantic_time_ms, 2),
-            model_type="semantic",
-        )
-
-        # Eagerly load emotional model
-        emotional_start = time.perf_counter()
-        logger.info(
-            "Loading emotional embedding model",
-            model_name=settings.emotional_embedding_model,
-            device=self.device or "auto_detected",
-        )
-
-        if self.device is not None:
-            self.emotional_model = SentenceTransformer(
-                settings.emotional_embedding_model, device=self.device
-            )
-        else:
-            self.emotional_model = SentenceTransformer(
-                settings.emotional_embedding_model
-            )
-
-        emotional_time_ms = (time.perf_counter() - emotional_start) * 1000
-
-        # Get emotional model info
-        emotional_device = str(self.emotional_model.device)
-        emotional_dims = self.emotional_model.get_sentence_embedding_dimension()
-
-        logger.info(
-            "Emotional model loaded successfully",
-            model_name=settings.emotional_embedding_model,
-            device=emotional_device,
-            dimensions=emotional_dims,
-            load_time_ms=round(emotional_time_ms, 2),
-            model_type="emotional",
-        )
-
-        total_time_ms = (time.perf_counter() - start_time) * 1000
-        logger.info(
-            "EmbeddingService initialization complete",
-            total_models_loaded=2,
-            semantic_dimensions=model_dims,
-            emotional_dimensions=emotional_dims,
-            total_init_time_ms=round(total_time_ms, 2),
-            semantic_load_time_ms=round(semantic_time_ms, 2),
-            emotional_load_time_ms=round(emotional_time_ms, 2),
-            device_used=semantic_device,
-        )
+        return self.emotional_model
 
     def _determine_device(self) -> str | None:
         """Determine the device to use for inference.
@@ -165,18 +127,21 @@ class EmbeddingService:
             total_chars = len(text)
             avg_length = total_chars
 
+        # Load model on first use
+        model = self._load_semantic_model()
+
         logger.debug(
             "Starting semantic encoding",
             text_count=text_count,
             is_batch=is_batch,
             total_characters=total_chars,
             avg_text_length=round(avg_length, 2),
-            model_device=str(self.semantic_model.device),
+            model_device=str(model.device),
             operation="semantic_encode",
         )
 
         # sentence-transformers returns numpy arrays, convert to Python lists
-        embeddings = self.semantic_model.encode(text, convert_to_tensor=False)
+        embeddings = model.encode(text, convert_to_tensor=False)
 
         encode_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -255,18 +220,21 @@ class EmbeddingService:
             total_chars = len(text)
             avg_length = total_chars
 
+        # Load model on first use
+        model = self._load_emotional_model()
+
         logger.debug(
             "Starting emotional encoding",
             text_count=text_count,
             is_batch=is_batch,
             total_characters=total_chars,
             avg_text_length=round(avg_length, 2),
-            model_device=str(self.emotional_model.device),
+            model_device=str(model.device),
             operation="emotional_encode",
         )
 
         # sentence-transformers returns numpy arrays, convert to Python lists
-        embeddings = self.emotional_model.encode(text, convert_to_tensor=False)
+        embeddings = model.encode(text, convert_to_tensor=False)
 
         encode_time_ms = (time.perf_counter() - start_time) * 1000
 

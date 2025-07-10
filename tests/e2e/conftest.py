@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 from fastmcp import Client
-from fixtures.data_seeder import seed_test_data
+
+from tests.e2e.fixtures.data_seeder import seed_test_data
 
 
 @pytest.fixture(scope="session")

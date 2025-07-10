@@ -9,6 +9,8 @@ import json
 import pytest
 from fastmcp import Client
 
+from tests.e2e.fixtures.performance import performance_test, time_mcp_call
+
 
 @pytest.mark.asyncio
 async def test_mcp_server_startup_and_health(test_stack):
@@ -52,12 +54,14 @@ async def test_gentle_refresh_with_empty_database(test_stack):
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_first_memory_storage_works(test_stack):
     """Test that the very first memory can be stored successfully."""
     server_url = test_stack
     async with Client(server_url) as client:
         # Store the first ever memory in this fresh database
-        result = await client.call_tool(
+        result = await time_mcp_call(
+            client,
             "remember_shortterm",
             {"content": "This is the first memory in a fresh Alpha-Recall system"},
         )
@@ -89,12 +93,14 @@ async def test_first_entity_creation_works(test_stack):
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
     """Test that unified search handles nonsensical queries gracefully."""
     server_url = test_stack
     async with Client(server_url) as client:
         # Test search tool handles completely nonsensical query gracefully
-        unified_result = await client.call_tool(
+        unified_result = await time_mcp_call(
+            client,
             "search_all_memories",
             {"query": "zxyqwerty_impossible_nonsense_12345_abcdef"},
         )
@@ -103,3 +109,12 @@ async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
         assert isinstance(unified_data["results"], list)
         # Should return very few results for nonsensical query
         assert len(unified_data["results"]) <= 3
+
+        # Test the theory: second search should be much faster since models are loaded
+        unified_result2 = await time_mcp_call(
+            client,
+            "search_all_memories",
+            {"query": "another_nonsense_query_654321"},
+        )
+        unified_data2 = json.loads(unified_result2.content[0].text)
+        assert unified_data2["success"] is True

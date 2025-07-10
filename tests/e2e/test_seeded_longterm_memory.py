@@ -59,9 +59,9 @@ async def test_get_relationships_finds_seeded_connections(test_stack_seeded):
         assert "relationships" in data
 
         # Should have relationships (either incoming or outgoing)
-        total_relationships = len(data["relationships"]["outgoing_relationships"]) + len(
-            data["relationships"]["incoming_relationships"]
-        )
+        total_relationships = len(
+            data["relationships"]["outgoing_relationships"]
+        ) + len(data["relationships"]["incoming_relationships"])
         assert total_relationships > 0
 
 
@@ -90,7 +90,9 @@ async def test_search_longterm_finds_technical_observations(test_stack_seeded):
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for Redis-related observations
-        result = await client.call_tool("search_longterm", {"query": "Redis performance"})
+        result = await client.call_tool(
+            "search_longterm", {"query": "Redis performance"}
+        )
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -155,7 +157,9 @@ async def test_remember_longterm_creates_new_entity(test_stack_seeded):
 
 
 @pytest.mark.asyncio
-async def test_remember_longterm_adds_observations_to_existing_entity(test_stack_seeded):
+async def test_remember_longterm_adds_observations_to_existing_entity(
+    test_stack_seeded,
+):
     """Test adding observations to existing seeded entities."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
@@ -183,7 +187,9 @@ async def test_remember_longterm_adds_observations_to_existing_entity(test_stack
         assert len(get_data2["entity"]["observations"]) == initial_count + 1
 
         # Verify the new observation is present
-        obs_text = " ".join([obs["content"] for obs in get_data2["entity"]["observations"]])
+        obs_text = " ".join(
+            [obs["content"] for obs in get_data2["entity"]["observations"]]
+        )
         assert "New test observation added during LTM testing session" in obs_text
 
 
@@ -212,12 +218,16 @@ async def test_relate_longterm_creates_new_relationships(test_stack_seeded):
         rel_data = json.loads(rel_result.content[0].text)
 
         # Check if the new relationship is in outgoing relationships
-        outgoing_targets = [rel["target"] for rel in rel_data["relationships"]["outgoing_relationships"]]
+        outgoing_targets = [
+            rel["target"] for rel in rel_data["relationships"]["outgoing_relationships"]
+        ]
         assert "Sparkle" in outgoing_targets
 
         # Check relationship type
         sparkle_relationships = [
-            rel for rel in rel_data["relationships"]["outgoing_relationships"] if rel["target"] == "Sparkle"
+            rel
+            for rel in rel_data["relationships"]["outgoing_relationships"]
+            if rel["target"] == "Sparkle"
         ]
         relationship_types = [rel["type"] for rel in sparkle_relationships]
         assert "observes_behavior_of" in relationship_types
@@ -237,10 +247,14 @@ async def test_browse_longterm_shows_entity_ecosystem(test_stack_seeded):
         assert len(data["browse_data"]["entities"]) > 0
 
         # Should include our seeded entities
-        entity_names = [entity["entity_name"] for entity in data["browse_data"]["entities"]]
+        entity_names = [
+            entity["entity_name"] for entity in data["browse_data"]["entities"]
+        ]
         seeded_entities = ["Alpha", "Jeffery", "Sparkle"]
         found_seeded = [name for name in seeded_entities if name in entity_names]
-        assert len(found_seeded) > 0, f"Should find seeded entities. Found: {entity_names}"
+        assert (
+            len(found_seeded) > 0
+        ), f"Should find seeded entities. Found: {entity_names}"
 
 
 @pytest.mark.asyncio
@@ -299,8 +313,16 @@ async def test_longterm_memory_performance_with_seeded_data(test_stack_seeded):
         search_time = time.time() - start_time
 
         # All operations should be reasonably fast
-        assert entity_time < 5.0, f"Entity retrieval took {entity_time:.2f}s, should be < 5s"
-        assert relationship_time < 5.0, f"Relationship lookup took {relationship_time:.2f}s, should be < 5s"
-        assert search_time < 10.0, f"LTM search took {search_time:.2f}s, should be < 10s"
+        assert (
+            entity_time < 5.0
+        ), f"Entity retrieval took {entity_time:.2f}s, should be < 5s"
+        assert (
+            relationship_time < 5.0
+        ), f"Relationship lookup took {relationship_time:.2f}s, should be < 5s"
+        assert (
+            search_time < 10.0
+        ), f"LTM search took {search_time:.2f}s, should be < 10s"
 
-        print(f"LTM Performance: Entity={entity_time:.2f}s, Relationships={relationship_time:.2f}s, Search={search_time:.2f}s")
+        print(
+            f"LTM Performance: Entity={entity_time:.2f}s, Relationships={relationship_time:.2f}s, Search={search_time:.2f}s"
+        )

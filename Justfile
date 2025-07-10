@@ -121,7 +121,7 @@ test-unit:
 
 test-e2e:
     @echo "Running e2e tests serially with fail-fast..."
-    uv run --group test pytest tests/e2e/ -v --maxfail=1
+    uv run --group test pytest tests/e2e/ -v -s --maxfail=1
 
 # Export dependencies to requirements.txt
 export-requirements:
