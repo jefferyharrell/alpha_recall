@@ -418,6 +418,27 @@ result = await gentle_refresh()
 
 ## Development Workflow
 
+## MCP Client Restart Requirement
+
+**Important**: After restarting the Alpha-Recall Docker container, MCP clients (Claude Desktop, Claude Code, VS Code with MCP extensions) must be restarted to re-establish connections.
+
+**Typical Development Cycle:**
+1. Make code changes
+2. Restart container: `just restart` or `docker compose restart alpha-recall`
+3. Wait for embedding models to load (~5 seconds)
+4. **Restart MCP clients** (Claude Desktop, Claude Code, etc.)
+5. Test changes
+
+**Why this happens**: MCP sessions are stateful connections. When the server restarts, existing session state is lost and clients need to re-initialize their connections.
+
+**Testing Strategy**: Because of this development cycle requirement, **whenever possible use automated testing via Pytest** to test features. Automated testing is preferred over manual testing because:
+- **More streamlined**: Avoids the container restart → client restart cycle
+- **Regression protection**: Tests can be captured and saved to catch future regressions
+- **Faster iteration**: `just test` is faster than manual MCP client testing
+- **CI/CD ready**: Automated tests can run in continuous integration
+
+Use manual MCP client testing for final validation and user experience verification, but rely on automated tests for development iteration.
+
 ### Code Standards
 - **Formatting**: Black (line length 88) + isort with black profile
 - **Linting**: Ruff for fast, comprehensive Python linting
