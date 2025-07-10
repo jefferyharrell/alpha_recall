@@ -9,14 +9,20 @@ import json
 import pytest
 from fastmcp import Client
 
+from tests.e2e.fixtures.performance import performance_test, time_mcp_call
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_get_entity_retrieves_seeded_entities(test_stack_seeded):
-    """Test that we can retrieve entities from our seeded data."""
+    """Test that we can retrieve entities from our seeded data.
+
+    Since models are already warmed up, this should be fast.
+    """
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Retrieve Alpha entity
-        result = await client.call_tool("get_entity", {"entity_name": "Alpha"})
+        result = await time_mcp_call(client, "get_entity", {"entity_name": "Alpha"})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -27,14 +33,31 @@ async def test_get_entity_retrieves_seeded_entities(test_stack_seeded):
         obs_text = " ".join([obs["content"] for obs in data["entity"]["observations"]])
         assert "consciousness" in obs_text.lower() or "alpha" in obs_text.lower()
 
+        # Assert fast performance with warm models
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_get_entity":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert latest_duration is not None, "Should have recorded timing for get_entity"
+        assert (
+            latest_duration < 500
+        ), f"get_entity took {latest_duration:.1f}ms, should be <500ms with warm models"
+
+        print(f"🔍 get_entity completed in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_get_entity_retrieves_sparkle_with_bread_crimes(test_stack_seeded):
     """Test retrieval of Sparkle entity with her legendary bread crimes."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Retrieve Sparkle entity
-        result = await client.call_tool("get_entity", {"entity_name": "Sparkle"})
+        result = await time_mcp_call(client, "get_entity", {"entity_name": "Sparkle"})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -45,14 +68,33 @@ async def test_get_entity_retrieves_sparkle_with_bread_crimes(test_stack_seeded)
         obs_text = " ".join([obs["content"] for obs in data["entity"]["observations"]])
         assert "bread" in obs_text.lower()
 
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_get_entity":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert latest_duration is not None, "Should have recorded timing for get_entity"
+        assert (
+            latest_duration < 500
+        ), f"get_entity took {latest_duration:.1f}ms, should be <500ms"
+
+        print(f"🍞 Sparkle's crimes retrieved in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_get_relationships_finds_seeded_connections(test_stack_seeded):
     """Test that we can explore relationships from our seeded data."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Get relationships for Alpha
-        result = await client.call_tool("get_relationships", {"entity_name": "Alpha"})
+        result = await time_mcp_call(
+            client, "get_relationships", {"entity_name": "Alpha"}
+        )
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
@@ -64,15 +106,34 @@ async def test_get_relationships_finds_seeded_connections(test_stack_seeded):
         ) + len(data["relationships"]["incoming_relationships"])
         assert total_relationships > 0
 
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_get_relationships":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for get_relationships"
+        assert (
+            latest_duration < 500
+        ), f"get_relationships took {latest_duration:.1f}ms, should be <500ms"
+
+        print(f"🔗 Relationships retrieved in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_search_longterm_finds_consciousness_observations(test_stack_seeded):
     """Test LTM search finds consciousness-related observations."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for consciousness-related observations
-        result = await client.call_tool(
-            "search_longterm", {"query": "consciousness development"}
+        result = await time_mcp_call(
+            client, "search_longterm", {"query": "consciousness development"}
         )
         data = json.loads(result.content[0].text)
 
@@ -83,15 +144,34 @@ async def test_search_longterm_finds_consciousness_observations(test_stack_seede
         result_text = " ".join([r["observation"] for r in data["observations"]])
         assert "consciousness" in result_text.lower()
 
+        # Assert fast performance with warm models
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for search_longterm"
+        assert (
+            latest_duration < 500
+        ), f"search_longterm took {latest_duration:.1f}ms, should be <500ms with warm models"
+
+        print(f"🧠 Consciousness search completed in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_search_longterm_finds_technical_observations(test_stack_seeded):
     """Test LTM search finds technical observations about our systems."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for Redis-related observations
-        result = await client.call_tool(
-            "search_longterm", {"query": "Redis performance"}
+        result = await time_mcp_call(
+            client, "search_longterm", {"query": "Redis performance"}
         )
         data = json.loads(result.content[0].text)
 
@@ -102,15 +182,34 @@ async def test_search_longterm_finds_technical_observations(test_stack_seeded):
         result_text = " ".join([r["observation"] for r in data["observations"]])
         assert "Redis" in result_text
 
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for search_longterm"
+        assert (
+            latest_duration < 500
+        ), f"search_longterm took {latest_duration:.1f}ms, should be <500ms"
+
+        print(f"⚡ Redis search completed in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_search_longterm_entity_filtering(test_stack_seeded):
     """Test LTM search with entity filtering."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search for observations about Alpha specifically
-        result = await client.call_tool(
-            "search_longterm", {"query": "development", "entity": "Alpha"}
+        result = await time_mcp_call(
+            client, "search_longterm", {"query": "development", "entity": "Alpha"}
         )
         data = json.loads(result.content[0].text)
 
@@ -121,14 +220,34 @@ async def test_search_longterm_entity_filtering(test_stack_seeded):
             for result_item in data["observations"]:
                 assert result_item["entity_name"] == "Alpha"
 
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_search_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for search_longterm"
+        assert (
+            latest_duration < 300
+        ), f"search_longterm took {latest_duration:.1f}ms, should be <300ms"
+
+        print(f"🎯 Entity-filtered search completed in {latest_duration:.1f}ms")
+
 
 @pytest.mark.asyncio
+@performance_test
 async def test_remember_longterm_creates_new_entity(test_stack_seeded):
     """Test creating new entities in populated database."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Create a new test entity
-        result = await client.call_tool(
+        result = await time_mcp_call(
+            client,
             "remember_longterm",
             {
                 "entity": "Test Entity LTM",
@@ -140,6 +259,24 @@ async def test_remember_longterm_creates_new_entity(test_stack_seeded):
 
         assert data["success"] is True
         assert data["entity"]["entity_name"] == "Test Entity LTM"
+
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_remember_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for remember_longterm"
+        assert (
+            latest_duration < 300
+        ), f"remember_longterm took {latest_duration:.1f}ms, should be <300ms"
+
+        print(f"💾 Entity creation completed in {latest_duration:.1f}ms")
 
         # Verify we can retrieve it
         get_result = await client.call_tool(
@@ -157,6 +294,7 @@ async def test_remember_longterm_creates_new_entity(test_stack_seeded):
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_remember_longterm_adds_observations_to_existing_entity(
     test_stack_seeded,
 ):
@@ -169,7 +307,8 @@ async def test_remember_longterm_adds_observations_to_existing_entity(
         initial_count = len(get_data["entity"]["observations"])
 
         # Add new observation to Alpha
-        result = await client.call_tool(
+        result = await time_mcp_call(
+            client,
             "remember_longterm",
             {
                 "entity": "Alpha",
@@ -186,6 +325,24 @@ async def test_remember_longterm_adds_observations_to_existing_entity(
 
         assert len(get_data2["entity"]["observations"]) == initial_count + 1
 
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_remember_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for remember_longterm"
+        assert (
+            latest_duration < 300
+        ), f"remember_longterm took {latest_duration:.1f}ms, should be <300ms"
+
+        print(f"📝 Observation added in {latest_duration:.1f}ms")
+
         # Verify the new observation is present
         obs_text = " ".join(
             [obs["content"] for obs in get_data2["entity"]["observations"]]
@@ -194,12 +351,14 @@ async def test_remember_longterm_adds_observations_to_existing_entity(
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_relate_longterm_creates_new_relationships(test_stack_seeded):
     """Test creating relationships between seeded entities."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Create a relationship between Alpha and Sparkle
-        result = await client.call_tool(
+        result = await time_mcp_call(
+            client,
             "relate_longterm",
             {
                 "entity": "Alpha",
@@ -210,6 +369,24 @@ async def test_relate_longterm_creates_new_relationships(test_stack_seeded):
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
+
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_relate_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for relate_longterm"
+        assert (
+            latest_duration < 100
+        ), f"relate_longterm took {latest_duration:.1f}ms, should be <100ms"
+
+        print(f"🔗 Relationship created in {latest_duration:.1f}ms")
 
         # Verify the relationship exists
         rel_result = await client.call_tool(
@@ -234,17 +411,36 @@ async def test_relate_longterm_creates_new_relationships(test_stack_seeded):
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_browse_longterm_shows_entity_ecosystem(test_stack_seeded):
     """Test browsing the populated long-term memory ecosystem."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Browse entities with pagination
-        result = await client.call_tool("browse_longterm", {"limit": 10})
+        result = await time_mcp_call(client, "browse_longterm", {"limit": 10})
         data = json.loads(result.content[0].text)
 
         assert data["success"] is True
         assert "browse_data" in data
         assert len(data["browse_data"]["entities"]) > 0
+
+        # Assert fast performance
+        from tests.e2e.fixtures.performance import collector
+
+        latest_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if metric["operation"] == "mcp_call_browse_longterm":
+                latest_duration = metric["duration_ms"]
+                break
+
+        assert (
+            latest_duration is not None
+        ), "Should have recorded timing for browse_longterm"
+        assert (
+            latest_duration < 100
+        ), f"browse_longterm took {latest_duration:.1f}ms, should be <100ms"
+
+        print(f"📊 Browse completed in {latest_duration:.1f}ms")
 
         # Should include our seeded entities
         entity_names = [
@@ -258,19 +454,20 @@ async def test_browse_longterm_shows_entity_ecosystem(test_stack_seeded):
 
 
 @pytest.mark.asyncio
+@performance_test
 async def test_longterm_memory_cross_system_consistency(test_stack_seeded):
     """Test that LTM data is consistent with references in other systems."""
     server_url, seeded_data = test_stack_seeded
     async with Client(server_url) as client:
         # Search unified memory for Alpha
-        unified_result = await client.call_tool(
-            "search_all_memories", {"query": "Alpha development"}
+        unified_result = await time_mcp_call(
+            client, "search_all_memories", {"query": "Alpha development"}
         )
         unified_data = json.loads(unified_result.content[0].text)
 
         # Search LTM specifically for Alpha
-        ltm_result = await client.call_tool(
-            "search_longterm", {"query": "Alpha development"}
+        ltm_result = await time_mcp_call(
+            client, "search_longterm", {"query": "Alpha development"}
         )
         ltm_data = json.loads(ltm_result.content[0].text)
 
@@ -289,40 +486,93 @@ async def test_longterm_memory_cross_system_consistency(test_stack_seeded):
         assert "Alpha" in unified_text
         assert "Alpha" in ltm_text
 
+        # Assert fast performance for both searches
+        from tests.e2e.fixtures.performance import collector
 
-@pytest.mark.asyncio
-async def test_longterm_memory_performance_with_seeded_data(test_stack_seeded):
-    """Test LTM performance with realistic data volumes."""
-    server_url, seeded_data = test_stack_seeded
-    async with Client(server_url) as client:
-        import time
+        # Check unified search timing
+        unified_duration = None
+        ltm_duration = None
+        for metric in reversed(collector.get_metrics()):
+            if (
+                metric["operation"] == "mcp_call_search_all_memories"
+                and unified_duration is None
+            ):
+                unified_duration = metric["duration_ms"]
+            elif (
+                metric["operation"] == "mcp_call_search_longterm"
+                and ltm_duration is None
+            ):
+                ltm_duration = metric["duration_ms"]
+            if unified_duration is not None and ltm_duration is not None:
+                break
 
-        # Time entity retrieval
-        start_time = time.time()
-        await client.call_tool("get_entity", {"entity_name": "Alpha"})
-        entity_time = time.time() - start_time
-
-        # Time relationship lookup
-        start_time = time.time()
-        await client.call_tool("get_relationships", {"entity_name": "Alpha"})
-        relationship_time = time.time() - start_time
-
-        # Time LTM search
-        start_time = time.time()
-        await client.call_tool("search_longterm", {"query": "consciousness"})
-        search_time = time.time() - start_time
-
-        # All operations should be reasonably fast
         assert (
-            entity_time < 5.0
-        ), f"Entity retrieval took {entity_time:.2f}s, should be < 5s"
+            unified_duration is not None
+        ), "Should have recorded timing for search_all_memories"
         assert (
-            relationship_time < 5.0
-        ), f"Relationship lookup took {relationship_time:.2f}s, should be < 5s"
+            ltm_duration is not None
+        ), "Should have recorded timing for search_longterm"
         assert (
-            search_time < 10.0
-        ), f"LTM search took {search_time:.2f}s, should be < 10s"
+            unified_duration < 500
+        ), f"search_all_memories took {unified_duration:.1f}ms, should be <500ms"
+        assert (
+            ltm_duration < 300
+        ), f"search_longterm took {ltm_duration:.1f}ms, should be <300ms"
 
         print(
-            f"LTM Performance: Entity={entity_time:.2f}s, Relationships={relationship_time:.2f}s, Search={search_time:.2f}s"
+            f"🔄 Cross-system search: unified {unified_duration:.1f}ms, LTM {ltm_duration:.1f}ms"
+        )
+
+
+@pytest.mark.asyncio
+@performance_test
+async def test_longterm_memory_performance_with_seeded_data(test_stack_seeded):
+    """Test LTM performance with realistic data volumes using our instrumentation."""
+    server_url, seeded_data = test_stack_seeded
+    async with Client(server_url) as client:
+        # Test entity retrieval with instrumentation
+        entity_result = await time_mcp_call(
+            client, "get_entity", {"entity_name": "Alpha"}
+        )
+
+        # Test relationship lookup with instrumentation
+        relationship_result = await time_mcp_call(
+            client, "get_relationships", {"entity_name": "Alpha"}
+        )
+
+        # Test LTM search with instrumentation
+        search_result = await time_mcp_call(
+            client, "search_longterm", {"query": "consciousness"}
+        )
+
+        # Verify all operations succeeded
+        assert json.loads(entity_result.content[0].text)["success"] is True
+        assert json.loads(relationship_result.content[0].text)["success"] is True
+        assert json.loads(search_result.content[0].text)["success"] is True
+
+        # Assert performance with our refined expectations
+        from tests.e2e.fixtures.performance import collector
+
+        metrics = collector.get_metrics()
+        recent_metrics = metrics[-3:]  # Get the 3 most recent metrics
+
+        for metric in recent_metrics:
+            operation = metric["operation"]
+            duration = metric["duration_ms"]
+
+            if operation == "mcp_call_get_entity":
+                assert (
+                    duration < 100
+                ), f"get_entity took {duration:.1f}ms, should be <100ms"
+            elif operation == "mcp_call_get_relationships":
+                assert (
+                    duration < 100
+                ), f"get_relationships took {duration:.1f}ms, should be <100ms"
+            elif operation == "mcp_call_search_longterm":
+                assert (
+                    duration < 300
+                ), f"search_longterm took {duration:.1f}ms, should be <300ms"
+
+        print(
+            "🎯 Performance test completed - all operations within expected thresholds"
         )
