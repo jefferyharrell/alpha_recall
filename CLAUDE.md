@@ -446,12 +446,47 @@ Use manual MCP client testing for final validation and user experience verificat
 - **Type Hints**: Full type annotation expected
 
 ### Testing Strategy
-- **Two-Tier Testing**: Unit tests (mocked) + E2E tests (isolated Docker stack)
-- **No Production Pollution**: All tests use either mocks or isolated test environments
-- **Unit Tests**: Fast, fully mocked, no database connections
-- **E2E Tests**: Full-stack testing with fresh Docker databases that are torn down after each test
-- **MCP Protocol**: E2E tests use real MCP client interactions via `fastmcp.Client`
-- **Behavior Verification**: Focus on "Does search work?" not "Does it call Redis.get() 3 times?"
+
+#### **Two-Tier Testing Architecture**
+- **Unit Tests**: Fast, isolated component testing with full mocking
+- **E2E Tests**: Full MCP protocol testing with Docker infrastructure (covers integration scenarios)
+
+#### **Parallel vs Serial Execution**
+- **Unit Tests**: Run in parallel with `pytest -n 4` for 4x speedup (~98 seconds for 109 tests)
+- **E2E Tests**: Run serially due to shared Docker infrastructure
+- **Sweet Spot**: `-n 4` balances speed with memory usage (each worker uses ~3GB for embedding models)
+
+#### **E2E Test Data Strategy**
+**Philosophical Approach**: Test against realistic, populated databases rather than empty ones. The "fresh install" scenario happens once; ongoing operation happens daily.
+
+**Two E2E Test Categories:**
+1. **Greenfield Tests** (`test_greenfield_*.py`): Minimal tests for bootstrap scenarios
+   - Fresh database connectivity
+   - Empty search results return gracefully
+   - First memory storage works
+2. **Seeded Data Tests** (`test_seeded_*.py`): Main test suite against realistic data
+   - Comprehensive mock data with extreme scenarios for semantic/emotional clustering
+   - Predictable entities and relationships for assertion testing
+   - Cross-system integration (STM ↔ LTM ↔ NM references)
+
+#### **Mock Data Design**
+**Located in `/mock_data/`:**
+- `stm_test_data.json`: 20 development memories with emotional clustering
+- `ltm_test_data.json`: 8 entities with dynamic language and extreme scenarios
+- `nm_test_data.json`: 5 epic collaboration narratives with cross-references
+
+**Data Characteristics:**
+- **Semantically dynamic**: Varied language, emojis, slang, technical terms
+- **Emotionally diverse**: Full spectrum from frustration to excitement
+- **Realistic scenarios**: Based on actual Alpha-Recall development experiences
+- **Cross-referenced**: Entities appear in narratives, memories reference relationships
+
+#### **Testing Best Practices**
+- **Behavior Verification**: Focus on "Does search work?" not implementation details
+- **No Production Pollution**: All tests use isolated environments or mocks
+- **MCP Protocol Testing**: E2E tests use `fastmcp.Client` for authentic protocol testing
+- **Predictable Assertions**: Seeded data enables specific outcome testing
+- **Performance Awareness**: Memory-intensive tests run with controlled parallelization
 
 ### Container Development
 - **Docker Compose**: Full stack development environment with memgraph + redis

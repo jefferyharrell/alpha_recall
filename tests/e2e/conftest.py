@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastmcp import Client
+from fixtures.data_seeder import seed_test_data
 
 
 @pytest.fixture(scope="session")
@@ -102,3 +103,28 @@ def test_stack():
             ],
             capture_output=True,
         )
+
+
+@pytest.fixture(scope="session")
+def test_stack_seeded(test_stack):
+    """Test stack with seeded realistic data for comprehensive testing.
+
+    This fixture:
+    1. Uses the base test_stack (fresh Docker infrastructure)
+    2. Seeds comprehensive mock data (STM, LTM, NM)
+    3. Returns both server URL and seeded data mapping
+
+    Returns:
+        Tuple of (server_url, seeded_data_dict)
+    """
+    server_url = test_stack
+
+    # Seed the data using our comprehensive mock data
+    async def seed_data():
+        async with Client(server_url) as client:
+            return await seed_test_data(client)
+
+    seeded_data = asyncio.run(seed_data())
+
+    # Return both server URL and seeded data for test assertions
+    return server_url, seeded_data

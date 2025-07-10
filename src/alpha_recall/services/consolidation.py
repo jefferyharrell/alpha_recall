@@ -53,7 +53,7 @@ class MemoryConsolidationService:
 
             # Call Ollama for consolidation
             logger.info(
-                f"Consolidating {len(memories)} memories with {settings.helper_model}",
+                f"Consolidating {len(memories)} memories with {settings.helper_model} (timeout: {settings.consolidation_timeout}s)",
                 correlation_id=correlation_id,
             )
 
@@ -66,9 +66,12 @@ class MemoryConsolidationService:
                 # Print the prompt being sent to the helper model (truncated to 100 lines)
                 rich_print(self._truncate_prompt_for_display(prompt))
 
-                # Generate response from helper model
+                # Generate response from helper model with timeout
                 response = client.generate(
-                    model=settings.helper_model, prompt=prompt, stream=False
+                    model=settings.helper_model,
+                    prompt=prompt,
+                    stream=False,
+                    options={"timeout": settings.consolidation_timeout},
                 )
 
                 helper_response = response["response"]
@@ -76,22 +79,62 @@ class MemoryConsolidationService:
                 # Print the helper model response to stdout with Rich
                 rich_print(helper_response)
 
+                # Try to parse the response as structured JSON
+                try:
+                    import json
+
+                    # Extract JSON from response (handle cases where model adds extra text)
+                    json_start = helper_response.find("{")
+                    json_end = helper_response.rfind("}") + 1
+
+                    if json_start != -1 and json_end > json_start:
+                        json_text = helper_response[json_start:json_end]
+                        parsed_result = json.loads(json_text)
+
+                        logger.info(
+                            "Successfully parsed structured consolidation response",
+                            correlation_id=correlation_id,
+                        )
+
+                        # Return structured result with parsed fields
+                        return {
+                            "entities": parsed_result.get("entities", []),
+                            "relationships": parsed_result.get("relationships", []),
+                            "insights": parsed_result.get("insights", []),
+                            "summary": parsed_result.get("summary", ""),
+                            "emotional_context": parsed_result.get(
+                                "emotional_context", ""
+                            ),
+                            "next_steps": parsed_result.get("next_steps", []),
+                            "processed_memories_count": len(memories),
+                            "consolidation_timestamp": self._get_timestamp(),
+                            "model_used": settings.helper_model,
+                        }
+                    else:
+                        raise json.JSONDecodeError("No JSON found in response", "", 0)
+
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    logger.warning(
+                        f"Failed to parse structured response as JSON: {e}. Using fallback.",
+                        correlation_id=correlation_id,
+                    )
+                    # Fallback to putting everything in summary
+                    return {
+                        "entities": [],
+                        "relationships": [],
+                        "insights": [],
+                        "summary": helper_response,
+                        "emotional_context": "",
+                        "next_steps": [],
+                        "processed_memories_count": len(memories),
+                        "consolidation_timestamp": self._get_timestamp(),
+                        "model_used": settings.helper_model,
+                    }
+
                 logger.info(
                     "Memory consolidation completed successfully",
                     correlation_id=correlation_id,
                 )
-
-                return {
-                    "entities": [],
-                    "relationships": [],
-                    "insights": [],
-                    "summary": helper_response,
-                    "emotional_context": "",
-                    "next_steps": [],
-                    "processed_memories_count": len(memories),
-                    "consolidation_timestamp": self._get_timestamp(),
-                    "model_used": settings.helper_model,
-                }
 
             except Exception as e:
                 logger.error(
@@ -188,6 +231,7 @@ class MemoryConsolidationService:
                 "memories": memories,
                 "memory_count": len(memories),
                 "model": settings.helper_model,
+                "consolidation_time_window": settings.consolidation_time_window,
             }
 
             prompt = template_loader.render_template(
