@@ -111,16 +111,17 @@ pre-commit:
     uv run --group dev pre-commit run --all-files
 
 test:
-    @echo "Running all tests (unit → e2e)..."
-    uv run pytest tests/unit/ tests/e2e/ -v
+    @echo "Running all tests (parallel unit tests → serial e2e tests)..."
+    uv run --group test pytest tests/unit/ -n 4 -v
+    uv run --group test pytest tests/e2e/ -v
 
 test-unit:
-    @echo "Running unit tests..."
-    uv run pytest tests/unit/ -v
+    @echo "Running unit tests in parallel..."
+    uv run --group test pytest tests/unit/ -n 4 -v
 
 test-e2e:
-    @echo "Running e2e tests..."
-    uv run pytest tests/e2e/ -v
+    @echo "Running e2e tests serially..."
+    uv run --group test pytest tests/e2e/ -v
 
 # Export dependencies to requirements.txt
 export-requirements:
