@@ -40,14 +40,6 @@ class AlphaRecallSettings(BaseSettings):
     # Core Configuration
     core_identity_node: str = "Alpha Core Identity"
 
-    # Memory Consolidation Configuration
-    memory_consolidation_enabled: bool = True
-    helper_model: str = "llama3.2:3b"
-    consolidation_ollama_host: str = "localhost"
-    consolidation_ollama_port: int = Field(default=11434, ge=1, le=65535)
-    consolidation_time_window: str = "24h"
-    consolidation_timeout: int = Field(default=60, gt=0)
-
     # Alpha-Reminiscer Configuration
     reminiscer_enabled: bool = False
     reminiscer_ollama_host: str = "localhost"

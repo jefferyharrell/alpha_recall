@@ -38,9 +38,3 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - PYTHONUNBUFFERED=1
-      # Enable consolidation for testing (requires Ollama running on host)
-      - MEMORY_CONSOLIDATION_ENABLED=true
-      - CONSOLIDATION_OLLAMA_HOST=host.docker.internal
-      - CONSOLIDATION_OLLAMA_PORT=11434
-      - HELPER_MODEL=llama3.2:1b
-      - CONSOLIDATION_TIME_WINDOW=1h

@@ -6,7 +6,6 @@ from fastmcp import FastMCP
 
 from ..config import settings
 from ..logging import get_logger
-from ..services.consolidation import consolidation_service
 from ..services.memgraph import get_memgraph_service
 from ..services.redis import get_redis_service
 from ..services.time import time_service
@@ -23,12 +22,10 @@ async def gentle_refresh(query: str | None = None) -> str:
     1. Current time information for temporal grounding
     2. Core identity observations (natural language facts, not relationship triples)
     3. 10 most recent short-term memories for contextual orientation
-    4. Memory consolidation (if enabled) - processes recent memories for insights
-    5. 5 most recent observations for slow-changing facts
+    4. 5 most recent observations for slow-changing facts
 
     Eliminates cognitive overload from semantic search and prioritizes temporal
-    orientation over semantic relevance. When memory consolidation is enabled, provides
-    additional insights extracted from recent interactions.
+    orientation over semantic relevance.
 
     Args:
         query: Optional query parameter (accepted for compatibility but ignored)
@@ -38,7 +35,6 @@ async def gentle_refresh(query: str | None = None) -> str:
         - time: Current time information
         - core_identity: Essential identity observations (observations only, no relationships)
         - shortterm_memories: 10 most recent short-term memories
-        - memory_consolidation: Memory consolidation insights (if enabled and available)
         - recent_observations: 5 most recent observations
     """
     correlation_id = generate_correlation_id("gentle_refresh")
@@ -125,48 +121,6 @@ async def gentle_refresh(query: str | None = None) -> str:
         except Exception as e:
             logger.error(f"Error retrieving short-term memories: {e}")
             response["shortterm_memories"] = []
-
-        # Memory consolidation: Process recent memories for insights using conversational approach
-        try:
-            logger.info("Running memory consolidation")
-            consolidation_result = (
-                await consolidation_service.consolidate_shortterm_memories(
-                    time_window="6h", temperature=0.0
-                )
-            )
-
-            if consolidation_result.get("success"):
-                response["memory_consolidation"] = {
-                    "narrative": consolidation_result.get("narrative", ""),
-                    "processed_memories_count": consolidation_result.get(
-                        "metadata", {}
-                    ).get("input_memories_count", 0),
-                    "consolidation_timestamp": time_service.utc_isoformat(),
-                    "model_used": consolidation_result.get("metadata", {}).get(
-                        "model_name", "unknown"
-                    ),
-                    "processing_time_ms": consolidation_result.get("metadata", {}).get(
-                        "processing_time_ms", 0
-                    ),
-                    "approach": "conversational_reflection",
-                }
-            else:
-                response["memory_consolidation"] = {
-                    "narrative": "Memory consolidation failed",
-                    "processed_memories_count": 0,
-                    "consolidation_timestamp": time_service.utc_isoformat(),
-                    "model_used": "error",
-                    "approach": "conversational_reflection",
-                }
-        except Exception as e:
-            logger.error(f"Error in memory consolidation: {e}")
-            response["memory_consolidation"] = {
-                "narrative": "Memory consolidation encountered an error",
-                "processed_memories_count": 0,
-                "consolidation_timestamp": time_service.utc_isoformat(),
-                "model_used": "error",
-                "approach": "conversational_reflection",
-            }
 
         # Recent observations: Get 5 most recent for slow-changing facts
         try:

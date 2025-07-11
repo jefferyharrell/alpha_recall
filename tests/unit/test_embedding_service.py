@@ -38,9 +38,21 @@ class TestEmbeddingService:
         # Verify device was set correctly
         assert service.device == "cuda"
 
-        # Verify models were initialized with device
+        # Verify models are not loaded yet (lazy loading)
+        assert mock_sentence_transformer.call_count == 0
+        assert service.semantic_model is None
+        assert service.emotional_model is None
+
+        # Trigger semantic model loading
+        service._load_semantic_model()
+        assert mock_sentence_transformer.call_count == 1
+        mock_sentence_transformer.assert_called_with(
+            "test-semantic-model", device="cuda"
+        )
+
+        # Trigger emotional model loading
+        service._load_emotional_model()
         assert mock_sentence_transformer.call_count == 2
-        mock_sentence_transformer.assert_any_call("test-semantic-model", device="cuda")
         mock_sentence_transformer.assert_any_call("test-emotional-model", device="cuda")
 
     @patch("alpha_recall.services.embedding.SentenceTransformer")
@@ -66,9 +78,19 @@ class TestEmbeddingService:
         # Verify device was set to None (auto-detection)
         assert service.device is None
 
-        # Verify models were initialized without device parameter
+        # Verify models are not loaded yet (lazy loading)
+        assert mock_sentence_transformer.call_count == 0
+        assert service.semantic_model is None
+        assert service.emotional_model is None
+
+        # Trigger semantic model loading
+        service._load_semantic_model()
+        assert mock_sentence_transformer.call_count == 1
+        mock_sentence_transformer.assert_called_with("test-semantic-model")
+
+        # Trigger emotional model loading
+        service._load_emotional_model()
         assert mock_sentence_transformer.call_count == 2
-        mock_sentence_transformer.assert_any_call("test-semantic-model")
         mock_sentence_transformer.assert_any_call("test-emotional-model")
 
     def test_encode_semantic_single_string(self):

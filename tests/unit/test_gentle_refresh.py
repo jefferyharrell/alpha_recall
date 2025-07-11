@@ -4,9 +4,7 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -15,29 +13,6 @@ from alpha_recall.tools.gentle_refresh import (
     gentle_refresh,
     register_gentle_refresh_tools,
 )
-
-
-@pytest.fixture(autouse=True)
-def mock_consolidation_service():
-    """Auto-mock consolidation service for all gentle_refresh tests to avoid hitting Ollama."""
-    with patch(
-        "alpha_recall.tools.gentle_refresh.consolidation_service"
-    ) as mock_service:
-        # Setup async mock for consolidate_shortterm_memories
-        mock_service.consolidate_shortterm_memories = AsyncMock(
-            return_value={
-                "success": True,
-                "narrative": "Hey there, friend! This is a mock conversational reflection for unit testing. The memories show some interesting patterns of development and collaboration.",
-                "metadata": {
-                    "input_memories_count": 5,
-                    "model_name": "llama3.2:1b",
-                    "processing_time_ms": 1500,
-                    "approach": "conversational_reflection",
-                    "response_length": 150,
-                },
-            }
-        )
-        yield mock_service
 
 
 class MockMCP:
@@ -204,7 +179,6 @@ def test_gentle_refresh_response_structure(mock_redis_service, mock_memgraph_ser
     assert "time" in data
     assert "core_identity" in data
     assert "shortterm_memories" in data
-    assert "memory_consolidation" in data
     assert "recent_observations" in data
 
 
@@ -375,41 +349,6 @@ def test_gentle_refresh_recent_observations(mock_redis_service, mock_memgraph_se
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
 @patch("alpha_recall.tools.gentle_refresh.get_redis_service")
-def test_gentle_refresh_memory_consolidation_structure(
-    mock_redis_service, mock_memgraph_service
-):
-    """Test gentle_refresh memory consolidation has correct conversational structure."""
-    # Setup mocks
-    mock_memgraph_service.return_value = MockMemgraphService()
-    mock_redis_service.return_value = MockRedisService()
-    # Note: consolidation_service is mocked globally via autouse fixture
-
-    response = asyncio.run(gentle_refresh())
-    data = json.loads(response)
-
-    consolidation = data["memory_consolidation"]
-    required_keys = [
-        "narrative",
-        "processed_memories_count",
-        "consolidation_timestamp",
-        "model_used",
-        "processing_time_ms",
-        "approach",
-    ]
-
-    for key in required_keys:
-        assert key in consolidation
-
-    # Verify conversational approach
-    assert consolidation["approach"] == "conversational_reflection"
-    assert isinstance(consolidation["narrative"], str)
-    assert len(consolidation["narrative"]) > 0
-
-
-@patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
-@patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
-@patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
 def test_gentle_refresh_accepts_query_parameter(
     mock_redis_service, mock_memgraph_service
 ):
@@ -546,5 +485,4 @@ def test_gentle_refresh_no_query_parameter(mock_redis_service, mock_memgraph_ser
     assert "time" in data
     assert "core_identity" in data
     assert "shortterm_memories" in data
-    assert "memory_consolidation" in data
     assert "recent_observations" in data
