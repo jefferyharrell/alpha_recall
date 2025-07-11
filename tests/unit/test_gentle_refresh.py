@@ -4,7 +4,9 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # Add src to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
@@ -13,6 +15,29 @@ from alpha_recall.tools.gentle_refresh import (
     gentle_refresh,
     register_gentle_refresh_tools,
 )
+
+
+@pytest.fixture(autouse=True)
+def mock_consolidation_service():
+    """Auto-mock consolidation service for all gentle_refresh tests to avoid hitting Ollama."""
+    with patch(
+        "alpha_recall.tools.gentle_refresh.consolidation_service"
+    ) as mock_service:
+        # Setup async mock for consolidate_shortterm_memories
+        mock_service.consolidate_shortterm_memories = AsyncMock(
+            return_value={
+                "success": True,
+                "narrative": "Hey there, friend! This is a mock conversational reflection for unit testing. The memories show some interesting patterns of development and collaboration.",
+                "metadata": {
+                    "input_memories_count": 5,
+                    "model_name": "llama3.2:1b",
+                    "processing_time_ms": 1500,
+                    "approach": "conversational_reflection",
+                    "response_length": 150,
+                },
+            }
+        )
+        yield mock_service
 
 
 class MockMCP:
@@ -357,6 +382,7 @@ def test_gentle_refresh_memory_consolidation_structure(
     # Setup mocks
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
+    # Note: consolidation_service is mocked globally via autouse fixture
 
     response = asyncio.run(gentle_refresh())
     data = json.loads(response)

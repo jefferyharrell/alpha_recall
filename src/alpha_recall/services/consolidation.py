@@ -234,10 +234,8 @@ What's the story here?"""
         try:
             template = template_loader.load_template("memory_consolidation.md.j2")
 
-            # Render with empty memories list to get just the system prompt
-            return template.render(
-                memories=[], time_window=time_window, template_only=True
-            )
+            # Render the system prompt template (memories are handled separately)
+            return template.render(time_window=time_window)
         except Exception as e:
             logger.error(f"Failed to render system prompt template: {e}")
             # Template loading is critical - don't silently fall back
