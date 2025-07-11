@@ -42,7 +42,7 @@ class AlphaRecallSettings(BaseSettings):
 
     # Memory Consolidation Configuration
     memory_consolidation_enabled: bool = True
-    helper_model: str = "llama3.2:1b"
+    helper_model: str = "llama3.2:3b"
     consolidation_ollama_host: str = "localhost"
     consolidation_ollama_port: int = Field(default=11434, ge=1, le=65535)
     consolidation_time_window: str = "24h"

@@ -14,18 +14,18 @@ __all__ = ["consolidate_shortterm", "register_consolidate_shortterm_tools"]
 async def consolidate_shortterm(
     time_window: str = "24h",
     model_name: str | None = None,
-    temperature: float = 0.0,
+    temperature: float | None = None,
 ) -> str:
     """Consolidate short-term memories with clean schema validation and model evaluation.
 
     This tool provides systematic evaluation of helper models for memory consolidation.
-    It uses deterministic temperature (default 0.0) for consistent testing and returns
-    detailed validation results for model performance analysis.
+    It can use deterministic temperature (0.0) for consistent testing or model default
+    temperature for more varied output.
 
     Args:
         time_window: Time window for memory retrieval (e.g., "24h", "7d", "30m")
         model_name: Optional override for helper model (for testing different models)
-        temperature: Model temperature for deterministic testing (default: 0.0)
+        temperature: Model temperature (None = use model default, 0.0 = deterministic)
 
     Returns:
         JSON string containing consolidation results or detailed failure analysis
@@ -56,6 +56,7 @@ async def consolidate_shortterm(
             "tool_version": "2.0",
             "systematic_evaluation": True,
             "deterministic_testing": temperature == 0.0,
+            "temperature_used": temperature,
         }
 
         logger.info(

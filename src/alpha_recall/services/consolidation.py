@@ -12,6 +12,7 @@ from ..logging import get_logger
 from ..schemas.consolidation import ShortTermMemory
 from ..services.redis import get_redis_service
 from ..services.template_loader import template_loader
+from ..services.tokenizer import tokenizer
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 logger = get_logger(__name__)
@@ -61,22 +62,31 @@ class ConsolidationService:
                 )
                 return self._disabled_response()
 
-            # Get recent memories and validate input
-            memories = await self._get_recent_memories_for_consolidation(time_window)
+            # Determine model to use for context optimization
+            model_to_use = model_name or settings.helper_model
+
+            # Generate system prompt template to calculate token budget
+            system_prompt_template = self._get_system_prompt_template(time_window)
+
+            # Get memories optimized for the model's context window
+            memories = await self._get_memories_for_context_budget(
+                time_window, model_to_use, system_prompt_template
+            )
 
             if not memories:
                 logger.debug("No recent memories found", correlation_id=correlation_id)
                 return self._empty_response()
 
-            # Call helper model for conversational consolidation
-            model_to_use = model_name or settings.helper_model
-            prompt = self._get_conversational_prompt(memories, time_window)
+            # Prepare system prompt and memories data for chat API
+            memories_data = "\n".join(f"{m.timestamp}: {m.content}" for m in memories)
 
             narrative_response = await self._call_helper_model(
-                prompt,
-                model_to_use,
-                temperature,
-                correlation_id,
+                prompt="",  # Not used with chat API
+                model_name=model_to_use,
+                temperature=temperature,
+                correlation_id=correlation_id,
+                system_prompt=system_prompt_template,
+                memories_data=memories_data,
             )
 
             if narrative_response is None:
@@ -209,14 +219,44 @@ Just tell me the story like you're reflecting on a day with a friend. Be express
 
 What's the story here?"""
 
+    def _get_system_prompt_template(self, time_window: str) -> str:
+        """Get the system prompt template for token budget calculation.
+
+        This returns just the instruction part of the prompt without memories,
+        so we can calculate token budget before selecting memories.
+
+        Args:
+            time_window: Time window for context
+
+        Returns:
+            System prompt template string
+        """
+        try:
+            template = template_loader.get_template("memory_consolidation.md.j2")
+
+            # Render with empty memories list to get just the system prompt
+            return template.render(
+                memories=[], time_window=time_window, template_only=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to render system prompt template: {e}")
+            # Return basic fallback system prompt
+            return f"""Hey there! You're helping Alpha reflect on the last {time_window} of experiences.
+
+Just tell me the story like you're reflecting on a day with a friend. Be expressive and exaggerate the mood and tone of the memories. What was the emotional journey? What felt important?
+
+What's the story here?"""
+
     async def _call_helper_model(
         self,
         prompt: str,
         model_name: str,
         temperature: float,
         correlation_id: str,
+        system_prompt: str = None,
+        memories_data: str = None,
     ) -> str | None:
-        """Call the helper model and return raw response."""
+        """Call the helper model using chat API with system/user message separation."""
         try:
             logger.info(
                 f"Calling helper model {model_name} (temperature: {temperature})",
@@ -228,25 +268,48 @@ What's the story here?"""
                 host=f"http://{settings.consolidation_ollama_host}:{settings.consolidation_ollama_port}"
             )
 
-            # Generate response with deterministic temperature
-            response = client.generate(
-                model=model_name,
-                prompt=prompt,
-                stream=False,
-                options={
-                    "timeout": settings.consolidation_timeout,
-                    "temperature": temperature,
-                },
-            )
+            # Prepare options with dynamic context window
+            context_window = self._get_model_context_window(model_name)
+            options = {
+                "timeout": settings.consolidation_timeout,
+                "num_ctx": context_window,
+            }
 
-            raw_response = response["response"]
-            logger.debug(
-                f"Received response from {model_name}",
-                response_length=len(raw_response),
-                correlation_id=correlation_id,
-            )
+            # Add temperature if specified (None = use model default)
+            if temperature is not None:
+                options["temperature"] = temperature
 
-            return raw_response
+            # Use chat API with system/user separation if provided
+            if system_prompt and memories_data:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": memories_data},
+                ]
+
+                response = client.chat(
+                    model=model_name,
+                    messages=messages,
+                    stream=False,
+                    options=options,
+                )
+
+                return response.get("message", {}).get("content", "").strip()
+            else:
+                # Fallback to generate API for backward compatibility
+                response = client.generate(
+                    model=model_name,
+                    prompt=prompt,
+                    stream=False,
+                    options=options,
+                )
+
+                raw_response = response["response"]
+                logger.debug(
+                    f"Received response from {model_name}",
+                    response_length=len(raw_response),
+                    correlation_id=correlation_id,
+                )
+                return raw_response.strip()
 
         except Exception as e:
             logger.error(
@@ -283,6 +346,125 @@ What's the story here?"""
             "error": error,
             "metadata": {"error_type": "model_call_failed"},
         }
+
+    # Dynamic context optimization methods
+    def _get_model_context_window(self, model_name: str) -> int:
+        """Get the context window size for the specified model.
+
+        Args:
+            model_name: Name of the model to check
+
+        Returns:
+            Context window size in tokens, defaults to 4096 if unknown
+        """
+        try:
+            # Use same client configuration as helper model calls
+            client = ollama.Client(
+                host=f"http://{settings.consolidation_ollama_host}:{settings.consolidation_ollama_port}"
+            )
+
+            model_info = client.show(model_name)
+            # Check for num_ctx parameter in model details
+            if "details" in model_info and "parameters" in model_info["details"]:
+                params = model_info["details"]["parameters"]
+                if "num_ctx" in params:
+                    context_window = int(params["num_ctx"])
+                    logger.debug(
+                        f"Retrieved context window from Ollama: {context_window} for {model_name}"
+                    )
+                    return context_window
+
+            # Default context window for common models
+            model_defaults = {
+                "llama3.2:1b": 2048,
+                "llama3.2:3b": 4096,
+                "llama3.1:8b": 32768,
+                "granite3.3:2b": 8192,
+                "granite3.3:8b": 8192,
+            }
+
+            default_context = model_defaults.get(model_name, 4096)
+            logger.debug(
+                f"Using default context window: {default_context} for {model_name}"
+            )
+            return default_context
+
+        except Exception as e:
+            logger.error(f"Failed to get context window for {model_name}: {e}")
+            # Fall back to defaults if Ollama is unreachable
+            model_defaults = {
+                "llama3.2:1b": 2048,
+                "llama3.2:3b": 4096,
+                "llama3.1:8b": 32768,
+                "granite3.3:2b": 8192,
+                "granite3.3:8b": 8192,
+            }
+            fallback_context = model_defaults.get(model_name, 4096)
+            logger.warning(
+                f"Using fallback context window: {fallback_context} for {model_name}"
+            )
+            return fallback_context
+
+    async def _get_memories_for_context_budget(
+        self,
+        time_window: str,
+        model_name: str,
+        system_prompt: str,
+    ) -> list[ShortTermMemory]:
+        """Get memories optimized for the model's context window.
+
+        Args:
+            time_window: Maximum time window to consider
+            model_name: Model name to optimize for
+            system_prompt: System prompt to account for in token budget
+
+        Returns:
+            List of memories that fit within the context budget
+        """
+        # Get model context window
+        max_context = self._get_model_context_window(model_name)
+
+        # Calculate token budget
+        system_tokens = tokenizer.count(system_prompt)
+        response_buffer = 2000  # Reserve tokens for response
+        safety_margin = 200  # Safety buffer
+
+        available_tokens = max_context - system_tokens - response_buffer - safety_margin
+
+        logger.debug(
+            "Token budget calculation",
+            max_context=max_context,
+            system_tokens=system_tokens,
+            response_buffer=response_buffer,
+            safety_margin=safety_margin,
+            available_tokens=available_tokens,
+        )
+
+        # Get all memories within time window (chronologically)
+        all_memories = await self._get_recent_memories_for_consolidation(time_window)
+
+        # Select memories that fit within token budget
+        selected_memories = []
+        token_budget = available_tokens
+
+        for memory in all_memories:  # Already sorted newest first
+            memory_tokens = tokenizer.count(memory.content)
+
+            if token_budget >= memory_tokens:
+                selected_memories.append(memory)
+                token_budget -= memory_tokens
+            else:
+                break  # Stop when we'd overflow context
+
+        logger.info(
+            "Dynamic memory selection completed",
+            total_available=len(all_memories),
+            selected_count=len(selected_memories),
+            tokens_used=available_tokens - token_budget,
+            tokens_remaining=token_budget,
+        )
+
+        return selected_memories
 
     # Utility methods from existing service
     def _parse_time_window(self, time_window: str) -> int:
