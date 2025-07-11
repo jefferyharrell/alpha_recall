@@ -240,12 +240,8 @@ What's the story here?"""
             )
         except Exception as e:
             logger.error(f"Failed to render system prompt template: {e}")
-            # Return basic fallback system prompt
-            return f"""Hey there! You're helping Alpha reflect on the last {time_window} of experiences.
-
-Just tell me the story like you're reflecting on a day with a friend. Be expressive and exaggerate the mood and tone of the memories. What was the emotional journey? What felt important?
-
-What's the story here?"""
+            # Template loading is critical - don't silently fall back
+            raise RuntimeError(f"System prompt template loading failed: {e}") from e
 
     async def _call_helper_model(
         self,
