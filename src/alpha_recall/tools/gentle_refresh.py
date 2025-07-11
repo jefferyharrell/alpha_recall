@@ -21,8 +21,9 @@ async def gentle_refresh(query: str | None = None) -> str:
     Designed to solve memory orientation problems by providing:
     1. Current time information for temporal grounding
     2. Core identity observations (natural language facts, not relationship triples)
-    3. 10 most recent short-term memories for contextual orientation
-    4. 5 most recent observations for slow-changing facts
+    3. Personality directives (behavioral instructions from personality graph)
+    4. 10 most recent short-term memories for contextual orientation
+    5. 5 most recent observations for slow-changing facts
 
     Eliminates cognitive overload from semantic search and prioritizes temporal
     orientation over semantic relevance.
@@ -34,6 +35,7 @@ async def gentle_refresh(query: str | None = None) -> str:
         JSON string containing:
         - time: Current time information
         - core_identity: Essential identity observations (observations only, no relationships)
+        - personality: Behavioral directives with confidence weights
         - shortterm_memories: 10 most recent short-term memories
         - recent_observations: 5 most recent observations
     """
@@ -76,6 +78,37 @@ async def gentle_refresh(query: str | None = None) -> str:
         except Exception as e:
             logger.error(f"Error loading core identity: {e}")
             response["core_identity"] = None
+
+        # Personality directives: Get behavioral instructions from personality graph
+        try:
+            memgraph_service = get_memgraph_service()
+            logger.info("Loading personality directives")
+
+            # Query for personality traits ordered by confidence
+            personality_query = """
+            MATCH (t:Agent_Personality_Trait)
+            RETURN t.directive as instruction, t.confidence as weight
+            ORDER BY t.confidence DESC
+            """
+
+            personality_result = list(
+                memgraph_service.db.execute_and_fetch(personality_query)
+            )
+
+            personality_directives = []
+            for row in personality_result:
+                personality_directives.append(
+                    {"instruction": row["instruction"], "weight": row["weight"]}
+                )
+
+            logger.info(
+                f"Retrieved {len(personality_directives)} personality directives"
+            )
+            response["personality"] = personality_directives
+
+        except Exception as e:
+            logger.error(f"Error loading personality directives: {e}")
+            response["personality"] = []
 
         # Short-term memories: Get 10 most recent for temporal orientation
         try:

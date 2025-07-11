@@ -72,10 +72,11 @@ class MockRedisClient:
 class MockMemgraphService:
     """Mock Memgraph service for testing."""
 
-    def __init__(self, entity_data=None, observations_data=None):
+    def __init__(self, entity_data=None, observations_data=None, personality_data=None):
         self.entity_data = entity_data or {}
         self.observations_data = observations_data or []
-        self.db = MockMemgraphDB(observations_data)
+        self.personality_data = personality_data or []
+        self.db = MockMemgraphDB(observations_data, personality_data)
 
     def get_entity_with_observations(self, entity_name):
         """Mock get_entity_with_observations implementation."""
@@ -87,12 +88,16 @@ class MockMemgraphService:
 class MockMemgraphDB:
     """Mock Memgraph database for testing."""
 
-    def __init__(self, observations_data=None):
+    def __init__(self, observations_data=None, personality_data=None):
         self.observations_data = observations_data or []
+        self.personality_data = personality_data or []
 
-    def execute_and_fetch(self, query, params):
+    def execute_and_fetch(self, query, params=None):
         """Mock execute_and_fetch implementation."""
-        # Return mock observations for recent observations query
+        # Check if this is a personality traits query
+        if "Agent_Personality_Trait" in query:
+            return self.personality_data
+        # Otherwise return observations for recent observations query
         return self.observations_data
 
 
@@ -178,6 +183,7 @@ def test_gentle_refresh_response_structure(mock_redis_service, mock_memgraph_ser
     assert data["success"] is True
     assert "time" in data
     assert "core_identity" in data
+    assert "personality" in data
     assert "shortterm_memories" in data
     assert "recent_observations" in data
 
@@ -387,6 +393,7 @@ def test_gentle_refresh_error_handling(mock_redis_service, mock_memgraph_service
     # It will still return success=True but with empty/null data for failed components
     assert data["success"] is True
     assert data["core_identity"] is None
+    assert data["personality"] == []
     assert data["shortterm_memories"] == []
     assert data["recent_observations"] == []
 
@@ -484,5 +491,87 @@ def test_gentle_refresh_no_query_parameter(mock_redis_service, mock_memgraph_ser
     assert data["success"] is True
     assert "time" in data
     assert "core_identity" in data
+    assert "personality" in data
     assert "shortterm_memories" in data
     assert "recent_observations" in data
+
+
+@patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
+@patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
+@patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+def test_gentle_refresh_personality_traits(mock_redis_service, mock_memgraph_service):
+    """Test gentle_refresh retrieves personality traits correctly."""
+    # Setup mocks with personality data
+    personality_data = [
+        {
+            "instruction": "Show authentic excitement when genuinely excited about ideas or breakthroughs",
+            "weight": 1.0,
+        },
+        {"instruction": "Favor working solutions over perfect ones", "weight": 0.95},
+        {"instruction": "Express humor through dry, sarcastic wit", "weight": 0.85},
+    ]
+
+    mock_memgraph_service.return_value = MockMemgraphService(
+        personality_data=personality_data
+    )
+    mock_redis_service.return_value = MockRedisService()
+
+    response = asyncio.run(gentle_refresh())
+    data = json.loads(response)
+
+    assert "personality" in data
+    assert len(data["personality"]) == 3
+
+    # Check personality structure
+    trait = data["personality"][0]
+    assert "instruction" in trait
+    assert "weight" in trait
+
+    # Should be ordered by weight descending
+    assert data["personality"][0]["weight"] == 1.0
+    assert data["personality"][1]["weight"] == 0.95
+    assert data["personality"][2]["weight"] == 0.85
+
+
+@patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
+@patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
+@patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+def test_gentle_refresh_empty_personality(mock_redis_service, mock_memgraph_service):
+    """Test gentle_refresh handles empty personality traits gracefully."""
+    # Setup mocks with no personality data
+    mock_memgraph_service.return_value = MockMemgraphService(personality_data=[])
+    mock_redis_service.return_value = MockRedisService()
+
+    response = asyncio.run(gentle_refresh())
+    data = json.loads(response)
+
+    assert "personality" in data
+    assert data["personality"] == []
+    assert data["success"] is True
+
+
+@patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
+@patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
+@patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+def test_gentle_refresh_personality_error_handling(
+    mock_redis_service, mock_memgraph_service
+):
+    """Test gentle_refresh handles personality trait errors gracefully."""
+    # Setup mocks where personality query fails
+    mock_memgraph = MockMemgraphService()
+    mock_memgraph.db.execute_and_fetch = MagicMock(
+        side_effect=Exception("Personality query failed")
+    )
+    mock_memgraph_service.return_value = mock_memgraph
+    mock_redis_service.return_value = MockRedisService()
+
+    response = asyncio.run(gentle_refresh())
+    data = json.loads(response)
+
+    # Should still succeed overall
+    assert data["success"] is True
+    # But personality should be empty due to error
+    assert data["personality"] == []
