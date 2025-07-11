@@ -232,7 +232,7 @@ What's the story here?"""
             System prompt template string
         """
         try:
-            template = template_loader.get_template("memory_consolidation.md.j2")
+            template = template_loader.load_template("memory_consolidation.md.j2")
 
             # Render with empty memories list to get just the system prompt
             return template.render(
