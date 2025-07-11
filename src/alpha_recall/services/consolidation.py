@@ -1,6 +1,5 @@
-"""Memory consolidation service with schema validation and systematic model evaluation."""
+"""Memory consolidation service with conversational reflection approach."""
 
-import json
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -10,12 +9,7 @@ from pydantic import ValidationError
 
 from ..config import settings
 from ..logging import get_logger
-from ..schemas.consolidation import (
-    ConsolidationInput,
-    ConsolidationOutput,
-    ConsolidationValidationError,
-    ShortTermMemory,
-)
+from ..schemas.consolidation import ShortTermMemory
 from ..services.redis import get_redis_service
 from ..services.template_loader import template_loader
 from ..utils.correlation import generate_correlation_id, set_correlation_id
@@ -24,7 +18,7 @@ logger = get_logger(__name__)
 
 
 class ConsolidationService:
-    """Memory consolidation service with systematic model evaluation capabilities."""
+    """Memory consolidation service using conversational reflection approach."""
 
     def __init__(self):
         """Initialize the consolidation service."""
@@ -36,7 +30,7 @@ class ConsolidationService:
         model_name: str | None = None,
         temperature: float = 0.0,
     ) -> dict[str, Any]:
-        """Consolidate short-term memories with clean schema validation.
+        """Consolidate short-term memories using conversational reflection.
 
         Args:
             time_window: Time window for memory retrieval (e.g., "24h", "7d", "30m")
@@ -44,7 +38,7 @@ class ConsolidationService:
             temperature: Model temperature (default 0.0 for deterministic testing)
 
         Returns:
-            Dictionary containing consolidation results or failure information
+            Dictionary containing narrative reflection or failure information
         """
         correlation_id = generate_correlation_id("consolidate")
         set_correlation_id(correlation_id)
@@ -74,106 +68,44 @@ class ConsolidationService:
                 logger.debug("No recent memories found", correlation_id=correlation_id)
                 return self._empty_response()
 
-            # Validate input schema
-            try:
-                consolidation_input = ConsolidationInput(
-                    memories=memories,
-                    time_window=time_window,
-                    consolidation_prompt=self._get_prompt_template(memories),
-                )
-            except ValidationError as e:
-                logger.error(
-                    "Input validation failed",
-                    error=str(e),
-                    correlation_id=correlation_id,
-                )
-                return self._validation_error_response("input", str(e))
-
-            # Call helper model for consolidation
+            # Call helper model for conversational consolidation
             model_to_use = model_name or settings.helper_model
-            raw_response = await self._call_helper_model(
-                consolidation_input.consolidation_prompt,
+            prompt = self._get_conversational_prompt(memories, time_window)
+
+            narrative_response = await self._call_helper_model(
+                prompt,
                 model_to_use,
                 temperature,
                 correlation_id,
             )
 
-            if raw_response is None:
+            if narrative_response is None:
                 return self._model_error_response("Helper model call failed")
-
-            # Attempt to validate output schema
-            validation_result = self._validate_model_output(
-                raw_response, correlation_id
-            )
 
             processing_time_ms = int((time.time() - start_time) * 1000)
 
-            if validation_result["success"]:
-                # Successfully validated output
-                consolidation_output = validation_result["parsed_output"]
-                consolidation_output.consolidation_metadata.update(
-                    {
-                        "processing_time_ms": processing_time_ms,
-                        "model_used": model_to_use,
-                        "temperature": temperature,
-                        "input_memories_count": len(memories),
-                        "time_window": time_window,
-                        "validation_success": True,
-                    }
-                )
+            logger.info(
+                "Conversational memory consolidation completed",
+                model=model_to_use,
+                processing_time_ms=processing_time_ms,
+                response_length=len(narrative_response),
+                correlation_id=correlation_id,
+            )
 
-                logger.info(
-                    "Memory consolidation completed successfully",
-                    model=model_to_use,
-                    processing_time_ms=processing_time_ms,
-                    entities_count=len(consolidation_output.entities),
-                    insights_count=len(consolidation_output.insights),
-                    correlation_id=correlation_id,
-                )
-
-                return {
-                    "success": True,
-                    "consolidation": consolidation_output.dict(),
-                    "metadata": {
-                        "processing_time_ms": processing_time_ms,
-                        "model_evaluation": {
-                            "model_name": model_to_use,
-                            "temperature": temperature,
-                            "validation_success": True,
-                            "structural_correctness": "valid",
-                        },
-                    },
-                    "correlation_id": correlation_id,
-                }
-
-            else:
-                # Validation failed - return debug information
-                logger.warning(
-                    "Model output validation failed",
-                    model=model_to_use,
-                    validation_errors=validation_result["errors"],
-                    correlation_id=correlation_id,
-                )
-
-                return {
-                    "success": False,
-                    "error": "Model output validation failed",
-                    "validation_errors": validation_result["errors"],
-                    "raw_model_output": raw_response,
-                    "metadata": {
-                        "processing_time_ms": processing_time_ms,
-                        "model_evaluation": {
-                            "model_name": model_to_use,
-                            "temperature": temperature,
-                            "validation_success": False,
-                            "structural_correctness": "invalid",
-                            "failure_patterns": validation_result["errors"],
-                        },
-                        "input_memories_count": len(memories),
-                        "time_window": time_window,
-                    },
-                    "correlation_id": correlation_id,
-                }
+            return {
+                "success": True,
+                "narrative": narrative_response.strip(),
+                "metadata": {
+                    "processing_time_ms": processing_time_ms,
+                    "model_name": model_to_use,
+                    "temperature": temperature,
+                    "input_memories_count": len(memories),
+                    "time_window": time_window,
+                    "response_length": len(narrative_response),
+                    "approach": "conversational_reflection",
+                },
+                "correlation_id": correlation_id,
+            }
 
         except Exception as e:
             processing_time_ms = int((time.time() - start_time) * 1000)
@@ -191,11 +123,9 @@ class ConsolidationService:
                 "error_type": type(e).__name__,
                 "metadata": {
                     "processing_time_ms": processing_time_ms,
-                    "model_evaluation": {
-                        "model_name": model_name or settings.helper_model,
-                        "validation_success": False,
-                        "structural_correctness": "error",
-                    },
+                    "model_name": model_name or settings.helper_model,
+                    "temperature": temperature,
+                    "approach": "conversational_reflection",
                 },
                 "correlation_id": correlation_id,
             }
@@ -248,85 +178,36 @@ class ConsolidationService:
             logger.error(f"Failed to get recent memories: {e}")
             return []
 
-    def _get_prompt_template(self, memories: list[ShortTermMemory]) -> str:
-        """Render the consolidation prompt template."""
+    def _get_conversational_prompt(
+        self, memories: list[ShortTermMemory], time_window: str
+    ) -> str:
+        """Render the conversational consolidation prompt template."""
         try:
             context = {
                 "memories": [
                     {"content": m.content, "timestamp": m.timestamp} for m in memories
                 ],
                 "memory_count": len(memories),
-                "model": settings.helper_model,
-                "schema_requirements": self._get_schema_requirements_text(),
+                "time_window": time_window,
             }
 
             prompt = template_loader.render_template(
                 "memory_consolidation.md.j2", context
             )
-            logger.debug("Rendered consolidation prompt template")
+            logger.debug("Rendered conversational consolidation prompt template")
             return prompt
 
         except Exception as e:
             logger.error(f"Failed to render consolidation prompt: {e}")
-            # Return a basic fallback prompt with schema requirements
-            return f"""Please consolidate these {len(memories)} memories into structured JSON matching this schema:
+            # Return a basic fallback prompt for conversational approach
+            return f"""Hey there! You're helping Alpha reflect on the last {time_window} of experiences.
 
-{self._get_schema_requirements_text()}
+Here are {len(memories)} recent memories:
+{chr(10).join(f"- {m.content} ({m.timestamp})" for m in memories)}
 
-Memories:
-{chr(10).join(f"- {m.content}" for m in memories)}
+Just tell me the story like you're reflecting on a day with a friend. Be expressive and exaggerate the mood and tone of the memories. What was the emotional journey? What felt important?
 
-Return only valid JSON."""
-
-    def _get_schema_requirements_text(self) -> str:
-        """Get human-readable schema requirements for the prompt."""
-        import json
-
-        # Generate JSON schema from Pydantic model (for future auto-generation)
-        # schema = ConsolidationOutput.model_json_schema()
-        # Create a simplified example for the prompt
-        example = {
-            "entities": [
-                {
-                    "name": "string (required)",
-                    "entity_type": "string (optional)",
-                    "description": "string (optional)",
-                    "confidence": "number 0.0-1.0 (optional, default 1.0)",
-                }
-            ],
-            "relationships": [
-                {
-                    "from_entity": "string (required)",
-                    "to_entity": "string (required)",
-                    "relationship_type": "string (required)",
-                    "description": "string (optional)",
-                    "confidence": "number 0.0-1.0 (optional, default 1.0)",
-                }
-            ],
-            "insights": [
-                {
-                    "insight": "string (required)",
-                    "category": "string (optional, default 'general')",
-                    "importance": "string (optional, one of: low|medium|high|critical)",
-                    "evidence": "array of strings (optional)",
-                }
-            ],
-            "summary": "string (optional)",
-            "emotional_context": "string (optional)",
-            "next_steps": [
-                {"action": "string (required)", "description": "string (optional)"}
-            ],
-            "consolidation_metadata": "object (optional)",
-        }
-
-        return f"""
-Required JSON structure (auto-generated from Pydantic schema):
-
-{json.dumps(example, indent=2)}
-
-All fields are required, but arrays can be empty if no relevant information is found.
-The schema is automatically validated - ensure exact structure compliance.
-        """.strip()
+What's the story here?"""
 
     async def _call_helper_model(
         self,
@@ -375,76 +256,6 @@ The schema is automatically validated - ensure exact structure compliance.
             )
             return None
 
-    def _validate_model_output(
-        self, raw_response: str, correlation_id: str
-    ) -> dict[str, Any]:
-        """Validate model output against schema and return detailed results."""
-        try:
-            # First, try to extract and parse JSON
-            json_start = raw_response.find("{")
-            json_end = raw_response.rfind("}") + 1
-
-            if json_start == -1 or json_end <= json_start:
-                return {
-                    "success": False,
-                    "errors": [
-                        ConsolidationValidationError(
-                            field="json_structure",
-                            error="No JSON found in response",
-                            expected_format="Valid JSON object with { and }",
-                        ).dict()
-                    ],
-                }
-
-            json_text = raw_response[json_start:json_end]
-
-            try:
-                parsed_json = json.loads(json_text)
-            except json.JSONDecodeError as e:
-                return {
-                    "success": False,
-                    "errors": [
-                        ConsolidationValidationError(
-                            field="json_parsing",
-                            error=f"JSON decode error: {str(e)}",
-                            expected_format="Valid JSON syntax",
-                        ).dict()
-                    ],
-                }
-
-            # Now validate against Pydantic schema
-            try:
-                consolidation_output = ConsolidationOutput(**parsed_json)
-                logger.debug(
-                    "Model output validation successful", correlation_id=correlation_id
-                )
-                return {"success": True, "parsed_output": consolidation_output}
-
-            except ValidationError as e:
-                validation_errors = []
-                for error in e.errors():
-                    validation_errors.append(
-                        ConsolidationValidationError(
-                            field=".".join(str(loc) for loc in error["loc"]),
-                            error=error["msg"],
-                            expected_format=f"Type: {error.get('type', 'unknown')}",
-                        ).dict()
-                    )
-
-                return {"success": False, "errors": validation_errors}
-
-        except Exception as e:
-            return {
-                "success": False,
-                "errors": [
-                    ConsolidationValidationError(
-                        field="validation_process",
-                        error=f"Validation process failed: {str(e)}",
-                        expected_format="Valid consolidation output schema",
-                    ).dict()
-                ],
-            }
-
     def _disabled_response(self) -> dict[str, Any]:
         """Return response when consolidation is disabled."""
         return {
@@ -457,16 +268,12 @@ The schema is automatically validated - ensure exact structure compliance.
         """Return response when no memories found."""
         return {
             "success": True,
-            "consolidation": ConsolidationOutput().dict(),
-            "metadata": {"input_memories_count": 0, "reason": "no_memories_found"},
-        }
-
-    def _validation_error_response(self, stage: str, error: str) -> dict[str, Any]:
-        """Return response for validation errors."""
-        return {
-            "success": False,
-            "error": f"Validation failed at {stage}: {error}",
-            "metadata": {"validation_stage": stage},
+            "narrative": "No recent memories found to reflect on. It's been quiet lately.",
+            "metadata": {
+                "input_memories_count": 0,
+                "reason": "no_memories_found",
+                "approach": "conversational_reflection",
+            },
         }
 
     def _model_error_response(self, error: str) -> dict[str, Any]:

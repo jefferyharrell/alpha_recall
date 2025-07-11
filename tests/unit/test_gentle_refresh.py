@@ -353,7 +353,7 @@ def test_gentle_refresh_recent_observations(mock_redis_service, mock_memgraph_se
 def test_gentle_refresh_memory_consolidation_structure(
     mock_redis_service, mock_memgraph_service
 ):
-    """Test gentle_refresh memory consolidation has correct structure."""
+    """Test gentle_refresh memory consolidation has correct conversational structure."""
     # Setup mocks
     mock_memgraph_service.return_value = MockMemgraphService()
     mock_redis_service.return_value = MockRedisService()
@@ -363,19 +363,21 @@ def test_gentle_refresh_memory_consolidation_structure(
 
     consolidation = data["memory_consolidation"]
     required_keys = [
-        "entities",
-        "relationships",
-        "insights",
-        "summary",
-        "emotional_context",
-        "next_steps",
+        "narrative",
         "processed_memories_count",
         "consolidation_timestamp",
         "model_used",
+        "processing_time_ms",
+        "approach",
     ]
 
     for key in required_keys:
         assert key in consolidation
+
+    # Verify conversational approach
+    assert consolidation["approach"] == "conversational_reflection"
+    assert isinstance(consolidation["narrative"], str)
+    assert len(consolidation["narrative"]) > 0
 
 
 @patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())

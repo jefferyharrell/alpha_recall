@@ -126,24 +126,46 @@ async def gentle_refresh(query: str | None = None) -> str:
             logger.error(f"Error retrieving short-term memories: {e}")
             response["shortterm_memories"] = []
 
-        # Memory consolidation: Process recent memories for insights
+        # Memory consolidation: Process recent memories for insights using conversational approach
         try:
             logger.info("Running memory consolidation")
-            response["memory_consolidation"] = (
-                await consolidation_service.consolidate_memories()
+            consolidation_result = (
+                await consolidation_service.consolidate_shortterm_memories(
+                    time_window="6h", temperature=0.0
+                )
             )
+
+            if consolidation_result.get("success"):
+                response["memory_consolidation"] = {
+                    "narrative": consolidation_result.get("narrative", ""),
+                    "processed_memories_count": consolidation_result.get(
+                        "metadata", {}
+                    ).get("input_memories_count", 0),
+                    "consolidation_timestamp": time_service.utc_isoformat(),
+                    "model_used": consolidation_result.get("metadata", {}).get(
+                        "model_name", "unknown"
+                    ),
+                    "processing_time_ms": consolidation_result.get("metadata", {}).get(
+                        "processing_time_ms", 0
+                    ),
+                    "approach": "conversational_reflection",
+                }
+            else:
+                response["memory_consolidation"] = {
+                    "narrative": "Memory consolidation failed",
+                    "processed_memories_count": 0,
+                    "consolidation_timestamp": time_service.utc_isoformat(),
+                    "model_used": "error",
+                    "approach": "conversational_reflection",
+                }
         except Exception as e:
             logger.error(f"Error in memory consolidation: {e}")
             response["memory_consolidation"] = {
-                "entities": [],
-                "relationships": [],
-                "insights": [],
-                "summary": "",
-                "emotional_context": "",
-                "next_steps": [],
+                "narrative": "Memory consolidation encountered an error",
                 "processed_memories_count": 0,
                 "consolidation_timestamp": time_service.utc_isoformat(),
                 "model_used": "error",
+                "approach": "conversational_reflection",
             }
 
         # Recent observations: Get 5 most recent for slow-changing facts

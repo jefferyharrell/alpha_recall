@@ -27,15 +27,21 @@ async def test_consolidate_shortterm_basic_functionality(test_stack_seeded):
         assert data["tool_metadata"]["tool_version"] == "2.0"
         assert data["tool_metadata"]["deterministic_testing"] is True
 
-        # Should have model evaluation metadata
+        # Should have conversational consolidation metadata
         assert "metadata" in data
-        assert "model_evaluation" in data["metadata"]
-        eval_metadata = data["metadata"]["model_evaluation"]
-        assert "model_name" in eval_metadata
-        assert "temperature" in eval_metadata
-        assert eval_metadata["temperature"] == 0.0
-        assert "validation_success" in eval_metadata
-        assert "structural_correctness" in eval_metadata
+        metadata = data["metadata"]
+        assert "model_name" in metadata
+        assert "temperature" in metadata
+        assert metadata["temperature"] == 0.0
+        assert "approach" in metadata
+        assert metadata["approach"] == "conversational_reflection"
+        assert "input_memories_count" in metadata
+        assert "response_length" in metadata
+
+        # Should have narrative content
+        assert "narrative" in data
+        assert isinstance(data["narrative"], str)
+        assert len(data["narrative"]) > 0
 
         # Performance validation
         from tests.e2e.fixtures.performance import collector
@@ -82,46 +88,54 @@ async def test_consolidate_shortterm_schema_validation_success(test_stack_seeded
         )
         data = json.loads(result.content[0].text)
 
-        # Analyze the results for systematic evaluation
+        # Analyze the results for conversational consolidation
         if data["success"]:
-            # Successful consolidation - validate structure
-            assert "consolidation" in data
-            consolidation = data["consolidation"]
+            # Successful consolidation - validate conversational structure
+            assert "narrative" in data
+            narrative = data["narrative"]
 
-            # Validate schema compliance
-            required_fields = [
-                "entities",
-                "relationships",
-                "insights",
-                "summary",
-                "emotional_context",
-                "next_steps",
+            # Validate conversational format
+            assert isinstance(narrative, str)
+            assert len(narrative) > 100  # Should be substantial
+
+            # Should contain conversational language
+            conversational_indicators = [
+                "hey",
+                "so",
+                "friend",
+                "tell you",
+                "feeling",
+                "like",
+                "really",
             ]
-            for field in required_fields:
-                assert field in consolidation, f"Missing required field: {field}"
+            narrative_lower = narrative.lower()
+            found_indicators = [
+                ind for ind in conversational_indicators if ind in narrative_lower
+            ]
+            assert (
+                len(found_indicators) > 0
+            ), f"Narrative should be conversational, found: {found_indicators}"
 
-            # Validate metadata
-            assert "consolidation_metadata" in consolidation
-            metadata = consolidation["consolidation_metadata"]
+            # Validate metadata structure
+            assert "metadata" in data
+            metadata = data["metadata"]
             assert "processing_time_ms" in metadata
-            assert "model_used" in metadata
-            assert "validation_success" in metadata
-            assert metadata["validation_success"] is True
+            assert "model_name" in metadata
+            assert "approach" in metadata
+            assert metadata["approach"] == "conversational_reflection"
 
-            print(f"✅ Schema validation SUCCESS - model: {metadata['model_used']}")
+            print(
+                f"✅ Conversational consolidation SUCCESS - model: {metadata['model_name']}"
+            )
         else:
-            # Failed consolidation - analyze failure patterns
-            assert "validation_errors" in data
-            assert "raw_model_output" in data
+            # Failed consolidation - show error
+            print(f"❌ Consolidation failed: {data.get('error', 'Unknown error')}")
 
-            validation_errors = data["validation_errors"]
-            print(f"❌ Schema validation FAILED - errors: {len(validation_errors)}")
-            for error in validation_errors:
-                print(f"  - Field: {error['field']}, Error: {error['error']}")
-
-        # Record evaluation results regardless of success/failure
-        eval_metadata = data["metadata"]["model_evaluation"]
-        print(f"📊 Model evaluation: {eval_metadata['structural_correctness']}")
+        # Record evaluation results
+        metadata = data.get("metadata", {})
+        print(
+            f"📊 Conversational consolidation approach: {metadata.get('approach', 'unknown')}"
+        )
 
 
 @pytest.mark.asyncio
