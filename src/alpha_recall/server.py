@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from .config import settings
 from .logging import configure_logging, get_logger
 from .tools import (
+    register_add_personality_directive_tools,
     register_browse_longterm_tools,
     register_browse_narrative_tools,
     register_browse_shortterm_tool,
@@ -47,6 +48,7 @@ def create_server():
     register_search_all_memories_tools(mcp)
     register_get_entity_tools(mcp)
     register_get_personality_trait_tools(mcp)
+    register_add_personality_directive_tools(mcp)
     register_get_relationships_tools(mcp)
     register_browse_longterm_tools(mcp)
     register_remember_narrative_tools(mcp)

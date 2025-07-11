@@ -1,5 +1,6 @@
 """Alpha-Recall MCP Tools."""
 
+from .add_personality_directive import register_add_personality_directive_tools
 from .browse_longterm import register_browse_longterm_tools
 from .browse_narrative import register_browse_narrative_tools
 from .browse_shortterm import register_browse_shortterm_tool
@@ -30,6 +31,7 @@ __all__ = [
     "register_search_longterm_tools",
     "register_get_entity_tools",
     "register_get_personality_trait_tools",
+    "register_add_personality_directive_tools",
     "register_get_relationships_tools",
     "register_browse_longterm_tools",
     "register_remember_narrative_tools",

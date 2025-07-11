@@ -24,9 +24,14 @@ services:
       - memgraph-test
       - redis-test
     command: ["python", "-m", "alpha_recall.server"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - FASTMCP_LOG_LEVEL=WARNING  # Quieter for tests
-      - LOG_LEVEL=WARNING
+      - LOG_LEVEL=INFO  # More verbose for log assertions
       - LOG_FORMAT=json  # Structured logs for test parsing
       - MEMGRAPH_URI=bolt://memgraph-test:7687
       - REDIS_URI=redis://redis-test:6379/0
