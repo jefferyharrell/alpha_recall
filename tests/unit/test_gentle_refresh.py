@@ -94,8 +94,8 @@ class MockMemgraphDB:
 
     def execute_and_fetch(self, query, params=None):
         """Mock execute_and_fetch implementation."""
-        # Check if this is a personality traits query
-        if "Agent_Personality_Trait" in query:
+        # Check if this is a personality traits query (hierarchical or flat)
+        if "Agent_Personality" in query or "Personality_Trait" in query:
             return self.personality_data
         # Otherwise return observations for recent observations query
         return self.observations_data
@@ -393,7 +393,7 @@ def test_gentle_refresh_error_handling(mock_redis_service, mock_memgraph_service
     # It will still return success=True but with empty/null data for failed components
     assert data["success"] is True
     assert data["core_identity"] is None
-    assert data["personality"] == []
+    assert data["personality"] == {}
     assert data["shortterm_memories"] == []
     assert data["recent_observations"] == []
 
@@ -501,15 +501,30 @@ def test_gentle_refresh_no_query_parameter(mock_redis_service, mock_memgraph_ser
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
 @patch("alpha_recall.tools.gentle_refresh.get_redis_service")
 def test_gentle_refresh_personality_traits(mock_redis_service, mock_memgraph_service):
-    """Test gentle_refresh retrieves personality traits correctly."""
-    # Setup mocks with personality data
+    """Test gentle_refresh retrieves hierarchical personality traits correctly."""
+    # Setup mocks with hierarchical personality data
     personality_data = [
         {
-            "instruction": "Show authentic excitement when genuinely excited about ideas or breakthroughs",
-            "weight": 1.0,
+            "trait_name": "intellectual_engagement",
+            "trait_description": "Curiosity and thoughtful interaction",
+            "trait_weight": 1.0,
+            "directive_instruction": "Ask thoughtful follow-up questions and show genuine curiosity",
+            "directive_weight": 1.0,
         },
-        {"instruction": "Favor working solutions over perfect ones", "weight": 0.95},
-        {"instruction": "Express humor through dry, sarcastic wit", "weight": 0.85},
+        {
+            "trait_name": "intellectual_engagement",
+            "trait_description": "Curiosity and thoughtful interaction",
+            "trait_weight": 1.0,
+            "directive_instruction": "Share genuine opinions rather than neutral responses",
+            "directive_weight": 0.85,
+        },
+        {
+            "trait_name": "communication_style",
+            "trait_description": "How to express ideas and humor",
+            "trait_weight": 0.85,
+            "directive_instruction": "Express humor through dry, sarcastic wit",
+            "directive_weight": 0.85,
+        },
     ]
 
     mock_memgraph_service.return_value = MockMemgraphService(
@@ -521,17 +536,30 @@ def test_gentle_refresh_personality_traits(mock_redis_service, mock_memgraph_ser
     data = json.loads(response)
 
     assert "personality" in data
-    assert len(data["personality"]) == 3
+    assert (
+        len(data["personality"]) == 2
+    )  # Two traits: intellectual_engagement and communication_style
 
-    # Check personality structure
-    trait = data["personality"][0]
-    assert "instruction" in trait
-    assert "weight" in trait
+    # Check hierarchical personality structure
+    assert "intellectual_engagement" in data["personality"]
+    assert "communication_style" in data["personality"]
 
-    # Should be ordered by weight descending
-    assert data["personality"][0]["weight"] == 1.0
-    assert data["personality"][1]["weight"] == 0.95
-    assert data["personality"][2]["weight"] == 0.85
+    # Check trait structure
+    intellectual_trait = data["personality"]["intellectual_engagement"]
+    assert "description" in intellectual_trait
+    assert "weight" in intellectual_trait
+    assert "directives" in intellectual_trait
+    assert len(intellectual_trait["directives"]) == 2
+
+    # Check directive structure
+    directive = intellectual_trait["directives"][0]
+    assert "instruction" in directive
+    assert "weight" in directive
+
+    # Should be ordered by trait weight descending
+    traits_by_order = list(data["personality"].keys())
+    assert traits_by_order[0] == "intellectual_engagement"  # weight 1.0
+    assert traits_by_order[1] == "communication_style"  # weight 0.85
 
 
 @patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
@@ -548,7 +576,7 @@ def test_gentle_refresh_empty_personality(mock_redis_service, mock_memgraph_serv
     data = json.loads(response)
 
     assert "personality" in data
-    assert data["personality"] == []
+    assert data["personality"] == {}
     assert data["success"] is True
 
 
@@ -574,4 +602,4 @@ def test_gentle_refresh_personality_error_handling(
     # Should still succeed overall
     assert data["success"] is True
     # But personality should be empty due to error
-    assert data["personality"] == []
+    assert data["personality"] == {}

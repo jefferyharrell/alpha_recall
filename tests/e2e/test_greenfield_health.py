@@ -102,7 +102,7 @@ async def test_gentle_refresh_with_empty_database(test_stack):
         assert "recent_observations" in data
 
         # With empty databases, these should be empty
-        assert data["personality"] == []
+        assert data["personality"] == {}
         assert data["shortterm_memories"] == []
         assert data["recent_observations"] == []
 

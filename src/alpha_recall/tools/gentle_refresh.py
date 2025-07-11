@@ -79,36 +79,65 @@ async def gentle_refresh(query: str | None = None) -> str:
             logger.error(f"Error loading core identity: {e}")
             response["core_identity"] = None
 
-        # Personality directives: Get behavioral instructions from personality graph
+        # Personality directives: Get hierarchical behavioral instructions from personality graph
         try:
             memgraph_service = get_memgraph_service()
-            logger.info("Loading personality directives")
+            logger.info("Loading hierarchical personality structure")
 
-            # Query for personality traits ordered by confidence
+            # Graph traversal query: Agent_Personality -> Traits -> Directives
             personality_query = """
-            MATCH (t:Agent_Personality_Trait)
-            RETURN t.directive as instruction, t.confidence as weight
-            ORDER BY t.confidence DESC
+            MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)
+            RETURN trait.name as trait_name,
+                   trait.description as trait_description,
+                   trait.weight as trait_weight,
+                   directive.instruction as directive_instruction,
+                   directive.weight as directive_weight
+            ORDER BY trait.weight DESC, directive.weight DESC
             """
 
             personality_result = list(
                 memgraph_service.db.execute_and_fetch(personality_query)
             )
 
-            personality_directives = []
+            # Build hierarchical personality structure
+            personality_traits = {}
             for row in personality_result:
-                personality_directives.append(
-                    {"instruction": row["instruction"], "weight": row["weight"]}
+                trait_name = row["trait_name"]
+
+                # Initialize trait if not seen before
+                if trait_name not in personality_traits:
+                    personality_traits[trait_name] = {
+                        "description": row["trait_description"],
+                        "weight": row["trait_weight"],
+                        "directives": [],
+                    }
+
+                # Add directive to trait
+                personality_traits[trait_name]["directives"].append(
+                    {
+                        "instruction": row["directive_instruction"],
+                        "weight": row["directive_weight"],
+                    }
                 )
 
-            logger.info(
-                f"Retrieved {len(personality_directives)} personality directives"
+            # Sort traits by weight for consistent ordering
+            sorted_traits = dict(
+                sorted(
+                    personality_traits.items(),
+                    key=lambda x: x[1]["weight"],
+                    reverse=True,
+                )
             )
-            response["personality"] = personality_directives
+
+            logger.info(
+                f"Retrieved {len(sorted_traits)} personality traits with "
+                f"{sum(len(trait['directives']) for trait in sorted_traits.values())} total directives"
+            )
+            response["personality"] = sorted_traits
 
         except Exception as e:
             logger.error(f"Error loading personality directives: {e}")
-            response["personality"] = []
+            response["personality"] = {}
 
         # Short-term memories: Get 10 most recent for temporal orientation
         try:
