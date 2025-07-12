@@ -61,22 +61,10 @@ async def gentle_refresh(query: str | None = None) -> str:
             identity_facts = redis_service.get_identity_facts()
 
             if identity_facts:
-                # Convert identity facts to observations format for backward compatibility
-                observations = []
-                for fact in identity_facts:
-                    observations.append(
-                        {
-                            "id": f"identity_fact_{fact['position']}",
-                            "content": fact["content"],
-                            "created_at": "2025-07-12T14:00:00.000000",  # Placeholder timestamp
-                        }
-                    )
-
                 core_identity_structured = {
                     "name": core_identity_node,
                     "updated_at": "2025-07-12T14:00:00.000000+00:00",  # Placeholder timestamp
                     "identity_facts": identity_facts,  # New Redis-based structure
-                    "observations": observations,  # Backward compatibility
                 }
                 response["core_identity"] = core_identity_structured
                 logger.info(f"Loaded {len(identity_facts)} identity facts from Redis")
