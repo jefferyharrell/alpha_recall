@@ -12,6 +12,7 @@ from .get_personality import register_get_personality_tools
 from .get_personality_trait import register_get_personality_trait_tools
 from .get_relationships import register_get_relationships_tools
 from .health import register_health_tools
+from .prose_refresh import register_prose_refresh_tools
 from .recall_narrative import register_recall_narrative_tools
 from .relate_longterm import register_relate_longterm_tools
 from .remember_longterm import register_remember_longterm_tools
@@ -29,6 +30,7 @@ from .update_personality_directive_weight import (
 __all__ = [
     "register_health_tools",
     "register_gentle_refresh_tools",
+    "register_prose_refresh_tools",
     "register_add_identity_fact_tools",
     "register_update_identity_fact_tools",
     "register_remember_shortterm_tool",
