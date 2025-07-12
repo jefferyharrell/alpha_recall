@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from .config import settings
 from .logging import configure_logging, get_logger
 from .tools import (
+    register_add_identity_fact_tools,
     register_add_personality_directive_tools,
     register_browse_longterm_tools,
     register_browse_narrative_tools,
@@ -27,6 +28,7 @@ from .tools import (
     register_search_longterm_tools,
     register_search_narratives_tools,
     register_search_shortterm_tool,
+    register_update_identity_fact_tools,
     register_update_personality_directive_weight_tools,
 )
 from .version import __version__
@@ -42,6 +44,8 @@ def create_server():
     # Register all tool modules
     register_health_tools(mcp)
     register_gentle_refresh_tools(mcp)
+    register_add_identity_fact_tools(mcp)
+    register_update_identity_fact_tools(mcp)
     register_remember_shortterm_tool(mcp)
     register_browse_shortterm_tool(mcp)
     register_search_shortterm_tool(mcp)

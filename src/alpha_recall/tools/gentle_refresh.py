@@ -52,32 +52,70 @@ async def gentle_refresh(query: str | None = None) -> str:
         # Get current time for temporal orientation
         response["time"] = await time_service.now_async()
 
-        # Core identity: Get observations only (no relationship triples)
+        # Core identity: Get dynamic identity facts from Redis
         core_identity_node = settings.core_identity_node
-        logger.info(f"Loading core identity: {core_identity_node}")
+        logger.info("Loading dynamic identity facts from Redis")
 
         try:
-            memgraph_service = get_memgraph_service()
-            core_identity_entity = memgraph_service.get_entity_with_observations(
-                core_identity_node
-            )
+            redis_service = get_redis_service()
+            identity_facts = redis_service.get_identity_facts()
 
-            if core_identity_entity:
-                # Only include observations, skip relationships to avoid analysis mode
-                core_identity_filtered = {
-                    "name": core_identity_entity.get("name", core_identity_node),
-                    "updated_at": core_identity_entity.get("updated_at"),
-                    "observations": core_identity_entity.get("observations", []),
-                    # Deliberately exclude relationships to focus on identity facts
+            if identity_facts:
+                # Convert identity facts to observations format for backward compatibility
+                observations = []
+                for fact in identity_facts:
+                    observations.append(
+                        {
+                            "id": f"identity_fact_{fact['position']}",
+                            "content": fact["content"],
+                            "created_at": "2025-07-12T14:00:00.000000",  # Placeholder timestamp
+                        }
+                    )
+
+                core_identity_structured = {
+                    "name": core_identity_node,
+                    "updated_at": "2025-07-12T14:00:00.000000+00:00",  # Placeholder timestamp
+                    "identity_facts": identity_facts,  # New Redis-based structure
+                    "observations": observations,  # Backward compatibility
                 }
-                response["core_identity"] = core_identity_filtered
+                response["core_identity"] = core_identity_structured
+                logger.info(f"Loaded {len(identity_facts)} identity facts from Redis")
             else:
-                logger.warning(f"Core identity node '{core_identity_node}' not found")
-                response["core_identity"] = None
+                # Fallback to Memgraph if no Redis facts exist yet
+                logger.info("No Redis identity facts found, falling back to Memgraph")
+
+                memgraph_service = get_memgraph_service()
+                core_identity_entity = memgraph_service.get_entity_with_observations(
+                    core_identity_node
+                )
+
+                if core_identity_entity:
+                    # Only include observations, skip relationships to avoid analysis mode
+                    core_identity_filtered = {
+                        "name": core_identity_entity.get("name", core_identity_node),
+                        "updated_at": core_identity_entity.get("updated_at"),
+                        "observations": core_identity_entity.get("observations", []),
+                        "identity_facts": [],  # Empty for Memgraph fallback
+                        # Deliberately exclude relationships to focus on identity facts
+                    }
+                    response["core_identity"] = core_identity_filtered
+                else:
+                    logger.warning("No identity data found in Redis or Memgraph")
+                    response["core_identity"] = {
+                        "name": core_identity_node,
+                        "updated_at": None,
+                        "identity_facts": [],
+                        "observations": [],
+                    }
 
         except Exception as e:
             logger.error(f"Error loading core identity: {e}")
-            response["core_identity"] = None
+            response["core_identity"] = {
+                "name": core_identity_node,
+                "updated_at": None,
+                "identity_facts": [],
+                "observations": [],
+            }
 
         # Personality directives: Get hierarchical behavioral instructions from personality graph
         try:
@@ -119,8 +157,10 @@ async def gentle_refresh(query: str | None = None) -> str:
                     }
 
                 # Add directive to trait (only if directive exists and weight != 0.0)
-                if (row["directive_instruction"] is not None and 
-                    row["directive_weight"] != 0.0):
+                if (
+                    row["directive_instruction"] is not None
+                    and row["directive_weight"] != 0.0
+                ):
                     personality_traits[trait_name]["directives"].append(
                         {
                             "instruction": row["directive_instruction"],

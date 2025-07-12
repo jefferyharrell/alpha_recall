@@ -148,6 +148,11 @@ class MockRedisService:
     def __init__(self, memory_data=None):
         self.client = MockRedisClient(memory_data)
 
+    def get_identity_facts(self):
+        """Mock get_identity_facts implementation."""
+        # Return empty list by default for unit tests
+        return []
+
 
 class MockSettings:
     """Mock settings for testing."""
@@ -277,7 +282,13 @@ def test_gentle_refresh_missing_core_identity(
     data = json.loads(response)
 
     assert data["success"] is True
-    assert data["core_identity"] is None
+    # With the new Redis-based identity system, we return a structured object
+    # instead of None, even when no identity facts exist
+    assert data["core_identity"] is not None
+    assert data["core_identity"]["name"] == "Alpha Core Identity"
+    assert data["core_identity"]["identity_facts"] == []
+    assert data["core_identity"]["observations"] == []
+    assert data["core_identity"]["updated_at"] is None
 
 
 @patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
@@ -392,7 +403,10 @@ def test_gentle_refresh_error_handling(mock_redis_service, mock_memgraph_service
     # gentle_refresh is designed to handle partial failures gracefully
     # It will still return success=True but with empty/null data for failed components
     assert data["success"] is True
-    assert data["core_identity"] is None
+    # With Redis identity system, core_identity returns structured data even on failure
+    assert data["core_identity"] is not None
+    assert data["core_identity"]["identity_facts"] == []
+    assert data["core_identity"]["observations"] == []
     assert data["personality"] == {}
     assert data["shortterm_memories"] == []
     assert data["recent_observations"] == []
@@ -457,8 +471,11 @@ def test_gentle_refresh_custom_core_identity_node(
         data = json.loads(response)
 
         assert data["success"] is True
-        # Should attempt to load custom identity node (will be None since not mocked)
-        assert data["core_identity"] is None
+        # Should attempt to load custom identity node (will have empty structure since not mocked)
+        assert data["core_identity"] is not None
+        assert data["core_identity"]["name"] == "Custom Identity"
+        assert data["core_identity"]["identity_facts"] == []
+        assert data["core_identity"]["observations"] == []
 
 
 def test_gentle_refresh_return_type():

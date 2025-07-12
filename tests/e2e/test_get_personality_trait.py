@@ -298,7 +298,9 @@ async def test_get_personality_trait_consistency_with_gentle_refresh(test_stack)
 
             # Verify directive counts match (gentle_refresh filters 0.0 weights, get_personality_trait doesn't)
             # So we filter the get_personality_trait results to match gentle_refresh behavior
-            non_zero_directives = [d for d in trait_data["trait"]["directives"] if d["weight"] != 0.0]
+            non_zero_directives = [
+                d for d in trait_data["trait"]["directives"] if d["weight"] != 0.0
+            ]
             assert len(non_zero_directives) == len(trait_summary["directives"])
 
             # Verify directive content matches (only compare non-zero weight directives)

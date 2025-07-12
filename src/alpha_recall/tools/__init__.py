@@ -1,5 +1,6 @@
 """Alpha-Recall MCP Tools."""
 
+from .add_identity_fact import register_add_identity_fact_tools
 from .add_personality_directive import register_add_personality_directive_tools
 from .browse_longterm import register_browse_longterm_tools
 from .browse_narrative import register_browse_narrative_tools
@@ -20,6 +21,7 @@ from .search_all_memories import register_search_all_memories_tools
 from .search_longterm import register_search_longterm_tools
 from .search_narratives import register_search_narratives_tools
 from .search_shortterm import register_search_shortterm_tool
+from .update_identity_fact import register_update_identity_fact_tools
 from .update_personality_directive_weight import (
     register_update_personality_directive_weight_tools,
 )
@@ -27,6 +29,8 @@ from .update_personality_directive_weight import (
 __all__ = [
     "register_health_tools",
     "register_gentle_refresh_tools",
+    "register_add_identity_fact_tools",
+    "register_update_identity_fact_tools",
     "register_remember_shortterm_tool",
     "register_browse_shortterm_tool",
     "register_search_shortterm_tool",
