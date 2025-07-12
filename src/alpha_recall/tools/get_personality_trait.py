@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.memgraph import get_memgraph_service
+from ..services.time import time_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["get_personality_trait", "register_get_personality_trait_tools"]
@@ -81,25 +82,69 @@ def get_personality_trait(trait_name: str) -> str:
         # Build response from query results
         # Since all rows have the same trait info, we can use the first row for trait details
         first_row = result[0]
+
+        # Convert datetime objects to proper UTC ISO format for JSON serialization
+        trait_created_at = first_row["trait_created_at"]
+        if trait_created_at is None:
+            trait_created_at_str = None
+        else:
+            # Convert standard datetime objects to pendulum if needed
+            if hasattr(trait_created_at, "year") and not hasattr(
+                trait_created_at, "in_timezone"
+            ):
+                import pendulum
+
+                trait_created_at = pendulum.instance(trait_created_at)
+            trait_created_at_str = time_service.to_utc_isoformat(trait_created_at)
+
+        trait_last_updated = first_row["trait_last_updated"]
+        if trait_last_updated is None:
+            trait_last_updated_str = None
+        else:
+            # Convert standard datetime objects to pendulum if needed
+            if hasattr(trait_last_updated, "year") and not hasattr(
+                trait_last_updated, "in_timezone"
+            ):
+                import pendulum
+
+                trait_last_updated = pendulum.instance(trait_last_updated)
+            trait_last_updated_str = time_service.to_utc_isoformat(trait_last_updated)
+
         trait_info = {
             "success": True,
             "trait": {
                 "name": first_row["trait_name"],
                 "description": first_row["trait_description"],
                 "weight": first_row["trait_weight"],
-                "created_at": first_row["trait_created_at"],
-                "last_updated": first_row["trait_last_updated"],
+                "created_at": trait_created_at_str,
+                "last_updated": trait_last_updated_str,
                 "directives": [],
             },
         }
 
         # Add all directives (already ordered by weight DESC)
         for row in result:
+            # Convert directive datetime to proper UTC ISO format
+            directive_created_at = row["directive_created_at"]
+            if directive_created_at is None:
+                directive_created_at_str = None
+            else:
+                # Convert standard datetime objects to pendulum if needed
+                if hasattr(directive_created_at, "year") and not hasattr(
+                    directive_created_at, "in_timezone"
+                ):
+                    import pendulum
+
+                    directive_created_at = pendulum.instance(directive_created_at)
+                directive_created_at_str = time_service.to_utc_isoformat(
+                    directive_created_at
+                )
+
             trait_info["trait"]["directives"].append(
                 {
                     "instruction": row["directive_instruction"],
                     "weight": row["directive_weight"],
-                    "created_at": row["directive_created_at"],
+                    "created_at": directive_created_at_str,
                 }
             )
 

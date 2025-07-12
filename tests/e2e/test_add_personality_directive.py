@@ -21,6 +21,25 @@ async def test_add_personality_directive_success(test_stack):
         # First ensure personality traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
 
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
+
         # Add a new directive to warmth trait
         result = await time_mcp_call(
             client,
@@ -90,6 +109,25 @@ async def test_add_personality_directive_duplicate_detection(test_stack):
     async with Client(server_url) as client:
         # Ensure traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
+
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
 
         # Add a directive
         unique_instruction = (
@@ -240,6 +278,25 @@ async def test_add_personality_directive_boundary_weights(test_stack):
         # Ensure traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
 
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
+
         # Test weight 0.0
         result = await time_mcp_call(
             client,
@@ -283,6 +340,25 @@ async def test_add_personality_directive_instruction_trimming(test_stack):
     async with Client(server_url) as client:
         # Ensure traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
+
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
 
         # Add directive with padded whitespace
         padded_instruction = (
@@ -331,6 +407,25 @@ async def test_add_personality_directive_response_structure(test_stack):
     async with Client(server_url) as client:
         # Ensure traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
+
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
 
         # Test success response structure
         result = await time_mcp_call(
@@ -382,6 +477,25 @@ async def test_add_personality_directive_parameter_safety(test_stack):
     async with Client(server_url) as client:
         # Ensure traits are initialized
         await time_mcp_call(client, "gentle_refresh", {})
+
+        # Create the warmth trait first (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
 
         # Test with special characters that could be problematic
         special_instructions = [

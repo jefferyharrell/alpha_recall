@@ -17,27 +17,44 @@ from tests.e2e.fixtures.performance import performance_test, time_mcp_call
 async def test_get_personality_trait_existing_trait(test_stack):
     """Test retrieving an existing personality trait through MCP protocol.
 
-    Uses greenfield test stack since personality traits should be created
-    during server initialization via gentle_refresh mechanism.
+    Uses greenfield test stack - creates a test trait and directive first.
     """
     server_url = test_stack
     async with Client(server_url) as client:
-        # First call gentle_refresh to ensure personality traits are initialized
+        # First call gentle_refresh to ensure system is initialized
         refresh_result = await time_mcp_call(client, "gentle_refresh", {})
         refresh_data = json.loads(refresh_result.content[0].text)
 
         assert refresh_data["success"] is True
         assert "personality" in refresh_data
 
-        # Get list of available traits from gentle_refresh
-        personality_traits = refresh_data["personality"]
-        assert (
-            len(personality_traits) > 0
-        ), "Should have personality traits from gentle_refresh"
+        # Create a test trait for this test (E2E uses fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "test_warmth",
+                "description": "Caring and empathetic behavioral patterns for testing",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        assert create_data["success"] is True
 
-        # Pick a known trait (warmth should exist from our hierarchical structure)
-        trait_names = list(personality_traits.keys())
-        test_trait = "warmth" if "warmth" in trait_names else trait_names[0]
+        # Add a directive to the trait
+        directive_result = await time_mcp_call(
+            client,
+            "add_personality_directive",
+            {
+                "trait_name": "test_warmth",
+                "instruction": "Show empathy and understanding in conversations",
+                "weight": 0.9,
+            },
+        )
+        directive_data = json.loads(directive_result.content[0].text)
+        assert directive_data["success"] is True
+
+        test_trait = "test_warmth"
 
         # Test get_personality_trait
         result = await time_mcp_call(
@@ -128,6 +145,44 @@ async def test_get_personality_trait_warmth_trait_specific(test_stack):
     async with Client(server_url) as client:
         # Initialize traits
         await time_mcp_call(client, "gentle_refresh", {})
+
+        # Create warmth trait with warmth-specific directive (E2E tests use fresh database)
+        create_result = await time_mcp_call(
+            client,
+            "create_personality_trait",
+            {
+                "trait_name": "warmth",
+                "description": "Caring and empathetic behavioral patterns",
+                "weight": 0.8,
+            },
+        )
+        create_data = json.loads(create_result.content[0].text)
+        # Allow trait to already exist (other tests may have created it)
+        if not create_data["success"] and "already exists" not in create_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth trait: {create_data.get('error')}"
+            )
+
+        # Add a warmth-specific directive that contains expected terms
+        directive_result = await time_mcp_call(
+            client,
+            "add_personality_directive",
+            {
+                "trait_name": "warmth",
+                "instruction": "Show genuine care and support for others, celebrate their successes with enthusiasm",
+                "weight": 0.9,
+            },
+        )
+        directive_data = json.loads(directive_result.content[0].text)
+        # Allow directive to already exist
+        if not directive_data["success"] and "already exists" not in directive_data.get(
+            "error", ""
+        ):
+            raise AssertionError(
+                f"Failed to create warmth directive: {directive_data.get('error')}"
+            )
 
         # Test specific warmth trait (should exist from our hierarchical structure)
         result = await time_mcp_call(

@@ -6,6 +6,7 @@ from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.memgraph import get_memgraph_service
+from ..services.time import time_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["add_personality_directive", "register_add_personality_directive_tools"]
@@ -167,12 +168,17 @@ def add_personality_directive(
 
         created_directive = result[0]
 
-        # Convert datetime to string for JSON serialization
+        # Convert datetime to proper UTC ISO format for JSON serialization
         created_at = created_directive["directive_created_at"]
-        if hasattr(created_at, "isoformat"):
-            created_at_str = created_at.isoformat() + "Z"
+        if created_at is None:
+            created_at_str = None
         else:
-            created_at_str = str(created_at)
+            # Convert standard datetime objects to pendulum if needed
+            if hasattr(created_at, "year") and not hasattr(created_at, "in_timezone"):
+                import pendulum
+
+                created_at = pendulum.instance(created_at)
+            created_at_str = time_service.to_utc_isoformat(created_at)
 
         # Build success response
         response = {

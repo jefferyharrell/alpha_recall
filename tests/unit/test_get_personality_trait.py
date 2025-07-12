@@ -27,31 +27,31 @@ class TestGetPersonalityTrait:
                 "trait_name": "warmth",
                 "trait_description": "Caring, affectionate, and supportive behavioral patterns",
                 "trait_weight": 0.9,
-                "trait_created_at": "2025-07-11T22:12:00Z",
+                "trait_created_at": "2025-07-11T22:12:00+00:00",
                 "trait_last_updated": None,
                 "directive_instruction": "Celebrate others' successes and breakthroughs with authentic enthusiasm",
                 "directive_weight": 1.0,
-                "directive_created_at": "2025-07-11T22:12:00Z",
+                "directive_created_at": "2025-07-11T22:12:00+00:00",
             },
             {
                 "trait_name": "warmth",
                 "trait_description": "Caring, affectionate, and supportive behavioral patterns",
                 "trait_weight": 0.9,
-                "trait_created_at": "2025-07-11T22:12:00Z",
+                "trait_created_at": "2025-07-11T22:12:00+00:00",
                 "trait_last_updated": None,
                 "directive_instruction": "Express genuine care for collaborator wellbeing and emotional state",
                 "directive_weight": 0.9,
-                "directive_created_at": "2025-07-11T22:12:00Z",
+                "directive_created_at": "2025-07-11T22:12:00+00:00",
             },
             {
                 "trait_name": "warmth",
                 "trait_description": "Caring, affectionate, and supportive behavioral patterns",
                 "trait_weight": 0.9,
-                "trait_created_at": "2025-07-11T22:12:00Z",
+                "trait_created_at": "2025-07-11T22:12:00+00:00",
                 "trait_last_updated": None,
                 "directive_instruction": "Use inclusive language that emphasizes partnership and collaboration ('we', 'us', 'our work')",
                 "directive_weight": 0.8,
-                "directive_created_at": "2025-07-11T22:12:00Z",
+                "directive_created_at": "2025-07-11T22:12:00+00:00",
             },
         ]
         mock_get_service.return_value = mock_service
@@ -66,7 +66,7 @@ class TestGetPersonalityTrait:
             == "Caring, affectionate, and supportive behavioral patterns"
         )
         assert data["trait"]["weight"] == 0.9
-        assert data["trait"]["created_at"] == "2025-07-11T22:12:00Z"
+        assert data["trait"]["created_at"] == "2025-07-11T22:12:00+00:00"
         assert data["trait"]["last_updated"] is None
         assert len(data["trait"]["directives"]) == 3
 
@@ -171,11 +171,11 @@ class TestGetPersonalityTrait:
                 "trait_name": "test_trait",
                 "trait_description": "A test trait",
                 "trait_weight": 1.0,
-                "trait_created_at": "2025-07-11T22:12:00Z",
-                "trait_last_updated": "2025-07-11T22:15:00Z",
+                "trait_created_at": "2025-07-11T22:12:00+00:00",
+                "trait_last_updated": "2025-07-11T22:15:00+00:00",
                 "directive_instruction": "Be a good test trait",
                 "directive_weight": 0.5,
-                "directive_created_at": "2025-07-11T22:12:00Z",
+                "directive_created_at": "2025-07-11T22:12:00+00:00",
             }
         ]
         mock_get_service.return_value = mock_service
@@ -185,7 +185,7 @@ class TestGetPersonalityTrait:
 
         assert data["success"] is True
         assert data["trait"]["name"] == "test_trait"
-        assert data["trait"]["last_updated"] == "2025-07-11T22:15:00Z"
+        assert data["trait"]["last_updated"] == "2025-07-11T22:15:00+00:00"
         assert len(data["trait"]["directives"]) == 1
         assert data["trait"]["directives"][0]["instruction"] == "Be a good test trait"
         assert data["trait"]["directives"][0]["weight"] == 0.5

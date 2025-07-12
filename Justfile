@@ -120,8 +120,18 @@ test-unit:
     uv run --group test pytest tests/unit/ -n 4 -v
 
 test-e2e:
-    @echo "Running e2e tests serially with fail-fast..."
-    uv run --group test pytest tests/e2e/ -v -s --maxfail=1
+    @echo "Running e2e tests in proper order: warm-up → greenfield → seeded → personality..."
+    uv run --group test pytest \
+        tests/e2e/test_greenfield_health.py \
+        tests/e2e/test_seeded_longterm_memory.py \
+        tests/e2e/test_seeded_shortterm_memory.py \
+        tests/e2e/test_seeded_narrative_memory.py \
+        tests/e2e/test_seeded_search_all_memories.py \
+        tests/e2e/test_personality_workflow.py \
+        tests/e2e/test_add_personality_directive.py \
+        tests/e2e/test_get_personality_trait.py \
+        tests/e2e/test_get_personality.py \
+        -v -s --maxfail=1
 
 # Export dependencies to requirements.txt
 export-requirements:

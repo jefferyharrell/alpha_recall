@@ -34,7 +34,7 @@ class TestAddPersonalityDirective:
                 {  # Successful creation
                     "directive_instruction": "Be empathetic in conversations",
                     "directive_weight": 0.8,
-                    "directive_created_at": "2025-07-11T16:00:00Z",
+                    "directive_created_at": "2025-07-11T16:00:00+00:00",
                     "trait_name": "warmth",
                     "trait_description": "Caring behavioral patterns",
                 }
@@ -273,7 +273,7 @@ class TestAddPersonalityDirective:
                 {  # Creation result
                     "directive_instruction": "Trimmed instruction",
                     "directive_weight": 0.5,
-                    "directive_created_at": "2025-07-11T16:00:00Z",
+                    "directive_created_at": "2025-07-11T16:00:00+00:00",
                     "trait_name": "warmth",
                     "trait_description": "Caring patterns",
                 }
@@ -327,7 +327,9 @@ class TestAddPersonalityDirective:
 
         assert data["success"] is True
         # Should be converted to ISO format string with Z suffix
-        assert data["directive_added"]["created_at"] == "2025-07-11T16:30:45.123456Z"
+        assert (
+            data["directive_added"]["created_at"] == "2025-07-11T16:30:45.123456+00:00"
+        )
 
     @patch("alpha_recall.tools.add_personality_directive.get_memgraph_service")
     def test_add_personality_directive_parameter_binding_safety(self, mock_get_service):
