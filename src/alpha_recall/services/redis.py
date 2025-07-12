@@ -10,6 +10,7 @@ import redis
 
 from ..config import settings
 from ..logging import get_logger
+from ..services.time import time_service
 from ..utils.correlation import (
     create_child_correlation_id,
     get_correlation_id,
@@ -633,7 +634,7 @@ class RedisService:
                 "fact": fact,
                 "score": score,
                 "position": position,
-                "created_at": datetime.utcnow().isoformat() + "+00:00",
+                "created_at": time_service.now()["iso_datetime"],
                 "updated": is_update,
             }
 
