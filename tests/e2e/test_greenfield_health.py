@@ -88,23 +88,22 @@ async def test_mcp_server_startup_and_health(test_stack):
 
 @pytest.mark.asyncio
 async def test_gentle_refresh_with_empty_database(test_stack):
-    """Test gentle_refresh works with completely empty databases."""
+    """Test gentle_refresh handles completely empty databases gracefully."""
     server_url = test_stack
     async with Client(server_url) as client:
         result = await client.call_tool("gentle_refresh")
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert "time" in data
-        assert "core_identity" in data
-        assert "personality" in data
-        assert "shortterm_memories" in data
-        assert "recent_observations" in data
+        # With empty databases, gentle_refresh should return initialization error
+        assert isinstance(response_text, str)
+        assert response_text.startswith("INITIALIZATION ERROR")
+        assert "missing critical components" in response_text
+        assert "identity facts (Redis)" in response_text
+        assert "personality configuration (Memgraph)" in response_text
 
-        # With empty databases, these should be empty
-        assert data["personality"] == {}
-        assert data["shortterm_memories"] == []
-        assert data["recent_observations"] == []
+        # Should provide helpful guidance
+        assert "add_identity_fact tool" in response_text
+        assert "create_personality_trait tool" in response_text
 
 
 @pytest.mark.asyncio

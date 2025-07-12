@@ -19,7 +19,6 @@ from .tools import (
     register_get_personality_trait_tools,
     register_get_relationships_tools,
     register_health_tools,
-    register_prose_refresh_tools,
     register_recall_narrative_tools,
     register_relate_longterm_tools,
     register_remember_longterm_tools,
@@ -45,7 +44,6 @@ def create_server():
     # Register all tool modules
     register_health_tools(mcp)
     register_gentle_refresh_tools(mcp)
-    register_prose_refresh_tools(mcp)
     register_add_identity_fact_tools(mcp)
     register_update_identity_fact_tools(mcp)
     register_remember_shortterm_tool(mcp)

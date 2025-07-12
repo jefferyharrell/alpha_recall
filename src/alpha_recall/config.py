@@ -37,9 +37,6 @@ class AlphaRecallSettings(BaseSettings):
     emotional_embedding_model: str = "ng3owb/sentiment-embedding-model"
     inference_device: str | None = None
 
-    # Core Configuration
-    core_identity_node: str = "Alpha Core Identity"
-
     # Alpha-Reminiscer Configuration
     reminiscer_enabled: bool = False
     reminiscer_ollama_host: str = "localhost"

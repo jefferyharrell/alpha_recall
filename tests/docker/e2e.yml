@@ -38,7 +38,6 @@ services:
       - REDIS_TTL=2000000
       - SEMANTIC_EMBEDDING_MODEL=sentence-transformers/all-mpnet-base-v2
       - EMOTIONAL_EMBEDDING_MODEL=ng3owb/sentiment-embedding-model
-      - CORE_IDENTITY_NODE=Alpha Core Identity Test
       - MCP_TRANSPORT=streamable-http
       - HOST=0.0.0.0
       - PORT=8000
