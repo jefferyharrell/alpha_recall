@@ -12,7 +12,7 @@ from src.alpha_recall.tools.get_personality import get_personality
 @pytest.fixture
 def mock_memgraph_service():
     """Mock MemgraphService for testing."""
-    with patch("src.alpha_recall.tools.get_personality.MemgraphService") as mock:
+    with patch("src.alpha_recall.tools.get_personality.get_memgraph_service") as mock:
         # Mock the db property and execute_and_fetch method
         mock_db = Mock()
         mock.return_value.db = mock_db
@@ -332,7 +332,7 @@ def test_get_personality_correlation_id_generation():
     """Test get_personality generates proper correlation IDs."""
     with (
         patch(
-            "src.alpha_recall.tools.get_personality.MemgraphService"
+            "src.alpha_recall.tools.get_personality.get_memgraph_service"
         ) as mock_memgraph,
         patch("src.alpha_recall.tools.get_personality.time_service") as mock_time,
         patch(
@@ -381,9 +381,7 @@ def test_get_personality_cypher_query_structure(
         "OPTIONAL MATCH (trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)"
         in query
     )
-    assert (
-        "ORDER BY trait.name, directive.weight DESC, directive.created_at ASC" in query
-    )
+    assert "ORDER BY trait.name, directive.weight DESC" in query
     assert "RETURN trait.name as trait_name" in query
     assert "directive.instruction as directive_instruction" in query
 
@@ -411,7 +409,7 @@ def test_get_personality_parameter_safety():
 
     with (
         patch(
-            "src.alpha_recall.tools.get_personality.MemgraphService"
+            "src.alpha_recall.tools.get_personality.get_memgraph_service"
         ) as mock_memgraph,
         patch("src.alpha_recall.tools.get_personality.time_service") as mock_time,
     ):

@@ -89,7 +89,11 @@ class TestGetPersonalityTrait:
         params = call_args[0][1]
 
         assert (
-            "MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait {name: $trait_name})-[:HAS_DIRECTIVE]->(directive:Personality_Directive)"
+            "MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait {name: $trait_name})"
+            in query
+        )
+        assert (
+            "OPTIONAL MATCH (trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)"
             in query
         )
         assert "ORDER BY directive.weight DESC" in query

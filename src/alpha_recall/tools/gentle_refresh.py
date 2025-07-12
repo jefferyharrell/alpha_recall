@@ -86,7 +86,8 @@ async def gentle_refresh(query: str | None = None) -> str:
 
             # Graph traversal query: Agent_Personality -> Traits -> Directives
             personality_query = """
-            MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)
+            MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait)
+            OPTIONAL MATCH (trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)
             RETURN trait.name as trait_name,
                    trait.description as trait_description,
                    trait.weight as trait_weight,
@@ -112,13 +113,14 @@ async def gentle_refresh(query: str | None = None) -> str:
                         "directives": [],
                     }
 
-                # Add directive to trait
-                personality_traits[trait_name]["directives"].append(
-                    {
-                        "instruction": row["directive_instruction"],
-                        "weight": row["directive_weight"],
-                    }
-                )
+                # Add directive to trait (only if directive exists)
+                if row["directive_instruction"] is not None:
+                    personality_traits[trait_name]["directives"].append(
+                        {
+                            "instruction": row["directive_instruction"],
+                            "weight": row["directive_weight"],
+                        }
+                    )
 
             # Sort traits by weight for consistent ordering
             sorted_traits = dict(

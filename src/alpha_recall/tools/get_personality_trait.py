@@ -38,7 +38,8 @@ def get_personality_trait(trait_name: str) -> str:
         # any Agent_Personality through HAS_TRAIT relationship to our specific trait,
         # then through HAS_DIRECTIVE relationships to get all associated directives
         query = """
-        MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait {name: $trait_name})-[:HAS_DIRECTIVE]->(directive:Personality_Directive)
+        MATCH (root:Agent_Personality)-[:HAS_TRAIT]->(trait:Personality_Trait {name: $trait_name})
+        OPTIONAL MATCH (trait)-[:HAS_DIRECTIVE]->(directive:Personality_Directive)
         RETURN trait.name as trait_name,
                trait.description as trait_description,
                trait.weight as trait_weight,
@@ -124,29 +125,31 @@ def get_personality_trait(trait_name: str) -> str:
 
         # Add all directives (already ordered by weight DESC)
         for row in result:
-            # Convert directive datetime to proper UTC ISO format
-            directive_created_at = row["directive_created_at"]
-            if directive_created_at is None:
-                directive_created_at_str = None
-            else:
-                # Convert standard datetime objects to pendulum if needed
-                if hasattr(directive_created_at, "year") and not hasattr(
-                    directive_created_at, "in_timezone"
-                ):
-                    import pendulum
+            # Only add directive if it exists (with OPTIONAL MATCH, directive fields could be NULL)
+            if row["directive_instruction"] is not None:
+                # Convert directive datetime to proper UTC ISO format
+                directive_created_at = row["directive_created_at"]
+                if directive_created_at is None:
+                    directive_created_at_str = None
+                else:
+                    # Convert standard datetime objects to pendulum if needed
+                    if hasattr(directive_created_at, "year") and not hasattr(
+                        directive_created_at, "in_timezone"
+                    ):
+                        import pendulum
 
-                    directive_created_at = pendulum.instance(directive_created_at)
-                directive_created_at_str = time_service.to_utc_isoformat(
-                    directive_created_at
+                        directive_created_at = pendulum.instance(directive_created_at)
+                    directive_created_at_str = time_service.to_utc_isoformat(
+                        directive_created_at
+                    )
+
+                trait_info["trait"]["directives"].append(
+                    {
+                        "instruction": row["directive_instruction"],
+                        "weight": row["directive_weight"],
+                        "created_at": directive_created_at_str,
+                    }
                 )
-
-            trait_info["trait"]["directives"].append(
-                {
-                    "instruction": row["directive_instruction"],
-                    "weight": row["directive_weight"],
-                    "created_at": directive_created_at_str,
-                }
-            )
 
         directive_count = len(trait_info["trait"]["directives"])
         logger.info(

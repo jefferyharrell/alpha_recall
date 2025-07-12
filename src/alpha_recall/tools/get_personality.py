@@ -5,7 +5,7 @@ import json
 from fastmcp import FastMCP
 
 from ..logging import get_logger
-from ..services.memgraph import MemgraphService
+from ..services.memgraph import get_memgraph_service
 from ..services.time import time_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
@@ -31,7 +31,7 @@ def get_personality() -> str:
     )
 
     try:
-        memgraph_service = MemgraphService()
+        memgraph_service = get_memgraph_service()
 
         # Query to get all personality traits and their directives
         query = """
@@ -45,7 +45,7 @@ def get_personality() -> str:
                directive.instruction as directive_instruction,
                directive.weight as directive_weight,
                directive.created_at as directive_created_at
-        ORDER BY trait.name, directive.weight DESC, directive.created_at ASC
+        ORDER BY trait.name, directive.weight DESC
         """
 
         logger.debug(

@@ -112,8 +112,8 @@ pre-commit:
 
 test:
     @echo "Running all tests (parallel unit tests → serial e2e tests)..."
-    uv run --group test pytest tests/unit/ -n 4 -v
-    uv run --group test pytest tests/e2e/ -v --maxfail=1
+    just test-unit
+    just test-e2e
 
 test-unit:
     @echo "Running unit tests in parallel..."
