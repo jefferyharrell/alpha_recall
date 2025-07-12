@@ -104,17 +104,23 @@ async def gentle_refresh(query: str | None = None) -> str:
             personality_traits = {}
             for row in personality_result:
                 trait_name = row["trait_name"]
+                trait_weight = row["trait_weight"]
+
+                # Skip traits with weight of exactly 0.0
+                if trait_weight == 0.0:
+                    continue
 
                 # Initialize trait if not seen before
                 if trait_name not in personality_traits:
                     personality_traits[trait_name] = {
                         "description": row["trait_description"],
-                        "weight": row["trait_weight"],
+                        "weight": trait_weight,
                         "directives": [],
                     }
 
-                # Add directive to trait (only if directive exists)
-                if row["directive_instruction"] is not None:
+                # Add directive to trait (only if directive exists and weight != 0.0)
+                if (row["directive_instruction"] is not None and 
+                    row["directive_weight"] != 0.0):
                     personality_traits[trait_name]["directives"].append(
                         {
                             "instruction": row["directive_instruction"],
