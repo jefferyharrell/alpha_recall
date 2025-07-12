@@ -592,7 +592,7 @@ class RedisService:
         start_time = time.perf_counter()
 
         try:
-            identity_key = "identity_facts:alpha"
+            identity_key = "identity_facts"
 
             # Check if fact already exists
             existing_score = self.client.zscore(identity_key, fact)
@@ -667,7 +667,7 @@ class RedisService:
         start_time = time.perf_counter()
 
         try:
-            identity_key = "identity_facts:alpha"
+            identity_key = "identity_facts"
 
             # Check if fact exists
             old_score = self.client.zscore(identity_key, fact)
@@ -739,7 +739,7 @@ class RedisService:
         start_time = time.perf_counter()
 
         try:
-            identity_key = "identity_facts:alpha"
+            identity_key = "identity_facts"
 
             # Get all facts with scores
             facts_with_scores = self.client.zrange(identity_key, 0, -1, withscores=True)

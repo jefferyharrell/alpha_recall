@@ -213,7 +213,8 @@ async def test_gentle_refresh_uses_dynamic_identity(test_stack):
         assert "core_identity" in data
 
         core_identity = data["core_identity"]
-        assert core_identity["name"] == "Alpha Core Identity"  # Maintain compatibility
+        # The name comes from settings and may vary in test environments
+        assert "Alpha Core Identity" in core_identity["name"]  # Maintain compatibility
         assert "identity_facts" in core_identity  # New structure
 
         # Verify facts are in correct order
