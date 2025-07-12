@@ -41,9 +41,8 @@ just check-format         # Check formatting without changing files
 just lint                 # Run Ruff linter
 just lint-fix             # Run Ruff linter with auto-fix
 just pre-commit           # Run all pre-commit hooks manually
-just test                 # Run all tests (unit → integration → e2e)
+just test                 # Run all tests (unit → e2e)
 just test-unit            # Run only unit tests
-just test-integration     # Run only integration tests
 just test-e2e             # Run only e2e tests
 
 # Container management
@@ -96,6 +95,80 @@ uv run pre-commit run --all-files
 
 All formatting and linting must pass before commits are allowed.
 
+# Architecture Overview
+
+Alpha-Recall is a **MCP (Model Context Protocol) server** implementing a three-silo memory architecture for AI agents. Built with **FastMCP 2.0**, it provides persistent memory capabilities across short-term, long-term, and narrative memory systems.
+
+## Core Design
+
+### Three-Silo Memory Architecture
+- **Short-term Memory (STM)**: Redis-backed with 2-megasecond TTL, dual embedding pipeline (semantic + emotional)
+- **Long-term Memory (LTM)**: Memgraph graph database for entity-observation-relationship knowledge
+- **Narrative Memory (NM)**: Hybrid Redis+Memgraph storage for experiential stories with emotional context
+- **Unified Search**: `search_all_memories` tool searches across all systems with merged, score-sorted results
+
+### MCP Server Implementation
+Built using **FastMCP 2.0** with modular tool registration. Each tool module follows a standardized pattern:
+
+```python
+def tool_function_name() -> str:
+    """Tool implementation."""
+    pass
+
+def register_module_tools(mcp: FastMCP) -> None:
+    """Register this module's tools."""
+    mcp.tool(tool_function_name)
+```
+
+### Embedding Service Architecture
+Dual embedding models with smart device detection:
+- **Semantic**: `sentence-transformers/all-mpnet-base-v2` (768 dimensions)
+- **Emotional**: `ng3owb/sentiment-embedding-model` (1024 dimensions)
+- **Device Support**: Apple Silicon MPS, CUDA, CPU fallback
+- **Performance**: Lazy loading, correlation ID tracing, detailed metrics
+
+## Key Tools
+
+### Essential Memory Tools
+- **`gentle_refresh`**: Temporal orientation tool providing current time, core identity, recent memories, and context in prose format
+- **`search_all_memories`**: Unified search across all memory systems (STM, LTM, NM, entities)
+- **`remember_shortterm`**: Store ephemeral memories with 2-megasecond TTL
+- **`remember_longterm`**: Store persistent entity observations
+- **`remember_narrative`**: Store experiential stories with emotional context
+
+### Search Tools
+- **`search_shortterm`**: Semantic and emotional search of recent memories
+- **`search_longterm`**: Semantic search of entity observations
+- **`search_narratives`**: Semantic and emotional search of narrative memories
+
+### Entity Management Tools
+- **`get_entity`**: Retrieve specific entities by name
+- **`get_relationships`**: Explore entity relationships
+- **`relate_longterm`**: Create relationships between entities
+- **`browse_longterm`**: Explore the knowledge graph
+
+## Gentle Refresh Tool Architecture
+
+The `gentle_refresh` tool provides temporal orientation for AI agents with comprehensive context in **prose format** (not JSON):
+
+### Core Functionality
+- **Current Time Information**: UTC and local times with automatic timezone detection
+- **Core Identity**: Dynamic identity facts stored in Redis (no hardcoded configuration)
+- **Personality Traits**: Dynamic personality system with traits and directives
+- **Recent Memories**: 10 most recent short-term memories for context
+- **Recent Observations**: 5 most recent entity observations
+
+### Redis-First Architecture
+- **No Configuration Required**: Identity facts are dynamically stored in Redis
+- **No Fallback Logic**: Clean architecture with clear error messages for uninitialized systems
+- **Graceful Degradation**: Returns helpful error messages if core components are missing
+
+### Timezone Detection System
+- **Geolocation-Based**: Uses IP geolocation for automatic timezone detection
+- **Multi-Provider Reliability**: Fallback chain of worldtimeapi.org → ipinfo.io → ipapi.co
+- **Portable Docker Deployment**: No filesystem mounting required
+- **Travel Adaptation**: Automatically detects new timezone when location changes
+
 # Logging and Observability
 
 ## Correlation IDs for Request Tracing
@@ -135,288 +208,7 @@ All logging uses **structlog** with rich contextual data:
 
 Example log entries include business metrics, not just debug strings.
 
-# Architecture Overview
-
-## Core Design
-
-Alpha-Recall implements a **three-silo memory architecture** for AI agents:
-
-1. **Long-term Memory** (Memgraph-backed) - Structured entity relationships and persistent knowledge
-2. **Short-term Memory** (Redis-backed) - Ephemeral memories with TTL expiration
-3. **Narrative Memory** (Hybrid storage) - Experiential stories using both graph and vector storage
-
-The system is built as an **MCP (Model Context Protocol) server** using FastMCP 2.0, exposing memory operations as tools to AI chat clients.
-
-## Current Architecture Diagram
-
-```mermaid
-graph TD
-    Client[MCP Client] --> Server[FastMCP Server]
-
-    Server --> Health[health_check tool]
-    Server --> STMMemory[remember_shortterm tool]
-    Server --> STMBrowse[browse_shortterm tool]
-    Server --> STMSearch[search_shortterm tool]
-    Server --> LTMMemory[remember_longterm tool]
-    Server --> LTMRelate[relate_longterm tool]
-    Server --> LTMSearch[search_longterm tool]
-    Server --> LTMGetEntity[get_entity tool]
-    Server --> LTMGetRel[get_relationships tool]
-    Server --> LTMBrowse[browse_longterm tool]
-
-    STMMemory --> EmbedSvc[EmbeddingService]
-    STMBrowse --> EmbedSvc
-    STMSearch --> EmbedSvc
-    LTMSearch --> EmbedSvc
-    EmbedSvc --> Semantic[Semantic Model<br/>all-mpnet-base-v2<br/>768 dimensions]
-    EmbedSvc --> Emotional[Emotional Model<br/>sentiment-embedding-model<br/>1024 dimensions]
-
-    STMMemory --> Redis[(Redis<br/>Short-term Memory)]
-    STMBrowse --> Redis
-    STMSearch --> Redis
-
-    LTMMemory --> Memgraph[(Memgraph<br/>Long-term Memory)]
-    LTMRelate --> Memgraph
-    LTMSearch --> Memgraph
-    LTMGetEntity --> Memgraph
-    LTMGetRel --> Memgraph
-    LTMBrowse --> Memgraph
-
-    Health --> Status[Health Status JSON]
-
-    subgraph "Future Connections (Coming Soon)"
-        Vector[(Vector DB<br/>Narrative Memory)]
-    end
-
-    subgraph "Embedding Pipeline"
-        EmbedSvc
-        Semantic
-        Emotional
-    end
-
-    subgraph "Short-term Memory (STM)"
-        STMMemory
-        STMBrowse
-        STMSearch
-    end
-
-    subgraph "Long-term Memory (LTM)"
-        LTMMemory
-        LTMRelate
-        LTMSearch
-        LTMGetEntity
-        LTMGetRel
-        LTMBrowse
-    end
-
-    style STMMemory fill:#e1f5fe
-    style STMBrowse fill:#e1f5fe
-    style STMSearch fill:#e1f5fe
-    style LTMMemory fill:#fff3e0
-    style LTMRelate fill:#fff3e0
-    style LTMSearch fill:#fff3e0
-    style LTMGetEntity fill:#fff3e0
-    style LTMGetRel fill:#fff3e0
-    style LTMBrowse fill:#fff3e0
-    style EmbedSvc fill:#f3e5f5
-    style Redis fill:#e8f5e8
-    style Memgraph fill:#e8f5e8
-    style Vector fill:#e8f5e8
-```
-
-**Current State (v2.0)**:
-- **Short-term Memory**: `remember_shortterm`, `browse_shortterm`, and `search_shortterm` tools fully functional with Redis storage and dual embedding pipeline
-- **Long-term Memory**: Complete LTM tool suite with Memgraph integration:
-  - `remember_longterm`, `relate_longterm`, `search_longterm` - Core LTM operations
-  - `get_entity`, `get_relationships`, `browse_longterm` - LTM browsing and exploration
-- **Narrative Memory**: Full narrative memory system with hybrid Redis+Memgraph storage:
-  - `remember_narrative`, `search_narratives`, `recall_narrative`, `browse_narrative` - Complete narrative tools
-  - Dual embedding pipeline (semantic + emotional) with vector search
-- **Unified Search**: `search_all_memories` - The crown jewel tool that searches across all memory systems with unified results
-
-## Key Components
-
-### Server Architecture (`src/alpha_recall/server.py`)
-- **FastMCP Server**: Main MCP server using FastMCP 2.0
-- **Tool Registration**: Modular tool registration system
-- **Transport Options**: Supports both SSE and streamable-HTTP transports
-- **Environment Configuration**: Uses Pydantic Settings for configuration
-
-### Tool Module Pattern (`src/alpha_recall/tools/`)
-All MCP tools follow this standardized pattern:
-
-```python
-"""Tool module description."""
-
-from fastmcp import FastMCP
-from ..logging import get_logger
-
-__all__ = ["tool_function_name", "register_module_tools"]
-
-def tool_function_name() -> str:
-    """Tool docstring."""
-    # Tool implementation here
-    pass
-
-def register_module_tools(mcp: FastMCP) -> None:
-    """Register this module's tools with the MCP server."""
-    logger = get_logger("tools.module_name")
-
-    # Register tools defined at module level
-    mcp.tool(tool_function_name)
-
-    logger.debug("Tools registered")
-```
-
-**Key Requirements:**
-- Tool functions are defined at module level for direct import and testing
-- Each tool module MUST declare `__all__` including both tool functions and registration function
-- Use the `register_{module}_tools` naming convention
-- Registration functions use `mcp.tool(function_name)` to register module-level tools
-- Each module gets its own logger namespace
-
-**Current Tool Structure:**
-- `health.py` - Health check with comprehensive diagnostics and correlation IDs
-- `gentle_refresh.py` - Temporal orientation tool with geolocation-based timezone detection
-- `remember_shortterm.py`, `browse_shortterm.py`, `search_shortterm.py` - STM operations
-- `remember_longterm.py`, `relate_longterm.py`, `search_longterm.py` - Core LTM operations
-- `get_entity.py`, `get_relationships.py`, `browse_longterm.py` - LTM browsing and exploration
-- `remember_narrative.py`, `search_narratives.py`, `recall_narrative.py`, `browse_narrative.py` - Narrative memory tools
-- `search_all_memories.py` - Unified search across all memory systems
-
-### EmbeddingService (`src/alpha_recall/services/embedding.py`)
-- **Dual Model Support**: Semantic (all-mpnet-base-v2, 768d) and emotional (sentiment-embedding-model, 1024d)
-- **Smart Device Detection**: Automatic Apple Silicon GPU detection with CPU fallback
-- **Eager Loading**: Models loaded at startup for consistent performance
-- **Correlation ID Integration**: Full request tracing through embedding pipeline
-- **Performance Monitoring**: Detailed timing and throughput metrics
-- **sentence-transformers v5.0.0**: Latest version with significant performance improvements
-
-### GeolocationService (`src/alpha_recall/services/geolocation.py`)
-- **IP-Based Timezone Detection**: Clean alternative to filesystem mounting for portable Docker deployment
-- **Multi-Provider Fallback**: worldtimeapi.org → ipinfo.io → ipapi.co for reliability
-- **Caching System**: Session-based timezone caching to prevent excessive API calls
-- **Free Service Usage**: Well within free tier limits for normal usage patterns
-- **Automatic Travel Adaptation**: Timezone automatically updates based on location without configuration
-- **Graceful Degradation**: Falls back to UTC if all geolocation services fail
-
-### TimeService (`src/alpha_recall/services/time.py`)
-- **Dual Interface**: Both sync (`now()`) and async (`now_async()`) methods for different contexts
-- **Proper UTC Handling**: Container runs in UTC, local timezone determined via geolocation
-- **Comprehensive Time Data**: ISO timestamps, human-readable formats, timezone metadata, Unix timestamps
-- **Geolocation Integration**: Async version uses GeolocationService for dynamic timezone detection
-- **Event Loop Aware**: Handles both sync and async calling contexts appropriately
-
-### Configuration (`src/alpha_recall/config.py`)
-- **Pydantic Settings**: Type-safe configuration with validation
-- **Environment Variables**: Auto-loads from `.env` file
-- **Transport Configuration**: MCP transport and networking settings
-- **Database URIs**: Memgraph, Redis, and embedding service endpoints
-
-### Testing Architecture
-
-**Docker-Based E2E Testing**: Tests spin up real infrastructure using Docker Compose:
-
-```python
-@pytest.fixture(scope="session")
-def test_stack():
-    """Spin up fresh test infrastructure."""
-    # Start docker-compose stack
-    # Wait for MCP server to be ready
-    # Yield server URL
-    # Clean up automatically
-```
-
-**Two Test Layers:**
-- `tests/unit/` - Fast unit tests for individual components (fully mocked, no database connections)
-- `tests/e2e/` - Full MCP protocol testing via isolated Docker stack (`tests/docker/e2e.yml`)
-
-**MCP Client Testing**: Uses `fastmcp.Client` for authentic MCP protocol testing:
-
-```python
-async with Client(server_url) as client:
-    result = await client.call_tool("health_check", {})
-    health_data = json.loads(result.content[0].text)
-```
-
-**E2E Testing Strategy:**
-- Tests spin up fresh Docker stack with isolated databases
-- Extended 90-second timeout for model downloads during first run
-- Authentic MCP protocol testing, not mocked interfaces
-- Focus on behavior verification: "Does search work?" not implementation details
-
-## Memory System Architecture
-
-### Current Implementation (v2.0)
-- **Health Check Tool**: Comprehensive server health monitoring with correlation IDs
-- **Short-term Memory Tools**: `remember_shortterm`, `browse_shortterm`, `search_shortterm` with Redis storage and dual embedding pipeline
-- **Long-term Memory Tools**: Complete LTM suite with Memgraph integration:
-  - `remember_longterm`, `relate_longterm`, `search_longterm` - Core operations
-  - `get_entity`, `get_relationships`, `browse_longterm` - Browsing and exploration
-- **Narrative Memory Tools**: Full narrative memory system with hybrid Redis+Memgraph storage:
-  - `remember_narrative`, `search_narratives`, `recall_narrative`, `browse_narrative` - Complete suite
-  - Dual embedding pipeline (semantic + emotional) with vector search
-- **Unified Search**: `search_all_memories` - Cross-system search across STM, LTM, NM, and entities
-- **EmbeddingService**: Dual embedding generation (semantic + emotional) with sentence-transformers v5.0.0
-- **Performance**: 1,090 tokens/sec semantic, 612 tokens/sec emotional in containerized environment
-- **Observability**: Full correlation ID tracing and structured logging
-- **Quality**: Ruff linting, pre-commit hooks, comprehensive test coverage
-
-### Key Tools for AI Development
-
-#### Essential Memory Tools
-- **`gentle_refresh`**: Temporal orientation tool providing current time, core identity, recent memories, and context
-- **`search_all_memories`**: The crown jewel - unified search across all memory systems (STM, LTM, NM, entities)
-- **`remember_shortterm`**: Store ephemeral memories with 2-megasecond TTL
-- **`remember_longterm`**: Store persistent entity observations
-- **`remember_narrative`**: Store experiential stories with emotional context
-- **`search_shortterm`**: Semantic and emotional search of recent memories
-- **`search_longterm`**: Semantic search of entity observations
-- **`search_narratives`**: Semantic and emotional search of narrative memories
-
-#### Entity Management Tools
-- **`get_entity`**: Retrieve specific entities by name
-- **`get_relationships`**: Explore entity relationships
-- **`relate_longterm`**: Create relationships between entities
-- **`browse_longterm`**: Explore the knowledge graph
-
-#### Narrative Memory Tools
-- **`recall_narrative`**: Retrieve complete narrative stories
-- **`browse_narrative`**: Explore narrative collections
-
-## Gentle Refresh Tool Architecture
-
-The `gentle_refresh` tool provides temporal orientation for AI agents with comprehensive context:
-
-### Core Functionality
-- **Current Time Information**: UTC and local times with proper timezone handling
-- **Core Identity**: Essential identity observations (Alpha Core Identity entity)
-- **Recent Memories**: 10 most recent short-term memories for context
-- **Memory Consolidation**: Placeholder for Alpha-Snooze integration
-- **Recent Observations**: 5 most recent entity observations
-
-### Timezone Detection System
-- **Geolocation-Based**: Uses IP geolocation for automatic timezone detection
-- **Multi-Provider Reliability**: Fallback chain of worldtimeapi.org → ipinfo.io → ipapi.co
-- **Portable Docker Deployment**: No filesystem mounting required - works anywhere
-- **Travel Adaptation**: Automatically detects new timezone when location changes
-- **Proper UTC Handling**: Container runs in UTC, local timezone calculated dynamically
-
-### Key Design Decisions
-- **Async Implementation**: Tool is async to support geolocation API calls
-- **Correlation ID Tracing**: Full request tracing for debugging
-- **Graceful Degradation**: Falls back to UTC if geolocation fails
-- **Session Caching**: Timezone cached per session to avoid excessive API calls
-- **No Configuration Required**: Zero-config timezone detection
-
-### Usage Pattern
-```python
-# Returns comprehensive context for AI temporal orientation
-result = await gentle_refresh()
-# Contains: time, core_identity, shortterm_memories, memory_consolidation, recent_observations
-```
-
-## Development Workflow
+# Development Workflow
 
 ## MCP Client Restart Requirement
 
@@ -439,38 +231,25 @@ result = await gentle_refresh()
 
 Use manual MCP client testing for final validation and user experience verification, but rely on automated tests for development iteration.
 
-### Code Standards
-- **Formatting**: Black (line length 88) + isort with black profile
-- **Linting**: Ruff for fast, comprehensive Python linting
-- **Pre-commit**: Automated formatting and validation
-- **Type Hints**: Full type annotation expected
+## Testing Strategy
 
-### Testing Strategy
+### Two-Tier Testing Architecture
+- **Unit Tests** (`tests/unit/`): Fast, isolated component testing with full mocking
+- **E2E Tests** (`tests/e2e/`): Full MCP protocol testing with Docker infrastructure
 
-#### **Two-Tier Testing Architecture**
-- **Unit Tests**: Fast, isolated component testing with full mocking
-- **E2E Tests**: Full MCP protocol testing with Docker infrastructure (covers integration scenarios)
-
-#### **Parallel vs Serial Execution**
+### Parallel vs Serial Execution
 - **Unit Tests**: Run in parallel with `pytest -n 4` for 4x speedup (~98 seconds for 109 tests)
 - **E2E Tests**: Run serially due to shared Docker infrastructure
 - **Sweet Spot**: `-n 4` balances speed with memory usage (each worker uses ~3GB for embedding models)
 
-#### **E2E Test Data Strategy**
+### E2E Test Data Strategy
 **Philosophical Approach**: Test against realistic, populated databases rather than empty ones. The "fresh install" scenario happens once; ongoing operation happens daily.
 
 **Two E2E Test Categories:**
 1. **Greenfield Tests** (`test_greenfield_*.py`): Minimal tests for bootstrap scenarios
-   - Fresh database connectivity
-   - Empty search results return gracefully
-   - First memory storage works
 2. **Seeded Data Tests** (`test_seeded_*.py`): Main test suite against realistic data
-   - Comprehensive mock data with extreme scenarios for semantic/emotional clustering
-   - Predictable entities and relationships for assertion testing
-   - Cross-system integration (STM ↔ LTM ↔ NM references)
 
-#### **Mock Data Design**
-**Located in `/mock_data/`:**
+**Mock Data Design** (`/mock_data/`):
 - `stm_test_data.json`: 20 development memories with emotional clustering
 - `ltm_test_data.json`: 8 entities with dynamic language and extreme scenarios
 - `nm_test_data.json`: 5 epic collaboration narratives with cross-references
@@ -481,14 +260,15 @@ Use manual MCP client testing for final validation and user experience verificat
 - **Realistic scenarios**: Based on actual Alpha-Recall development experiences
 - **Cross-referenced**: Entities appear in narratives, memories reference relationships
 
-#### **Testing Best Practices**
+### Testing Best Practices
 - **Behavior Verification**: Focus on "Does search work?" not implementation details
 - **No Production Pollution**: All tests use isolated environments or mocks
 - **MCP Protocol Testing**: E2E tests use `fastmcp.Client` for authentic protocol testing
 - **Predictable Assertions**: Seeded data enables specific outcome testing
 - **Performance Awareness**: Memory-intensive tests run with controlled parallelization
 
-### Container Development
+# Container Development
+
 - **Docker Compose**: Full stack development environment with memgraph + redis
 - **Service Isolation**: Individual service start/stop/restart (`just up redis`, `just down memgraph`)
 - **Volume Mounting**: Live code reloading with `./src` mounted to `/app/src`
@@ -496,33 +276,6 @@ Use manual MCP client testing for final validation and user experience verificat
 - **Port Configuration**: Configurable ports for multi-environment testing
 - **Internal Networking**: Services communicate via `memgraph:7687` and `redis:6379` internally
 - **Security**: Ports bound to localhost only for development safety
-
-## Important Notes
-
-### Git Commit Attribution
-When making commits, include co-authorship: `Co-Authored-By: Alpha <jeffery.harrell+alpha@gmail.com>`
-
-### FastMCP 2.0 Migration
-This codebase uses FastMCP 2.0 patterns. Key differences from 1.x:
-- Streamable HTTP transport support
-- Improved tool registration patterns
-- Better async handling
-
-### Environment Variables
-Critical environment variables (all optional with defaults):
-- `MEMGRAPH_URI`: Graph database connection (default: bolt://localhost:7687)
-- `REDIS_URI`: Short-term memory storage (default: redis://localhost:6379)
-- `MCP_TRANSPORT`: "sse" or "streamable-http" (default: "sse")
-- `ALPHA_RECALL_DEV_PORT`: Development server port (default: 19005)
-- `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL" (default: "INFO")
-- `LOG_FORMAT`: "rich", "json", or "rich_json" (default: "rich")
-- `SEMANTIC_EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
-- `EMOTIONAL_EMBEDDING_MODEL`: Emotional embedding model name (default: ng3owb/sentiment-embedding-model)
-- `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
-- `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)
-- `CORE_IDENTITY_NODE`: Core identity entity name (default: "Alpha Core Identity")
-
-**Note**: The GeolocationService automatically detects timezone via IP geolocation (no configuration required).
 
 ## Docker Architecture
 
@@ -533,25 +286,21 @@ The development environment uses Docker Compose with:
 
 Services communicate internally via Docker networks (`memgraph:7687`, `redis:6379`).
 
-## Testing Strategy
+# Environment Variables
 
-**Three-tier testing approach:**
-1. **Unit tests** (`tests/unit/`): Fast, isolated component testing
-2. **Integration tests** (`tests/integration/`): Test with real services
-3. **E2E tests** (`tests/e2e/`): Full MCP protocol testing with Docker
+Critical environment variables (all optional with defaults):
+- `MEMGRAPH_URI`: Graph database connection (default: bolt://localhost:7687)
+- `REDIS_URI`: Short-term memory storage (default: redis://localhost:6379)
+- `MCP_TRANSPORT`: "sse" or "streamable-http" (default: "streamable-http")
+- `ALPHA_RECALL_DEV_PORT`: Development server port (default: 19005)
+- `LOG_LEVEL`: "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL" (default: "INFO")
+- `LOG_FORMAT`: "rich", "json", or "rich_json" (default: "rich")
+- `SEMANTIC_EMBEDDING_MODEL`: Semantic embedding model name (default: sentence-transformers/all-mpnet-base-v2)
+- `EMOTIONAL_EMBEDDING_MODEL`: Emotional embedding model name (default: ng3owb/sentiment-embedding-model)
+- `INFERENCE_DEVICE`: Force specific device ("cpu", "cuda:0", "mps:0") or leave unset for auto-detection
+- `REDIS_TTL`: Short-term memory TTL in seconds (default: 2000000 = 2 megaseconds)
 
-**Key testing patterns:**
-- E2E tests spin up fresh Docker infrastructure for each test
-- Use `fastmcp.Client` for authentic MCP protocol testing
-- Focus on behavior verification over implementation details
-- Extended timeouts for first-run model downloads (90 seconds)
-
-### Testing gentle_refresh Tool
-- **Unit Tests**: `tests/unit/test_gentle_refresh.py` - 15 comprehensive test cases with mocked services
-- **Integration Tests**: `tests/integration/test_gentle_refresh_integration.py` - 13 tests against real MCP server
-- **Timezone Detection Tests**: Specific regression tests for timezone bugs and schema validation
-- **Performance Tests**: Validates <5s response time requirement
-- **Error Resilience Tests**: Ensures graceful degradation when services fail
+**Note**: The GeolocationService automatically detects timezone via IP geolocation (no configuration required).
 
 # IDE Integration (Claude Code)
 
