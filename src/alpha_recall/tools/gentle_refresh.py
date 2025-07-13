@@ -24,6 +24,12 @@ __all__ = ["gentle_refresh", "register_gentle_refresh_tools"]
 PROSE_TEMPLATE = Template(
     """
 Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.iso_datetime }} and the local time is {{ time.human_readable }} {{ time.timezone.display }}.
+{% if self_prompt %}
+
+## Self-Prompt
+
+{{ self_prompt }}
+{% endif %}
 
 ## Core Identity
 {% for fact in core_identity.identity_facts %}
@@ -56,7 +62,10 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.iso_d
 
 
 def calculate_content_for_budget(
-    token_budget: int, identity_facts: list, personality_data: dict
+    token_budget: int,
+    identity_facts: list,
+    personality_data: dict,
+    self_prompt: str | None = None,
 ) -> dict:
     """Calculate how much content fits in the token budget.
 
@@ -64,12 +73,22 @@ def calculate_content_for_budget(
         token_budget: Maximum tokens to use
         identity_facts: Core identity facts for base cost calculation
         personality_data: Personality traits for base cost calculation
+        self_prompt: Optional self-prompt content for base cost calculation
 
     Returns:
         Dict with stm_limit and obs_limit
     """
-    # Estimate base template cost (time + location + identity + personality)
-    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.
+    # Estimate base template cost (time + location + self-prompt + identity + personality)
+    self_prompt_section = ""
+    if self_prompt:
+        self_prompt_section = f"""
+
+## Self-Prompt
+
+{self_prompt}
+"""
+
+    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.{self_prompt_section}
 
 ## Core Identity
 {' '.join([fact['content'] + '.' for fact in identity_facts])}
@@ -157,10 +176,17 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         else:
             time_greeting = "day"
 
-        # Load core identity from Redis - this is required!
-        logger.info("Loading dynamic identity facts from Redis")
+        # Get Redis service for identity and self-prompt
+        logger.info("Loading dynamic identity facts and self-prompt from Redis")
         redis_service = get_redis_service()
         identity_facts = redis_service.get_identity_facts()
+
+        # Get self-prompt (dynamic prompt injection)
+        self_prompt_result = redis_service.get_self_prompt()
+        self_prompt = None
+        if self_prompt_result.get("success") and self_prompt_result.get("message"):
+            self_prompt = self_prompt_result["message"]
+            logger.info("Loaded self-prompt", message_length=len(self_prompt))
 
         core_identity = {
             "name": "Alpha Core Identity",  # Static name, no need for settings
@@ -333,7 +359,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
 
         # Calculate content limits based on token budget
         content_limits = calculate_content_for_budget(
-            token_budget, identity_facts, personality_data
+            token_budget, identity_facts, personality_data, self_prompt
         )
 
         # Limit memories and observations based on budget
@@ -360,6 +386,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             time=time_data,
             time_greeting=time_greeting,
             location=location,
+            self_prompt=self_prompt,
             core_identity=core_identity,
             personality=personality_data,
             shortterm_memories=shortterm_memories,
@@ -369,6 +396,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         logger.info(
             "Gentle refresh completed successfully",
             core_identity_loaded=core_identity is not None,
+            self_prompt_loaded=self_prompt is not None,
             personality_traits_count=len(personality_data),
             shortterm_memories_count=len(shortterm_memories),
             recent_observations_count=len(recent_observations),

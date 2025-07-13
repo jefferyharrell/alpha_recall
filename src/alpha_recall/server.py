@@ -30,6 +30,7 @@ from .tools import (
     register_search_shortterm_tool,
     register_update_identity_fact_tools,
     register_update_personality_directive_weight_tools,
+    register_update_self_prompt_tools,
 )
 from .version import __version__
 
@@ -65,6 +66,7 @@ def create_server():
     register_search_narratives_tools(mcp)
     register_recall_narrative_tools(mcp)
     register_browse_narrative_tools(mcp)
+    register_update_self_prompt_tools(mcp)
 
     logger.debug("All tools registered")
     return mcp

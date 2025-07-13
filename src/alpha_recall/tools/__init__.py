@@ -25,6 +25,7 @@ from .update_identity_fact import register_update_identity_fact_tools
 from .update_personality_directive_weight import (
     register_update_personality_directive_weight_tools,
 )
+from .update_self_prompt import register_update_self_prompt_tools
 
 __all__ = [
     "register_health_tools",
@@ -50,4 +51,5 @@ __all__ = [
     "register_search_narratives_tools",
     "register_recall_narrative_tools",
     "register_browse_narrative_tools",
+    "register_update_self_prompt_tools",
 ]
