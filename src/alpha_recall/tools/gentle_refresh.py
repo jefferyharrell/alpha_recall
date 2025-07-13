@@ -30,6 +30,12 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.iso_d
 
 {{ self_prompt }}
 {% endif %}
+{% for context_key, context_content in context_blocks.items() %}
+
+## {{ context_key|title|replace('_', ' ') }}
+
+{{ context_content }}
+{% endfor %}
 
 ## Core Identity
 {% for fact in core_identity.identity_facts %}
@@ -66,6 +72,7 @@ def calculate_content_for_budget(
     identity_facts: list,
     personality_data: dict,
     self_prompt: str | None = None,
+    context_blocks: dict | None = None,
 ) -> dict:
     """Calculate how much content fits in the token budget.
 
@@ -74,6 +81,7 @@ def calculate_content_for_budget(
         identity_facts: Core identity facts for base cost calculation
         personality_data: Personality traits for base cost calculation
         self_prompt: Optional self-prompt content for base cost calculation
+        context_blocks: Optional context blocks for base cost calculation
 
     Returns:
         Dict with stm_limit and obs_limit
@@ -88,7 +96,17 @@ def calculate_content_for_budget(
 {self_prompt}
 """
 
-    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.{self_prompt_section}
+    context_blocks_section = ""
+    if context_blocks:
+        for key, content in context_blocks.items():
+            context_blocks_section += f"""
+
+## {key.replace('_', ' ').title()}
+
+{content}
+"""
+
+    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.{self_prompt_section}{context_blocks_section}
 
 ## Core Identity
 {' '.join([fact['content'] + '.' for fact in identity_facts])}
@@ -187,6 +205,17 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         if self_prompt_result.get("success") and self_prompt_result.get("message"):
             self_prompt = self_prompt_result["message"]
             logger.info("Loaded self-prompt", message_length=len(self_prompt))
+
+        # Get context blocks (modular context management)
+        context_blocks_result = redis_service.get_all_context_blocks()
+        context_blocks = {}
+        if context_blocks_result.get("success"):
+            context_blocks = context_blocks_result.get("context_blocks", {})
+            logger.info(
+                "Loaded context blocks",
+                count=len(context_blocks),
+                blocks=list(context_blocks.keys()),
+            )
 
         core_identity = {
             "name": "Alpha Core Identity",  # Static name, no need for settings
@@ -359,7 +388,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
 
         # Calculate content limits based on token budget
         content_limits = calculate_content_for_budget(
-            token_budget, identity_facts, personality_data, self_prompt
+            token_budget, identity_facts, personality_data, self_prompt, context_blocks
         )
 
         # Limit memories and observations based on budget
@@ -387,6 +416,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             time_greeting=time_greeting,
             location=location,
             self_prompt=self_prompt,
+            context_blocks=context_blocks,
             core_identity=core_identity,
             personality=personality_data,
             shortterm_memories=shortterm_memories,
@@ -397,6 +427,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             "Gentle refresh completed successfully",
             core_identity_loaded=core_identity is not None,
             self_prompt_loaded=self_prompt is not None,
+            context_blocks_count=len(context_blocks),
             personality_traits_count=len(personality_data),
             shortterm_memories_count=len(shortterm_memories),
             recent_observations_count=len(recent_observations),

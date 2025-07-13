@@ -12,6 +12,7 @@ from .tools import (
     register_browse_longterm_tools,
     register_browse_narrative_tools,
     register_browse_shortterm_tool,
+    register_context_management_tools,
     register_create_personality_trait_tools,
     register_gentle_refresh_tools,
     register_get_entity_tools,
@@ -67,6 +68,7 @@ def create_server():
     register_recall_narrative_tools(mcp)
     register_browse_narrative_tools(mcp)
     register_update_self_prompt_tools(mcp)
+    register_context_management_tools(mcp)
 
     logger.debug("All tools registered")
     return mcp

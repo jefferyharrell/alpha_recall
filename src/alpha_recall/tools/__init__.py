@@ -5,6 +5,7 @@ from .add_personality_directive import register_add_personality_directive_tools
 from .browse_longterm import register_browse_longterm_tools
 from .browse_narrative import register_browse_narrative_tools
 from .browse_shortterm import register_browse_shortterm_tool
+from .context_management import register_context_management_tools
 from .create_personality_trait import register_create_personality_trait_tools
 from .gentle_refresh import register_gentle_refresh_tools
 from .get_entity import register_get_entity_tools
@@ -52,4 +53,5 @@ __all__ = [
     "register_recall_narrative_tools",
     "register_browse_narrative_tools",
     "register_update_self_prompt_tools",
+    "register_context_management_tools",
 ]
