@@ -9,11 +9,13 @@ optimal tokenization efficiency.
 from fastmcp import FastMCP
 from jinja2 import Template
 
+from ..config import settings
 from ..logging import get_logger
 from ..services.geolocation import GeolocationService
 from ..services.memgraph import get_memgraph_service
 from ..services.redis import get_redis_service
 from ..services.time import time_service
+from ..services.tokenizer import tokenizer
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["gentle_refresh", "register_gentle_refresh_tools"]
@@ -49,11 +51,64 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.iso_d
 - {{ obs.content }} ({{ obs.entity_name }})
 {% endfor %}
 {% endif %}
-
----
-*This context summary contains {{ token_estimate }} estimated tokens*
 """.strip()
 )
+
+
+def calculate_content_for_budget(
+    token_budget: int, identity_facts: list, personality_data: dict
+) -> dict:
+    """Calculate how much content fits in the token budget.
+
+    Args:
+        token_budget: Maximum tokens to use
+        identity_facts: Core identity facts for base cost calculation
+        personality_data: Personality traits for base cost calculation
+
+    Returns:
+        Dict with stm_limit and obs_limit
+    """
+    # Estimate base template cost (time + location + identity + personality)
+    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.
+
+## Core Identity
+{' '.join([fact['content'] + '.' for fact in identity_facts])}
+
+## Personality Traits
+{len(personality_data)} traits with directives
+"""
+
+    # Add rough personality cost (traits + directives)
+    personality_cost = 0
+    for trait_name, trait in personality_data.items():
+        personality_cost += len(trait_name) + len(trait.get("description", ""))
+        for directive in trait.get("directives", []):
+            personality_cost += len(directive.get("instruction", ""))
+
+    base_cost = tokenizer.count(base_text) + (personality_cost // 4)
+
+    # Reserve some buffer for template formatting
+    template_overhead = 200
+    total_base_cost = base_cost + template_overhead
+
+    # Remaining budget for memories and observations
+    memory_budget = max(0, token_budget - total_base_cost)
+
+    # Estimate per-item costs
+    tokens_per_stm = 100  # Average short-term memory
+    tokens_per_obs = 50  # Average observation
+
+    # Calculate limits with preference for STMs over observations
+    max_stms = min(memory_budget // tokens_per_stm, 100)  # Cap at 100 STMs
+    remaining_after_stms = memory_budget - (max_stms * tokens_per_stm)
+    max_obs = min(remaining_after_stms // tokens_per_obs, 20)  # Cap at 20 observations
+
+    return {
+        "stm_limit": max_stms,
+        "obs_limit": max_obs,
+        "base_cost": total_base_cost,
+        "memory_budget": memory_budget,
+    }
 
 
 async def gentle_refresh(tokens: int | None = None) -> str:
@@ -205,11 +260,20 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             )
             return error_msg
 
-        # Get recent short-term memories (same logic as gentle_refresh)
+        # Get recent short-term memories with generous limit for token budgeting
         try:
             redis_service = get_redis_service()
-            shortterm_limit = 10
-            logger.info("Retrieving recent short-term memories", limit=shortterm_limit)
+            # Use a generous limit - we'll trim based on token budget later
+            token_budget = (
+                tokens if tokens is not None else settings.gentle_refresh_default_tokens
+            )
+            max_possible_stms = max(100, token_budget // 50)  # Generous estimate
+            shortterm_limit = min(max_possible_stms, 200)  # Cap at 200 for sanity
+            logger.info(
+                "Retrieving recent short-term memories",
+                limit=shortterm_limit,
+                budget=token_budget,
+            )
 
             # Get recent memory IDs from the sorted set
             memory_ids_with_scores = redis_service.client.zrevrange(
@@ -261,12 +325,35 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             logger.error("Error retrieving recent observations", error=str(e))
             recent_observations = []
 
-        # If token budget specified, apply prioritization and trimming
-        if tokens:
-            logger.info("Applying token budget", budget=tokens)
-            # TODO: Implement smart trimming based on token count
-            # For now, just log that we received a budget
-            pass
+        # Apply token budgeting
+        token_budget = (
+            tokens if tokens is not None else settings.gentle_refresh_default_tokens
+        )
+        logger.info("Calculating content for token budget", budget=token_budget)
+
+        # Calculate content limits based on token budget
+        content_limits = calculate_content_for_budget(
+            token_budget, identity_facts, personality_data
+        )
+
+        # Limit memories and observations based on budget
+        original_stm_count = len(shortterm_memories)
+        original_obs_count = len(recent_observations)
+
+        shortterm_memories = shortterm_memories[: content_limits["stm_limit"]]
+        recent_observations = recent_observations[: content_limits["obs_limit"]]
+
+        logger.info(
+            "Token budgeting applied",
+            base_cost=content_limits["base_cost"],
+            memory_budget=content_limits["memory_budget"],
+            stm_limit=content_limits["stm_limit"],
+            obs_limit=content_limits["obs_limit"],
+            original_stm_count=original_stm_count,
+            original_obs_count=original_obs_count,
+            final_stm_count=len(shortterm_memories),
+            final_obs_count=len(recent_observations),
+        )
 
         # Render the template
         prose_output = PROSE_TEMPLATE.render(
@@ -277,7 +364,6 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             personality=personality_data,
             shortterm_memories=shortterm_memories,
             recent_observations=recent_observations,
-            token_estimate="[calculating...]",  # TODO: Add actual token counting
         )
 
         logger.info(

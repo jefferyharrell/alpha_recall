@@ -43,6 +43,9 @@ class AlphaRecallSettings(BaseSettings):
     reminiscer_ollama_port: int = Field(default=11434, ge=1, le=65535)
     reminiscer_model: str = "qwen2.5:7b"
 
+    # Gentle Refresh Configuration
+    gentle_refresh_default_tokens: int = Field(default=8000, gt=0)
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:  # type: ignore
