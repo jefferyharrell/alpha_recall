@@ -23,7 +23,7 @@ __all__ = ["gentle_refresh", "register_gentle_refresh_tools"]
 # Jinja2 template for prose output
 PROSE_TEMPLATE = Template(
     """
-Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.iso_datetime }} and the local time is {{ time.human_readable }} {{ time.timezone.display }}.
+Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human_readable }} {{ time.timezone.display }}.
 {% if self_prompt %}
 
 ## Self-Prompt
@@ -354,10 +354,15 @@ async def gentle_refresh(tokens: int | None = None) -> str:
                         memory_data[2].decode("utf-8") if memory_data[2] else "unknown"
                     )
 
+                    # Format timestamp for model readability
+                    formatted_timestamp = time_service.format_datetime_for_model(
+                        created_at
+                    )
+
                     shortterm_memories.append(
                         {
                             "content": content,
-                            "created_at": created_at,
+                            "created_at": formatted_timestamp,
                             "client": {"client_name": client_name},
                         }
                     )

@@ -351,6 +351,86 @@ class TimeService:
         else:
             return None
 
+    @staticmethod
+    async def format_datetime_for_model_async(dt: DateTime | str | None = None) -> str:
+        """Format any datetime in the most readable format for AI model consumption.
+
+        This method converts timestamps to local time with explicit timezone display,
+        making them immediately scannable without mental timezone conversion.
+
+        Args:
+            dt: DateTime object, ISO string, or None (defaults to current time)
+
+        Returns:
+            Human-readable datetime string like "Sunday, July 13, 2025 11:42 AM PDT"
+
+        Examples:
+            >>> await TimeService.format_datetime_for_model_async()
+            "Sunday, July 13, 2025 12:23 PM PDT"
+
+            >>> await TimeService.format_datetime_for_model_async("2025-07-13T18:42:55.033094+00:00")
+            "Sunday, July 13, 2025 11:42 AM PDT"
+        """
+        if dt is None:
+            dt = TimeService.utc_now()
+        elif isinstance(dt, str):
+            dt = TimeService.parse(dt)
+
+        if dt is None:
+            return "unknown time"
+
+        # Convert to UTC first, then to local timezone
+        utc_dt = TimeService.to_utc(dt)
+
+        # Get local timezone from geolocation
+        local_timezone_str = await geolocation_service.get_timezone(timeout=2.0)
+
+        # Convert to local timezone
+        local_dt = utc_dt.in_timezone(local_timezone_str)
+
+        # Format as readable string with timezone
+        return local_dt.format("dddd, MMMM DD, YYYY h:mm A zz")
+
+    @staticmethod
+    def format_datetime_for_model(dt: DateTime | str | None = None) -> str:
+        """Format any datetime in the most readable format for AI model consumption (sync version).
+
+        This method converts timestamps to local time with explicit timezone display,
+        making them immediately scannable without mental timezone conversion.
+
+        Args:
+            dt: DateTime object, ISO string, or None (defaults to current time)
+
+        Returns:
+            Human-readable datetime string like "Sunday, July 13, 2025 11:42 AM PDT"
+
+        Examples:
+            >>> TimeService.format_datetime_for_model()
+            "Sunday, July 13, 2025 12:23 PM PDT"
+
+            >>> TimeService.format_datetime_for_model("2025-07-13T18:42:55.033094+00:00")
+            "Sunday, July 13, 2025 11:42 AM PDT"
+        """
+        if dt is None:
+            dt = TimeService.utc_now()
+        elif isinstance(dt, str):
+            dt = TimeService.parse(dt)
+
+        if dt is None:
+            return "unknown time"
+
+        # Convert to UTC first, then to local timezone
+        utc_dt = TimeService.to_utc(dt)
+
+        # Get local timezone from geolocation
+        local_timezone_str = geolocation_service.get_timezone_sync(timeout=2.0)
+
+        # Convert to local timezone
+        local_dt = utc_dt.in_timezone(local_timezone_str)
+
+        # Format as readable string with timezone
+        return local_dt.format("dddd, MMMM DD, YYYY h:mm A zz")
+
 
 # Global instance for easy access
 time_service = TimeService()
