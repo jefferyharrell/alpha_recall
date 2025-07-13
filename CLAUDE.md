@@ -36,7 +36,7 @@ just down                  # Stop all services
 just down redis           # Stop specific service
 
 # Development workflow
-just format               # Format code with isort and black
+just format               # Format code with ruff and black
 just check-format         # Check formatting without changing files
 just lint                 # Run Ruff linter
 just lint-fix             # Run Ruff linter with auto-fix
@@ -65,9 +65,8 @@ uv run pytest tests/unit/test_health.py      # Single test file
 
 # Code formatting and linting
 uv run --group dev black src/ tests/
-uv run --group dev isort src/ tests/
-uv run --group dev ruff check src/ tests/
 uv run --group dev ruff check --fix src/ tests/
+uv run --group dev ruff check src/ tests/
 
 # Run the server directly
 uv run python -m alpha_recall.server
@@ -88,7 +87,7 @@ uv run pre-commit run --all-files
 ```
 
 **Pre-commit Configuration:**
-- **Code formatting**: isort, black, ruff-format
+- **Code formatting**: ruff, black, ruff-format
 - **Linting**: ruff with comprehensive rule set
 - **File validation**: YAML, TOML, JSON syntax checking
 - **Git hygiene**: trailing whitespace, end-of-file fixes, large file detection, merge conflict detection

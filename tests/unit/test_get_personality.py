@@ -5,7 +5,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 from pendulum import DateTime
-
 from src.alpha_recall.tools.get_personality import get_personality
 
 
@@ -342,7 +341,6 @@ def test_get_personality_correlation_id_generation():
             "src.alpha_recall.tools.get_personality.set_correlation_id"
         ) as mock_set_id,
     ):
-
         mock_memgraph.return_value.db.execute_and_fetch.return_value = []
         mock_time.to_utc_isoformat.return_value = "2025-01-15T10:30:00+00:00"
         mock_gen_id.return_value = "get_personality_abc123"
@@ -413,7 +411,6 @@ def test_get_personality_parameter_safety():
         ) as mock_memgraph,
         patch("src.alpha_recall.tools.get_personality.time_service") as mock_time,
     ):
-
         mock_memgraph.return_value.db.execute_and_fetch.return_value = []
         mock_time.to_utc_isoformat.return_value = "2025-01-15T10:30:00+00:00"
 

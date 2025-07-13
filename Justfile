@@ -89,13 +89,13 @@ clean:
 
 # Development tools
 format:
-    @echo "Formatting code with isort and black..."
-    uv run --group dev isort src/ tests/
+    @echo "Formatting code with ruff and black..."
+    uv run --group dev ruff check --fix src/ tests/
     uv run --group dev black src/ tests/
 
 check-format:
     @echo "Checking code formatting..."
-    uv run --group dev isort --check-only --diff src/ tests/
+    uv run --group dev ruff check src/ tests/
     uv run --group dev black --check --diff src/ tests/
 
 lint:
