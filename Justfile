@@ -137,3 +137,107 @@ test-e2e:
 export-requirements:
     @echo "Exporting dependencies to requirements.txt..."
     uv export --format requirements-txt > requirements.txt
+
+# Create hot backups of Alpha's databases
+dump:
+    #!/usr/bin/env sh
+    set -e
+
+    # Create backup directory with timestamp
+    BACKUP_DIR="backups/$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+
+    echo "📸 Creating hot backups in $BACKUP_DIR..."
+
+    # Redis backup
+    echo "  → Backing up Redis..."
+    docker exec redis redis-cli BGSAVE > /dev/null
+
+    # Wait for Redis save to complete (with timeout)
+    sleep 1
+    TIMEOUT=30
+    ELAPSED=0
+    while true; do
+        if docker exec redis redis-cli --raw INFO persistence | grep -q "rdb_bgsave_in_progress:0"; then
+            break
+        fi
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "  ⚠️  Redis backup timed out after ${TIMEOUT}s"
+            exit 1
+        fi
+        sleep 0.5
+        ELAPSED=$((ELAPSED + 1))
+    done
+
+    # Copy Redis dump
+    docker cp redis:/data/dump.rdb "$BACKUP_DIR/redis_dump.rdb"
+    echo "  ✓ Redis backup complete"
+
+    # Memgraph backup
+    echo "  → Backing up Memgraph..."
+    docker exec memgraph mgconsole "CREATE SNAPSHOT;" > /dev/null
+
+    # Wait a moment for snapshot creation
+    sleep 2
+
+    # Get latest snapshot filename
+    LATEST_SNAPSHOT=$(docker exec memgraph ls -t /var/lib/memgraph/snapshots/ | head -1)
+
+    # Copy Memgraph snapshot
+    docker cp "memgraph:/var/lib/memgraph/snapshots/$LATEST_SNAPSHOT" "$BACKUP_DIR/memgraph_snapshot"
+    echo "  ✓ Memgraph backup complete"
+
+    # Create metadata file
+    echo "{" > "$BACKUP_DIR/metadata.json"
+    echo "  \"created_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"," >> "$BACKUP_DIR/metadata.json"
+    echo "  \"redis_size\": \"$(ls -lh $BACKUP_DIR/redis_dump.rdb | awk '{print $5}')\"," >> "$BACKUP_DIR/metadata.json"
+    echo "  \"memgraph_size\": \"$(ls -lh $BACKUP_DIR/memgraph_snapshot | awk '{print $5}')\"," >> "$BACKUP_DIR/metadata.json"
+    echo "  \"memgraph_snapshot\": \"$LATEST_SNAPSHOT\"" >> "$BACKUP_DIR/metadata.json"
+    echo "}" >> "$BACKUP_DIR/metadata.json"
+
+    echo ""
+    echo "✅ Backup complete: $BACKUP_DIR"
+    echo "   - Redis: $(ls -lh $BACKUP_DIR/redis_dump.rdb | awk '{print $5}')"
+    echo "   - Memgraph: $(ls -lh $BACKUP_DIR/memgraph_snapshot | awk '{print $5}')"
+
+# Restore databases from a backup
+restore backup_dir:
+    #!/usr/bin/env sh
+    set -e
+
+    if [ ! -d "{{backup_dir}}" ]; then
+        echo "❌ Backup directory not found: {{backup_dir}}"
+        exit 1
+    fi
+
+    echo "⚠️  WARNING: This will replace all current data!"
+    echo "Restoring from: {{backup_dir}}"
+    echo "Press Ctrl+C to cancel, or wait 5 seconds to continue..."
+    sleep 5
+
+    # Stop services
+    echo "Stopping services..."
+    docker compose stop redis memgraph
+
+    # Restore Redis
+    echo "Restoring Redis..."
+    docker cp "{{backup_dir}}/redis_dump.rdb" redis:/data/dump.rdb
+    docker exec redis chown redis:redis /data/dump.rdb
+
+    # Restore Memgraph
+    echo "Restoring Memgraph..."
+    # Clear existing snapshots
+    docker exec memgraph rm -rf /var/lib/memgraph/snapshots/*
+    # Copy new snapshot
+    docker cp "{{backup_dir}}/memgraph_snapshot" memgraph:/var/lib/memgraph/snapshots/
+    docker exec memgraph chown -R memgraph:memgraph /var/lib/memgraph/snapshots/
+
+    # Restart services
+    echo "Restarting services..."
+    docker compose start redis memgraph
+
+    # Wait for services
+    sleep 3
+
+    echo "✅ Restore complete!"
+    echo "   Note: You may need to restart alpha-recall for changes to take effect"
