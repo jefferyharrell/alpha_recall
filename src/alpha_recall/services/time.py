@@ -61,7 +61,8 @@ class TimeService:
             },
             "unix_timestamp": int(utc_now.timestamp()),
             "day_of_week": {
-                "integer": local_now.weekday(),  # 1=Monday, 7=Sunday
+                "integer": local_now.weekday()
+                + 1,  # 1=Monday, 7=Sunday (weekday() returns 0-6)
                 "name": local_now.format("dddd"),  # e.g., "Wednesday"
             },
         }
@@ -104,7 +105,8 @@ class TimeService:
             },
             "unix_timestamp": int(utc_now.timestamp()),
             "day_of_week": {
-                "integer": local_now.weekday(),  # 1=Monday, 7=Sunday
+                "integer": local_now.weekday()
+                + 1,  # 1=Monday, 7=Sunday (weekday() returns 0-6)
                 "name": local_now.format("dddd"),  # e.g., "Wednesday"
             },
         }
