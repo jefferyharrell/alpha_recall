@@ -200,6 +200,14 @@ dump:
     echo "   - Redis: $(ls -lh $BACKUP_DIR/redis_dump.rdb | awk '{print $5}')"
     echo "   - Memgraph: $(ls -lh $BACKUP_DIR/memgraph_snapshot | awk '{print $5}')"
 
+# Generate test fixtures with pre-computed embeddings
+generate-test-fixtures:
+    @echo "🔧 Generating test fixtures with current embedding models..."
+    @echo "📊 Semantic: ${SEMANTIC_EMBEDDING_MODEL:-sentence-transformers/all-mpnet-base-v2}"
+    @echo "💭 Emotional: ${EMOTIONAL_EMBEDDING_MODEL:-ng3owb/sentiment-embedding-model}"
+    @echo ""
+    uv run python scripts/generate_test_fixtures.py
+
 # Restore databases from a backup
 restore backup_dir:
     #!/usr/bin/env sh

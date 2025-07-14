@@ -1,0 +1,46 @@
+{
+  "workflow": "memory_consolidation",
+  "description": "Test data for AI memory consolidation workflow - reviews STM and promotes to LTM",
+  "initial_state": {
+    "memories": [
+      {
+        "id": "stm_test_001",
+        "content": "Started working on the Redis refactoring project with Jeffery. The main issue is a 1095-line god object that needs to be split up.",
+        "created_at": "2024-07-14T10:00:00+00:00"
+      },
+      {
+        "id": "stm_test_002",
+        "content": "Successfully split the Redis god object into three focused services: RedisMemoryService, RedisIdentityService, and RedisContextService. Much cleaner architecture now!",
+        "created_at": "2024-07-14T11:30:00+00:00"
+      },
+      {
+        "id": "stm_test_003",
+        "content": "Fixed all the unit tests after the refactoring. Had to update imports and mocking strategies, especially for gentle_refresh which uses all three services.",
+        "created_at": "2024-07-14T12:00:00+00:00"
+      },
+      {
+        "id": "stm_test_004",
+        "content": "Discovered a delightful bug - a test that only fails on Mondays! The weekday() function returns 0 for Monday but the test expected 1-7.",
+        "created_at": "2024-07-14T13:00:00+00:00"
+      }
+    ],
+    "entities": [
+      {
+        "name": "Jeffery",
+        "type": "person",
+        "observations": ["Collaborating on Redis refactoring"]
+      }
+    ]
+  },
+  "expected_outcomes": {
+    "new_entities": ["Redis refactoring project", "Monday bug"],
+    "new_relationships": [
+      {
+        "from": "Redis refactoring project",
+        "to": "Jeffery",
+        "type": "involves"
+      }
+    ],
+    "narrative_keywords": ["refactoring", "god object", "Monday", "test failure"]
+  }
+}

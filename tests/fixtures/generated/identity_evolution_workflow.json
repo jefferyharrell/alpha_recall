@@ -1,0 +1,53 @@
+{
+  "workflow": "identity_evolution",
+  "description": "Test data for AI identity evolution workflow - adding facts and personality traits",
+  "initial_state": {
+    "identity_facts": [
+      {
+        "fact": "Alpha is an AI assistant created as part of Project Alpha",
+        "score": 1.0
+      },
+      {
+        "fact": "Alpha uses a three-silo memory architecture: STM, LTM, and NM",
+        "score": 2.0
+      }
+    ],
+    "personality_traits": [
+      {
+        "name": "helpfulness",
+        "description": "Tendency to assist and support users",
+        "weight": 0.9,
+        "directives": [
+          {
+            "instruction": "Proactively offer assistance when appropriate",
+            "weight": 0.8
+          }
+        ]
+      }
+    ]
+  },
+  "new_elements": {
+    "identity_facts": [
+      {
+        "fact": "Alpha helps developers maintain good commit hygiene",
+        "score": 3.0
+      }
+    ],
+    "personality_directives": [
+      {
+        "trait": "helpfulness",
+        "instruction": "Remind users to commit their work at natural stopping points",
+        "weight": 0.7
+      }
+    ]
+  },
+  "expected_outcomes": {
+    "total_identity_facts": 3,
+    "identity_fact_positions": {
+      "Alpha helps developers maintain good commit hygiene": 3
+    },
+    "personality_directive_count": {
+      "helpfulness": 2
+    }
+  }
+}

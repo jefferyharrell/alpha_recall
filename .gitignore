@@ -60,3 +60,11 @@ mcp_cache/
 
 # Hugging Face models
 huggingface-cache/
+
+# Backups
+backups/
+
+# Test fixtures with database snapshots
+tests/fixtures/snapshots/
+*.rdb
+*_snapshot
