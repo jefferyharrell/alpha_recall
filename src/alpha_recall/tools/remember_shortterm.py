@@ -1,10 +1,10 @@
 """Remember shortterm tool for Alpha-Recall v1.0.0."""
 
-import json
 import time
 import uuid
 
 from fastmcp import FastMCP
+from jinja2 import Template
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
@@ -13,6 +13,27 @@ from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
 __all__ = ["remember_shortterm", "register_remember_shortterm_tool"]
+
+# Jinja2 template for prose output
+REMEMBER_SHORTTERM_TEMPLATE = Template(
+    """
+{% if status == "stored" %}
+Memory stored successfully.
+{% else %}
+Memory processed but not stored.
+{% endif %}
+
+{% if splash.related_memories_found > 0 %}
+**Related memories found ({{ splash.related_memories_found }} total):**
+{% for memory in splash.memories %}
+{{ loop.index }}. {{ memory.content }}
+   *{{ memory.created_at }}* ({{ "%.2f"|format(memory.similarity_score) }} similarity)
+{% endfor %}
+{% else %}
+No related memories found.
+{% endif %}
+""".strip()
+)
 
 
 def remember_shortterm(content: str) -> str:
@@ -25,7 +46,7 @@ def remember_shortterm(content: str) -> str:
         content: The memory content to store
 
     Returns:
-        JSON string with storage confirmation, performance metrics, and related memories
+        Natural language prose with storage confirmation, performance metrics, and related memories
     """
     # Create correlation ID for this memory operation
     memory_corr_id = create_child_correlation_id("remember_shortterm")
@@ -147,7 +168,13 @@ def remember_shortterm(content: str) -> str:
     # Clean up embedding arrays from memory
     del semantic_embedding, emotional_embedding
 
-    return json.dumps(result, indent=2)
+    # Generate prose output using template
+    prose_output = REMEMBER_SHORTTERM_TEMPLATE.render(
+        status=result["status"],
+        splash=result["splash"],
+    )
+
+    return prose_output
 
 
 def register_remember_shortterm_tool(mcp: FastMCP) -> None:

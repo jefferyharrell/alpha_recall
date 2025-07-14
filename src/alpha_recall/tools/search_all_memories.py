@@ -4,6 +4,7 @@ import json
 import time
 
 from fastmcp import FastMCP
+from jinja2 import Template
 
 from ..logging import get_logger
 from ..services.embedding import get_embedding_service
@@ -16,6 +17,34 @@ from ..utils.correlation import generate_correlation_id, set_correlation_id
 from .get_entity import get_entity
 
 __all__ = ["search_all_memories", "register_search_all_memories_tools"]
+
+# Jinja2 template for prose output
+SEARCH_RESULTS_TEMPLATE = Template(
+    """
+{% if not success %}
+Search failed: {{ error }}
+{% else %}
+Found {{ metadata.total_found }} memories across all systems in {{ metadata.search_time_ms }}ms for query: "{{ search.query }}"
+
+{% if results %}
+{% for result in results %}
+{{ loop.index }}. **{{ result.source }}** ({{ "%.2f"|format(result.score) }} similarity)
+   {{ result.content }}
+{% if result.created_at %}   *{{ result.created_at }}*{% endif %}
+{% if result.entity_name %}   Entity: {{ result.entity_name }}{% endif %}
+{% if result.title %}   Story: {{ result.title }}{% endif %}
+{% if result.participants %}   Participants: {{ result.participants|join(", ") }}{% endif %}
+
+{% endfor %}
+{% if metadata.has_more %}
+*Showing {{ metadata.returned_count }} of {{ metadata.total_found }} results (offset {{ metadata.offset }})*
+{% endif %}
+{% else %}
+No matching memories found.
+{% endif %}
+{% endif %}
+""".strip()
+)
 
 
 async def search_all_memories(
@@ -40,7 +69,7 @@ async def search_all_memories(
         offset: Number of results to skip for pagination (default: 0)
 
     Returns:
-        JSON string containing unified search results from all memory systems
+        Natural language prose containing unified search results from all memory systems
     """
     correlation_id = generate_correlation_id("search_all_memories")
     set_correlation_id(correlation_id)
@@ -295,7 +324,15 @@ async def search_all_memories(
             correlation_id=correlation_id,
         )
 
-        return json.dumps(response, indent=2)
+        # Generate prose output using template
+        prose_output = SEARCH_RESULTS_TEMPLATE.render(
+            success=True,
+            search=response["search"],
+            results=response["results"],
+            metadata=response["metadata"],
+        )
+
+        return prose_output
 
     except Exception as e:
         logger.error(
@@ -313,7 +350,13 @@ async def search_all_memories(
             "correlation_id": correlation_id,
         }
 
-        return json.dumps(error_response, indent=2)
+        # Generate prose error output using template
+        prose_output = SEARCH_RESULTS_TEMPLATE.render(
+            success=False,
+            error=error_response["error"],
+        )
+
+        return prose_output
 
 
 def register_search_all_memories_tools(mcp: FastMCP) -> None:

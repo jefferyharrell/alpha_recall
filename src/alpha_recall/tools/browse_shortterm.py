@@ -1,9 +1,9 @@
 """Browse shortterm tool for Alpha-Recall v1.0.0."""
 
-import json
 import time
 
 from fastmcp import FastMCP
+from jinja2 import Template
 
 from ..logging import get_logger
 from ..services.redis import get_redis_service
@@ -11,6 +11,35 @@ from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
 __all__ = ["browse_shortterm", "register_browse_shortterm_tool"]
+
+# Jinja2 template for prose output
+BROWSE_SHORTTERM_TEMPLATE = Template(
+    """
+{% if memories %}
+Found {{ pagination.returned }} memories in {{ timing.total_ms }}ms ({{ pagination.showing }}):
+
+{% for memory in memories %}
+{{ loop.index }}. {{ memory.content }}
+   *{{ memory.created_at }}* ({{ memory.age }})
+{% endfor %}
+
+{% if pagination.has_more %}
+*Use offset={{ pagination.offset + pagination.returned }} to see more results*
+{% endif %}
+{% else %}
+No memories found{% if filters.search %} matching "{{ filters.search }}"{% endif %}{% if filters.since %} in the last {{ filters.since }}{% endif %}.
+{% endif %}
+
+**Filters:** {% if filters.since %}since {{ filters.since }}{% endif %}{% if filters.search %}, searching "{{ filters.search }}"{% endif %}, order {{ filters.order }}
+""".strip()
+)
+
+# Template for error output
+BROWSE_SHORTTERM_ERROR_TEMPLATE = Template(
+    """
+Failed to browse memories: {{ error }}
+""".strip()
+)
 
 
 def browse_shortterm(
@@ -30,7 +59,7 @@ def browse_shortterm(
         order: Sort order - "desc" for newest first, "asc" for oldest first
 
     Returns:
-        JSON string with paginated memories and metadata
+        Natural language prose with paginated memories and metadata
     """
     # Create correlation ID for this browse operation
     browse_corr_id = create_child_correlation_id("browse_shortterm")
@@ -210,7 +239,15 @@ def browse_shortterm(
             operation="browse_shortterm",
         )
 
-        return json.dumps(result, indent=2)
+        # Generate prose output using template
+        prose_output = BROWSE_SHORTTERM_TEMPLATE.render(
+            memories=result["memories"],
+            pagination=result["pagination"],
+            filters=result["filters"],
+            timing=result["timing"],
+        )
+
+        return prose_output
 
     except Exception as e:
         logger.error(
@@ -218,15 +255,12 @@ def browse_shortterm(
             error=str(e),
             operation="browse_shortterm",
         )
-        return json.dumps(
-            {
-                "error": f"Failed to browse memories: {str(e)}",
-                "memories": [],
-                "pagination": {"returned": 0, "total_in_range": 0},
-                "correlation_id": browse_corr_id,
-            },
-            indent=2,
+        # Generate prose error output using template
+        prose_output = BROWSE_SHORTTERM_ERROR_TEMPLATE.render(
+            error=str(e),
         )
+
+        return prose_output
 
 
 def register_browse_shortterm_tool(mcp: FastMCP) -> None:
