@@ -8,7 +8,7 @@ from fastmcp import FastMCP
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_memory_service
 from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
@@ -65,9 +65,9 @@ def search_shortterm(
             indent=2,
         )
 
-    # Get Redis service
-    redis_service = get_redis_service()
-    client = redis_service.client
+    # Get Memory Redis service
+    memory_service = get_redis_memory_service()
+    client = memory_service.client
 
     try:
         # Calculate time range if 'through_the_last' is provided
@@ -118,7 +118,7 @@ def search_shortterm(
         # For semantic search, use Redis vector search
         if search_type == "semantic":
             memories = _search_semantic(
-                redis_service, query, limit, cutoff_timestamp, logger
+                memory_service, query, limit, cutoff_timestamp, logger
             )
         else:
             # For emotional search, fall back to text matching for now
@@ -180,7 +180,7 @@ def search_shortterm(
 
 
 def _search_semantic(
-    redis_service, query: str, limit: int, cutoff_timestamp: float, logger
+    memory_service, query: str, limit: int, cutoff_timestamp: float, logger
 ) -> list[dict[str, Any]]:
     """Perform semantic vector search using Redis."""
     # Generate semantic embedding for the query
@@ -196,7 +196,7 @@ def _search_semantic(
     )
 
     # Ensure vector index exists
-    if not redis_service.ensure_vector_index_exists():
+    if not memory_service.ensure_vector_index_exists():
         logger.error(
             "Vector index unavailable and could not be created",
             operation="search_shortterm_semantic",
@@ -218,7 +218,7 @@ def _search_semantic(
 
     try:
         # Execute vector search
-        search_result = redis_service.client.execute_command(
+        search_result = memory_service.client.execute_command(
             "FT.SEARCH",
             "memory_semantic_index",
             search_query,

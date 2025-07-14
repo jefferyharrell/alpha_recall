@@ -5,7 +5,7 @@ import json
 from fastmcp import FastMCP
 
 from ..logging import get_logger
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_identity_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["update_identity_fact", "register_update_identity_fact_tools"]
@@ -57,9 +57,9 @@ def update_identity_fact(fact: str, new_score: float) -> str:
                 }
             )
 
-        # Update the fact via Redis service
-        redis_service = get_redis_service()
-        result = redis_service.update_identity_fact(fact, new_score)
+        # Update the fact via Identity Redis service
+        identity_service = get_redis_identity_service()
+        result = identity_service.update_identity_fact(fact, new_score)
 
         logger.info(
             "Identity fact update completed",

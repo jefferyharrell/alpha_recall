@@ -11,9 +11,13 @@ from jinja2 import Template
 
 from ..config import settings
 from ..logging import get_logger
+from ..services.factory import (
+    get_redis_context_service,
+    get_redis_identity_service,
+    get_redis_memory_service,
+)
 from ..services.geolocation import GeolocationService
 from ..services.memgraph import get_memgraph_service
-from ..services.redis import get_redis_service
 from ..services.time import time_service
 from ..services.tokenizer import tokenizer
 from ..utils.correlation import generate_correlation_id, set_correlation_id
@@ -177,13 +181,15 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         else:
             time_greeting = "day"
 
-        # Get Redis service for identity and context blocks
-        logger.info("Loading dynamic identity facts and context blocks from Redis")
-        redis_service = get_redis_service()
-        identity_facts = redis_service.get_identity_facts()
+        # Get Identity Redis service for identity facts
+        logger.info("Loading dynamic identity facts from Redis")
+        identity_service = get_redis_identity_service()
+        identity_facts = identity_service.get_identity_facts()
 
-        # Get context blocks (modular context management)
-        context_blocks_result = redis_service.get_all_context_blocks()
+        # Get Context Redis service for context blocks (modular context management)
+        logger.info("Loading context blocks from Redis")
+        context_service = get_redis_context_service()
+        context_blocks_result = context_service.get_all_context_blocks()
         context_blocks = {}
         if context_blocks_result.get("success"):
             context_blocks = context_blocks_result.get("context_blocks", {})
@@ -293,7 +299,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
 
         # Get recent short-term memories with generous limit for token budgeting
         try:
-            redis_service = get_redis_service()
+            memory_service = get_redis_memory_service()
             # Use a generous limit - we'll trim based on token budget later
             token_budget = (
                 tokens if tokens is not None else settings.gentle_refresh_default_tokens
@@ -307,7 +313,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             )
 
             # Get recent memory IDs from the sorted set
-            memory_ids_with_scores = redis_service.client.zrevrange(
+            memory_ids_with_scores = memory_service.client.zrevrange(
                 "memory_index", 0, shortterm_limit - 1, withscores=True
             )
 
@@ -317,7 +323,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
                 memory_key = f"memory:{memory_id}"
 
                 # Get memory data from hash
-                memory_data = redis_service.client.hmget(
+                memory_data = memory_service.client.hmget(
                     memory_key, ["content", "created_at", "client_name"]
                 )
 

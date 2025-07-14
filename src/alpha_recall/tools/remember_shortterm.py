@@ -8,7 +8,7 @@ from jinja2 import Template
 
 from ..logging import get_logger
 from ..services.embedding import embedding_service
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_memory_service
 from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
@@ -77,7 +77,7 @@ def remember_shortterm(content: str) -> str:
     created_at = time_service.utc_isoformat()
 
     # Get Redis service
-    redis_service = get_redis_service()
+    redis_service = get_redis_memory_service()
 
     # Store memory with embeddings to Redis
     store_start = time.perf_counter()

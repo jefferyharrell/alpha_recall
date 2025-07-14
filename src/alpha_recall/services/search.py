@@ -6,9 +6,8 @@ from typing import Any
 import numpy as np
 
 from ..logging import get_logger
-from ..services.factory import get_narrative_service
+from ..services.factory import get_narrative_service, get_redis_memory_service
 from ..services.memgraph import get_memgraph_service
-from ..services.redis import get_redis_service
 from ..services.time import time_service
 
 
@@ -36,7 +35,7 @@ def search_shortterm_with_embeddings(
     logger = get_logger("services.search.shortterm")
 
     # Get Redis service
-    redis_service = get_redis_service()
+    redis_service = get_redis_memory_service()
     client = redis_service.client
 
     # Check if we have any memories to search

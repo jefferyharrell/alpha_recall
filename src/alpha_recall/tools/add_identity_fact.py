@@ -5,7 +5,7 @@ import json
 from fastmcp import FastMCP
 
 from ..logging import get_logger
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_identity_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = ["add_identity_fact", "register_add_identity_fact_tools"]
@@ -68,7 +68,7 @@ def add_identity_fact(fact: str, score: float = None) -> str:
             )
 
         # Add the fact via Redis service
-        redis_service = get_redis_service()
+        redis_service = get_redis_identity_service()
         result = redis_service.add_identity_fact(fact, score)
 
         logger.info(

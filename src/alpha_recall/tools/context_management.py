@@ -11,7 +11,7 @@ import json
 from fastmcp import FastMCP
 
 from ..logging import get_logger
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_context_service
 from ..utils.correlation import generate_correlation_id, set_correlation_id
 
 __all__ = [
@@ -49,8 +49,8 @@ async def set_context_block(key: str, content: str) -> str:
             correlation_id=correlation_id,
         )
 
-        redis_service = get_redis_service()
-        result = redis_service.set_context_block(key, content)
+        context_service = get_redis_context_service()
+        result = context_service.set_context_block(key, content)
 
         logger.info(
             "Context block operation completed",
@@ -90,8 +90,8 @@ async def get_context_block(key: str) -> str:
     try:
         logger.info("Getting context block", key=key, correlation_id=correlation_id)
 
-        redis_service = get_redis_service()
-        result = redis_service.get_context_block(key)
+        context_service = get_redis_context_service()
+        result = context_service.get_context_block(key)
 
         logger.info(
             "Context block retrieved",
@@ -128,8 +128,8 @@ async def list_context_blocks() -> str:
     try:
         logger.info("Listing context blocks", correlation_id=correlation_id)
 
-        redis_service = get_redis_service()
-        result = redis_service.list_context_blocks()
+        context_service = get_redis_context_service()
+        result = context_service.list_context_blocks()
 
         logger.info(
             "Context blocks listed",
@@ -168,8 +168,8 @@ async def delete_context_block(key: str) -> str:
     try:
         logger.info("Deleting context block", key=key, correlation_id=correlation_id)
 
-        redis_service = get_redis_service()
-        result = redis_service.delete_context_block(key)
+        context_service = get_redis_context_service()
+        result = context_service.delete_context_block(key)
 
         logger.info(
             "Context block deletion completed",

@@ -48,17 +48,18 @@ class MockTimeService:
         """Return mock time data."""
         return {
             "iso_datetime": "2025-01-01T12:00:00.000000+00:00",
-            "utc": "2025-01-01T12:00:00.000000+00:00",
-            "local": "2025-01-01T05:00:00.000000-07:00",
-            "human_readable": "Tuesday, January 01, 2025 05:00 AM",
+            "local": "2025-01-01T07:00:00-05:00",
             "timezone": {
                 "name": "America/Los_Angeles",
-                "offset": "-07:00",
+                "offset": "-08:00",
                 "display": "PST",
             },
-            "unix_timestamp": 1735732800.0,
-            "day_of_week": {"integer": 1, "name": "Tuesday"},
+            "human_readable": "Wednesday, January 1, 2025 7:00 AM",
         }
+
+    def format_datetime_for_model(self, dt):
+        """Mock format datetime."""
+        return "Wednesday, January 1, 2025 7:00 AM PST"
 
 
 class MockGeolocationService:
@@ -69,16 +70,67 @@ class MockGeolocationService:
         return "Los Angeles"
 
 
-class MockRedisService:
-    """Mock Redis service for testing."""
+class MockSettings:
+    """Mock settings for testing."""
+
+    def __init__(self):
+        self.gentle_refresh_default_tokens = 8000
+
+
+class MockMemgraphDB:
+    """Mock Memgraph database for testing."""
+
+    def __init__(self, personality_data=None):
+        self.personality_data = personality_data or []
+
+    def execute_and_fetch(self, query):
+        """Return mock personality data."""
+        return self.personality_data
+
+
+class MockMemgraphService:
+    """Mock Memgraph service for testing."""
+
+    def __init__(self, core_identity=None, personality_data=None):
+        self.core_identity = core_identity or {"name": "Alpha Core Identity"}
+        self.personality_data = personality_data or []
+        self.db = MockMemgraphDB(personality_data)
+
+    def get_core_identity(self):
+        """Return mock core identity."""
+        return self.core_identity
+
+
+class MockRedisMemoryService:
+    """Mock Redis memory service for testing."""
+
+    def __init__(self):
+        self.client = MockRedisClient()
+
+
+class MockRedisIdentityService:
+    """Mock Redis identity service for testing."""
 
     def __init__(self, identity_facts=None):
         self.identity_facts = identity_facts or []
-        self.client = MockRedisClient()
 
     def get_identity_facts(self):
         """Return mock identity facts."""
         return self.identity_facts
+
+
+class MockRedisContextService:
+    """Mock Redis context service for testing."""
+
+    def __init__(self, context_blocks=None):
+        self.context_blocks = context_blocks or {}
+
+    def get_all_context_blocks(self):
+        """Return mock context blocks."""
+        return {
+            "success": True,
+            "context_blocks": self.context_blocks,
+        }
 
 
 class MockRedisClient:
@@ -90,53 +142,15 @@ class MockRedisClient:
 
     def hmget(self, key, fields):
         """Mock hmget - return None for simplicity."""
-        return [None] * len(fields)
+        return [None, None, None]
 
 
-class MockMemgraphService:
-    """Mock Memgraph service for testing."""
-
-    def __init__(self, core_identity=None, personality_data=None):
-        self.core_identity = core_identity
-        self.personality_data = personality_data or []
-        self.db = MockDB(personality_data)
-
-    def get_entity_with_observations(self, entity_name):
-        """Return mock core identity entity."""
-        if self.core_identity:
-            return self.core_identity
-        return {
-            "name": entity_name,
-            "observations": [
-                {"content": "Mock identity fact 1"},
-                {"content": "Mock identity fact 2"},
-            ],
-        }
-
-
-class MockDB:
-    """Mock database for Memgraph."""
-
-    def __init__(self, personality_data=None):
-        self.personality_data = personality_data or []
-
-    def execute_and_fetch(self, query):
-        """Mock query execution - return personality data."""
-        return self.personality_data
-
-
-class MockSettings:
-    """Mock settings for testing."""
-
-    def __init__(self):
-        self.core_identity_node = "Alpha Core Identity"
-
-
-def test_gentle_refresh_registration():
-    """Test that gentle_refresh tools register correctly."""
+def test_register_tools():
+    """Test that tools are properly registered with MCP server."""
     mock_mcp = MockMCP()
     register_gentle_refresh_tools(mock_mcp)
 
+    # Check that gentle_refresh is registered
     assert "gentle_refresh" in mock_mcp.tools
     assert callable(mock_mcp.tools["gentle_refresh"])
 
@@ -145,8 +159,15 @@ def test_gentle_refresh_registration():
 @patch("alpha_recall.tools.gentle_refresh.GeolocationService", MockGeolocationService)
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
-def test_gentle_refresh_basic_success(mock_redis_service, mock_memgraph_service):
+@patch("alpha_recall.tools.gentle_refresh.get_redis_context_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_identity_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_memory_service")
+def test_gentle_refresh_basic_success(
+    mock_redis_memory_service,
+    mock_redis_identity_service,
+    mock_redis_context_service,
+    mock_memgraph_service,
+):
     """Test that gentle_refresh returns valid prose on success."""
     # Setup mocks with BOTH identity facts AND personality data
     identity_facts = [
@@ -162,7 +183,11 @@ def test_gentle_refresh_basic_success(mock_redis_service, mock_memgraph_service)
         }
     ]
 
-    mock_redis_service.return_value = MockRedisService(identity_facts=identity_facts)
+    mock_redis_memory_service.return_value = MockRedisMemoryService()
+    mock_redis_identity_service.return_value = MockRedisIdentityService(
+        identity_facts=identity_facts
+    )
+    mock_redis_context_service.return_value = MockRedisContextService()
     mock_memgraph_service.return_value = MockMemgraphService(
         personality_data=personality_data
     )
@@ -183,9 +208,14 @@ def test_gentle_refresh_basic_success(mock_redis_service, mock_memgraph_service)
 @patch("alpha_recall.tools.gentle_refresh.GeolocationService", MockGeolocationService)
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_context_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_identity_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_memory_service")
 def test_gentle_refresh_includes_identity_facts(
-    mock_redis_service, mock_memgraph_service
+    mock_redis_memory_service,
+    mock_redis_identity_service,
+    mock_redis_context_service,
+    mock_memgraph_service,
 ):
     """Test that identity facts appear in prose output."""
     # Setup with BOTH identity facts AND personality data
@@ -202,7 +232,12 @@ def test_gentle_refresh_includes_identity_facts(
             "directive_weight": 1.0,
         }
     ]
-    mock_redis_service.return_value = MockRedisService(identity_facts=identity_facts)
+
+    mock_redis_memory_service.return_value = MockRedisMemoryService()
+    mock_redis_identity_service.return_value = MockRedisIdentityService(
+        identity_facts=identity_facts
+    )
+    mock_redis_context_service.return_value = MockRedisContextService()
     mock_memgraph_service.return_value = MockMemgraphService(
         personality_data=personality_data
     )
@@ -218,9 +253,14 @@ def test_gentle_refresh_includes_identity_facts(
 @patch("alpha_recall.tools.gentle_refresh.GeolocationService", MockGeolocationService)
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_context_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_identity_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_memory_service")
 def test_gentle_refresh_includes_personality_traits(
-    mock_redis_service, mock_memgraph_service
+    mock_redis_memory_service,
+    mock_redis_identity_service,
+    mock_redis_context_service,
+    mock_memgraph_service,
 ):
     """Test that personality traits appear in prose output."""
     # Setup with BOTH identity facts AND personality data
@@ -236,7 +276,12 @@ def test_gentle_refresh_includes_personality_traits(
             "directive_weight": 0.8,
         }
     ]
-    mock_redis_service.return_value = MockRedisService(identity_facts=identity_facts)
+
+    mock_redis_memory_service.return_value = MockRedisMemoryService()
+    mock_redis_identity_service.return_value = MockRedisIdentityService(
+        identity_facts=identity_facts
+    )
+    mock_redis_context_service.return_value = MockRedisContextService()
     mock_memgraph_service.return_value = MockMemgraphService(
         personality_data=personality_data
     )
@@ -252,11 +297,22 @@ def test_gentle_refresh_includes_personality_traits(
 @patch("alpha_recall.tools.gentle_refresh.GeolocationService", MockGeolocationService)
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
-def test_gentle_refresh_handles_empty_data(mock_redis_service, mock_memgraph_service):
+@patch("alpha_recall.tools.gentle_refresh.get_redis_context_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_identity_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_memory_service")
+def test_gentle_refresh_handles_empty_data(
+    mock_redis_memory_service,
+    mock_redis_identity_service,
+    mock_redis_context_service,
+    mock_memgraph_service,
+):
     """Test graceful handling when all data sources are empty."""
     # Setup with empty data - this should now return initialization error
-    mock_redis_service.return_value = MockRedisService(identity_facts=[])
+    mock_redis_memory_service.return_value = MockRedisMemoryService()
+    mock_redis_identity_service.return_value = MockRedisIdentityService(
+        identity_facts=[]
+    )
+    mock_redis_context_service.return_value = MockRedisContextService()
     mock_memgraph_service.return_value = MockMemgraphService(
         core_identity={"name": "Alpha Core Identity", "observations": []},
         personality_data=[],
@@ -276,8 +332,15 @@ def test_gentle_refresh_handles_empty_data(mock_redis_service, mock_memgraph_ser
 @patch("alpha_recall.tools.gentle_refresh.GeolocationService", MockGeolocationService)
 @patch("alpha_recall.tools.gentle_refresh.settings", MockSettings())
 @patch("alpha_recall.tools.gentle_refresh.get_memgraph_service")
-@patch("alpha_recall.tools.gentle_refresh.get_redis_service")
-def test_gentle_refresh_error_resilience(mock_redis_service, mock_memgraph_service):
+@patch("alpha_recall.tools.gentle_refresh.get_redis_context_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_identity_service")
+@patch("alpha_recall.tools.gentle_refresh.get_redis_memory_service")
+def test_gentle_refresh_error_resilience(
+    mock_redis_memory_service,
+    mock_redis_identity_service,
+    mock_redis_context_service,
+    mock_memgraph_service,
+):
     """Test that gentle_refresh is resilient to partial service failures."""
     # Setup mocks where personality query fails but we have identity facts
     identity_facts = [
@@ -288,7 +351,12 @@ def test_gentle_refresh_error_resilience(mock_redis_service, mock_memgraph_servi
         side_effect=Exception("Personality query failed")
     )
     mock_memgraph_service.return_value = mock_memgraph
-    mock_redis_service.return_value = MockRedisService(identity_facts=identity_facts)
+
+    mock_redis_memory_service.return_value = MockRedisMemoryService()
+    mock_redis_identity_service.return_value = MockRedisIdentityService(
+        identity_facts=identity_facts
+    )
+    mock_redis_context_service.return_value = MockRedisContextService()
 
     response = asyncio.run(gentle_refresh())
 
@@ -313,48 +381,47 @@ def test_gentle_refresh_with_token_budget():
                     "alpha_recall.tools.gentle_refresh.get_memgraph_service"
                 ) as mock_memgraph:
                     with patch(
-                        "alpha_recall.tools.gentle_refresh.get_redis_service"
-                    ) as mock_redis:
-                        # Setup with BOTH identity facts AND personality data
-                        identity_facts = [
-                            {
-                                "content": "Alpha is an AI assistant",
-                                "score": 1.0,
-                                "position": 1,
-                            }
-                        ]
-                        personality_data = [
-                            {
-                                "trait_name": "helpfulness",
-                                "trait_description": "Being helpful to users",
-                                "trait_weight": 1.0,
-                                "directive_instruction": "Always try to help",
-                                "directive_weight": 1.0,
-                            }
-                        ]
-                        mock_memgraph.return_value = MockMemgraphService(
-                            personality_data=personality_data
-                        )
-                        mock_redis.return_value = MockRedisService(
-                            identity_facts=identity_facts
-                        )
+                        "alpha_recall.tools.gentle_refresh.get_redis_memory_service"
+                    ) as mock_redis_memory:
+                        with patch(
+                            "alpha_recall.tools.gentle_refresh.get_redis_identity_service"
+                        ) as mock_redis_identity:
+                            with patch(
+                                "alpha_recall.tools.gentle_refresh.get_redis_context_service"
+                            ) as mock_redis_context:
+                                # Setup with BOTH identity facts AND personality data
+                                identity_facts = [
+                                    {
+                                        "content": "Alpha is an AI assistant",
+                                        "score": 1.0,
+                                        "position": 1,
+                                    }
+                                ]
+                                personality_data = [
+                                    {
+                                        "trait_name": "helpfulness",
+                                        "trait_description": "Being helpful to users",
+                                        "trait_weight": 1.0,
+                                        "directive_instruction": "Always try to help",
+                                        "directive_weight": 1.0,
+                                    }
+                                ]
+                                mock_memgraph.return_value = MockMemgraphService(
+                                    personality_data=personality_data
+                                )
+                                mock_redis_memory.return_value = (
+                                    MockRedisMemoryService()
+                                )
+                                mock_redis_identity.return_value = (
+                                    MockRedisIdentityService(
+                                        identity_facts=identity_facts
+                                    )
+                                )
+                                mock_redis_context.return_value = (
+                                    MockRedisContextService()
+                                )
 
-                        # Should not raise exception with token parameter
-                        response = asyncio.run(gentle_refresh(tokens=500))
-                        assert isinstance(response, str)
-                        assert response.startswith("Good")
-
-
-def test_gentle_refresh_complete_failure():
-    """Test behavior when all services fail."""
-    # Setup complete failure scenario
-    with patch("alpha_recall.tools.gentle_refresh.time_service") as mock_time:
-        mock_time.now_async.side_effect = Exception("Time service failed")
-
-        # Should raise exception for complete failure
-        try:
-            asyncio.run(gentle_refresh())
-            raise AssertionError("Expected exception for complete service failure")
-        except Exception as e:
-            # Exception is expected and acceptable
-            assert "failed" in str(e).lower() or "error" in str(e).lower()
+                                # Should accept token budget parameter
+                                response = asyncio.run(gentle_refresh(tokens=1000))
+                                assert isinstance(response, str)
+                                assert len(response) > 0

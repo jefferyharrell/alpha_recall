@@ -6,7 +6,7 @@ from fastmcp import FastMCP
 from jinja2 import Template
 
 from ..logging import get_logger
-from ..services.redis import get_redis_service
+from ..services.factory import get_redis_memory_service
 from ..services.time import time_service
 from ..utils.correlation import create_child_correlation_id, set_correlation_id
 
@@ -78,9 +78,9 @@ def browse_shortterm(
         operation="browse_shortterm",
     )
 
-    # Get Redis service
-    redis_service = get_redis_service()
-    client = redis_service.client
+    # Get Memory Redis service
+    memory_service = get_redis_memory_service()
+    client = memory_service.client
 
     try:
         # Calculate time range if 'since' is provided

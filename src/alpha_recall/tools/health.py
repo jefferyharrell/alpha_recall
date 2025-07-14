@@ -68,10 +68,10 @@ def health_check() -> str:
     # Check Redis connection
     redis_start = time.perf_counter()
     try:
-        from ..services.redis import get_redis_service
+        from ..services.factory import get_redis_memory_service
 
-        redis_service = get_redis_service()
-        if redis_service.test_connection():
+        memory_service = get_redis_memory_service()
+        if memory_service.test_connection():
             checks["redis"] = "ok"
             tool_logger.debug("Redis health check passed", service="redis", status="ok")
         else:
