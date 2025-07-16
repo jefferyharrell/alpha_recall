@@ -6,6 +6,7 @@ personality traits, and recent memories in natural language prose format for
 optimal tokenization efficiency.
 """
 
+import pendulum
 from fastmcp import FastMCP
 from jinja2 import Template
 
@@ -52,7 +53,7 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human
 *{{ shortterm_memories|length }} most recent memories*
 {% for memory in shortterm_memories %}
 {{ loop.index }}. {{ memory.content }}
-   *{{ memory.created_at }}*
+   *{{ memory.created_at }} ({{ memory.age }})*
 {% endfor %}
 
 {% if recent_observations %}
@@ -341,10 +342,14 @@ async def gentle_refresh(tokens: int | None = None) -> str:
                         created_at
                     )
 
+                    # Calculate human-readable age
+                    memory_age = pendulum.parse(created_at).diff_for_humans()
+
                     shortterm_memories.append(
                         {
                             "content": content,
                             "created_at": formatted_timestamp,
+                            "age": memory_age,
                             "client": {"client_name": client_name},
                         }
                     )
