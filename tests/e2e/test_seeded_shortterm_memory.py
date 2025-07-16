@@ -26,13 +26,16 @@ async def test_remember_shortterm_stores_memory_with_embeddings(test_stack_seede
                 "content": "Alpha discovered an elegant solution to the embedding performance optimization challenge today"
             },
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["status"] == "stored"
-        assert "memory_id" in data
-        assert data["content_tokens"] > 0
-        assert data["semantic_embedding_dims"] == 768
-        assert data["emotional_embedding_dims"] == 1024
+        # Check that memory was stored successfully
+        assert "Memory stored successfully." in response_text
+
+        # Should have related memories section (may be empty or populated)
+        assert (
+            "Related memories found" in response_text
+            or "No related memories found" in response_text
+        )
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -63,18 +66,15 @@ async def test_browse_shortterm_with_seeded_data(test_stack_seeded):
         result = await time_mcp_call(
             client, "browse_shortterm", {"limit": 10, "order": "desc"}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert "memories" in data
-        assert len(data["memories"]) > 0
-        assert "pagination" in data
-        assert data["pagination"]["total_in_range"] >= len(data["memories"])
+        # Check that we found memories
+        assert "Found" in response_text
+        assert "memories" in response_text
+        assert "Use offset=" in response_text or "No more results" in response_text
 
         # Should include seeded STM data
-        memory_contents = [mem["content"] for mem in data["memories"]]
-        assert any(
-            "Alpha" in content for content in memory_contents
-        ), "Should find Alpha-related memories"
+        assert "Alpha" in response_text
 
         # Assert fast performance (browse should be graph-only)
         from tests.e2e.fixtures.performance import collector
@@ -105,18 +105,18 @@ async def test_browse_shortterm_temporal_filtering(test_stack_seeded):
         result = await time_mcp_call(
             client, "browse_shortterm", {"limit": 20, "since": "1h"}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        # browse_shortterm returns data directly, no "success" field
-        assert "memories" in data
+        # Check that we found memories or proper empty response
+        assert "Found" in response_text
+        assert "memories" in response_text
+        assert "since: 1h" in response_text or "**Filters:**" in response_text
 
         # All returned memories should be within the time window
-        if len(data["memories"]) > 0:
-            # Check that memories have recent timestamps
-            # (Exact validation would require comparing against current time)
-            for memory in data["memories"]:
-                assert "created_at" in memory
-                assert memory["created_at"] is not None
+        # Check that memories have recent timestamps (visible in prose format)
+        if "No memories found" not in response_text:
+            # Should contain timestamps in the prose format
+            assert "2025-" in response_text  # Should have recent timestamps
 
         # Assert fast performance
         from tests.e2e.fixtures.performance import collector
@@ -293,8 +293,8 @@ async def test_shortterm_memory_cross_system_consistency(test_stack_seeded):
                 "content": "Cross-system test marker: unique STM content for unified search validation"
             },
         )
-        store_data = json.loads(store_result.content[0].text)
-        assert store_data["status"] == "stored"
+        store_response_text = store_result.content[0].text
+        assert "Memory stored successfully." in store_response_text
 
         # Search for it in unified search
         unified_result = await time_mcp_call(
@@ -302,26 +302,21 @@ async def test_shortterm_memory_cross_system_consistency(test_stack_seeded):
             "search_all_memories",
             {"query": "Cross-system test marker unique STM content", "limit": 10},
         )
-        unified_data = json.loads(unified_result.content[0].text)
+        unified_response_text = unified_result.content[0].text
 
-        assert unified_data["success"] is True
-        assert len(unified_data["results"]) > 0
+        assert "Found" in unified_response_text
+        assert "memories across all systems" in unified_response_text
+        assert (
+            'query: "Cross-system test marker unique STM content"'
+            in unified_response_text
+        )
+        assert "No matching memories found" not in unified_response_text
 
         # Should find our STM memory in unified results
-        stm_sources = [
-            r
-            for r in unified_data["results"]
-            if r["source"] in ["STM", "STM_SEMANTIC", "STM_EMOTIONAL"]
-        ]
-        assert len(stm_sources) > 0, "Should find STM results in unified search"
+        assert "**STM**" in unified_response_text
 
         # Verify content matches
-        found_content = False
-        for result in unified_data["results"]:
-            if "Cross-system test marker" in result["content"]:
-                found_content = True
-                break
-        assert found_content, "Should find our test content in unified search"
+        assert "Cross-system test marker" in unified_response_text
 
         # Assert performance for both operations
         from tests.e2e.fixtures.performance import collector
@@ -404,9 +399,9 @@ async def test_shortterm_memory_performance_comprehensive(test_stack_seeded):
         )
 
         # Verify all operations succeeded
-        assert json.loads(remember_result.content[0].text)["status"] == "stored"
-        # browse_shortterm and search_shortterm return data directly, no "success" field
-        assert "memories" in json.loads(browse_result.content[0].text)
+        assert "Memory stored successfully." in remember_result.content[0].text
+        # browse_shortterm returns prose format, search_shortterm returns JSON
+        assert "memories" in browse_result.content[0].text
         assert "memories" in json.loads(semantic_result.content[0].text)
         assert "memories" in json.loads(emotional_result.content[0].text)
 

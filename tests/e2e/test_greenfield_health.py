@@ -125,10 +125,9 @@ async def test_first_memory_storage_works(test_stack):
             {"content": "This is the first memory in a fresh Alpha-Recall system"},
         )
 
-        data = json.loads(result.content[0].text)
-        assert data["status"] == "stored"
-        assert "memory_id" in data
-        assert len(data["memory_id"]) > 0
+        response_text = result.content[0].text
+        assert "Memory stored successfully." in response_text
+        assert "No related memories found." in response_text
 
         # Assert fast performance since models should already be loaded
         from tests.e2e.fixtures.performance import collector
@@ -185,11 +184,15 @@ async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
             "search_all_memories",
             {"query": "zxyqwerty_impossible_nonsense_12345_abcdef"},
         )
-        unified_data = json.loads(unified_result.content[0].text)
-        assert unified_data["success"] is True
-        assert isinstance(unified_data["results"], list)
+        response_text = unified_result.content[0].text
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert "zxyqwerty_impossible_nonsense_12345_abcdef" in response_text
         # Should return very few results for nonsensical query
-        assert len(unified_data["results"]) <= 3
+        import re
+
+        results_count = len(re.findall(r"^\d+\.", response_text, re.MULTILINE))
+        assert results_count <= 3
 
         # Assert fast performance since models should already be loaded
         from tests.e2e.fixtures.performance import collector
@@ -213,8 +216,10 @@ async def test_search_returns_gracefully_for_nonsensical_queries(test_stack):
             "search_all_memories",
             {"query": "another_nonsense_query_654321"},
         )
-        unified_data2 = json.loads(unified_result2.content[0].text)
-        assert unified_data2["success"] is True
+        response_text2 = unified_result2.content[0].text
+        assert "Found" in response_text2
+        assert "memories across all systems" in response_text2
+        assert "another_nonsense_query_654321" in response_text2
 
         # Second search should also be fast
         latest_duration2 = None

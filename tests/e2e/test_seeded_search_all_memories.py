@@ -4,8 +4,6 @@ These tests use comprehensive mock data to verify search behavior against realis
 populated databases with entities, relationships, memories, and narratives.
 """
 
-import json
-
 import pytest
 from fastmcp import Client
 
@@ -20,18 +18,22 @@ async def test_search_all_memories_finds_known_entities(test_stack_seeded):
     async with Client(server_url) as client:
         # Search for Alpha - should find across multiple systems
         result = await time_mcp_call(client, "search_all_memories", {"query": "Alpha"})
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) > 0
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Alpha"' in response_text
+        assert "No matching memories found" not in response_text
 
         # Should find Alpha in multiple contexts
-        result_text = " ".join([r["content"] for r in data["results"]])
-        assert "Alpha" in result_text
+        assert "Alpha" in response_text
 
         # Verify we get results from multiple sources
-        sources = {r["source"] for r in data["results"]}
-        assert len(sources) > 1  # Should find in multiple systems
+        sources_found = 0
+        for source in ["**STM**", "**LTM**", "**ENTITY**", "**NM**"]:
+            if source in response_text:
+                sources_found += 1
+        assert sources_found > 1  # Should find in multiple systems
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -60,15 +62,16 @@ async def test_search_all_memories_finds_sparkle_bread_crimes(test_stack_seeded)
     async with Client(server_url) as client:
         # Search for bread-related crimes
         result = await time_mcp_call(client, "search_all_memories", {"query": "bread"})
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) > 0
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "bread"' in response_text
+        assert "No matching memories found" not in response_text
 
         # Should find Sparkle's bread-related activities
-        result_text = " ".join([r["content"] for r in data["results"]]).lower()
-        assert "sparkle" in result_text
-        assert "bread" in result_text
+        assert "sparkle" in response_text.lower()
+        assert "bread" in response_text.lower()
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -97,14 +100,15 @@ async def test_search_all_memories_technical_terms(test_stack_seeded):
     async with Client(server_url) as client:
         # Search for Redis - should find in observations and narratives
         result = await time_mcp_call(client, "search_all_memories", {"query": "Redis"})
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) > 0
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Redis"' in response_text
+        assert "No matching memories found" not in response_text
 
         # Should find Redis mentioned in multiple contexts
-        result_text = " ".join([r["content"] for r in data["results"]])
-        assert "Redis" in result_text
+        assert "Redis" in response_text
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -135,14 +139,15 @@ async def test_search_all_memories_collaborative_work(test_stack_seeded):
         result = await time_mcp_call(
             client, "search_all_memories", {"query": "Jeffery collaboration"}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) > 0
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Jeffery collaboration"' in response_text
+        assert "No matching memories found" not in response_text
 
         # Should find collaborative work between Alpha and Jeffery
-        result_text = " ".join([r["content"] for r in data["results"]])
-        assert "Jeffery" in result_text
+        assert "Jeffery" in response_text
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -173,9 +178,11 @@ async def test_search_all_memories_emotional_context(test_stack_seeded):
         result = await time_mcp_call(
             client, "search_all_memories", {"query": "excited breakthrough"}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "excited breakthrough"' in response_text
         # May or may not find results depending on exact emotional content
 
         # Assert fast performance with warm models
@@ -213,18 +220,19 @@ async def test_search_all_memories_different_queries_different_results(
             client, "search_all_memories", {"query": "Sparkle bread heist"}
         )
 
-        alpha_data = json.loads(alpha_result.content[0].text)
-        sparkle_data = json.loads(sparkle_result.content[0].text)
+        alpha_text = alpha_result.content[0].text
+        sparkle_text = sparkle_result.content[0].text
 
-        assert alpha_data["success"] is True
-        assert sparkle_data["success"] is True
+        assert "Found" in alpha_text
+        assert "memories across all systems" in alpha_text
+        assert 'query: "Alpha consciousness"' in alpha_text
+
+        assert "Found" in sparkle_text
+        assert "memories across all systems" in sparkle_text
+        assert 'query: "Sparkle bread heist"' in sparkle_text
 
         # Results should be different
-        alpha_content = [r["content"] for r in alpha_data["results"]]
-        sparkle_content = [r["content"] for r in sparkle_data["results"]]
-
-        # At least some results should be different
-        assert alpha_content != sparkle_content
+        assert alpha_text != sparkle_text
 
         # Assert fast performance with warm models (check both calls)
         from tests.e2e.fixtures.performance import collector
@@ -258,18 +266,20 @@ async def test_search_all_memories_cross_system_integration(test_stack_seeded):
         result = await time_mcp_call(
             client, "search_all_memories", {"query": "Alpha-Recall"}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) > 0
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Alpha-Recall"' in response_text
+        assert "No matching memories found" not in response_text
 
         # Verify we get results from multiple sources (STM, LTM, NM)
-        sources = {r["source"] for r in data["results"]}
-        assert "LTM" in sources or "ENTITY" in sources
+        assert "**LTM**" in response_text or "**ENTITY**" in response_text
 
         # Should find Alpha-Recall project references
-        result_text = " ".join([r["content"] for r in data["results"]])
-        assert "Alpha-Recall" in result_text or "alpha-recall" in result_text.lower()
+        assert (
+            "Alpha-Recall" in response_text or "alpha-recall" in response_text.lower()
+        )
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -299,13 +309,20 @@ async def test_search_all_memories_performance_reasonable(test_stack_seeded):
         result = await time_mcp_call(
             client, "search_all_memories", {"query": "performance"}
         )
-        data = json.loads(result.content[0].text)
-        assert data["success"] is True
+        response_text = result.content[0].text
 
-        # Should include timing information in metadata
-        assert "metadata" in data
-        assert "search_time_ms" in data["metadata"]
-        assert isinstance(data["metadata"]["search_time_ms"], int | float)
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "performance"' in response_text
+
+        # Should include timing information in the prose format
+        import re
+
+        timing_match = re.search(
+            r"Found \d+ memories across all systems in (\d+)ms", response_text
+        )
+        assert timing_match is not None
+        server_time_ms = int(timing_match.group(1))
 
         # Assert fast performance with warm models
         from tests.e2e.fixtures.performance import collector
@@ -324,7 +341,6 @@ async def test_search_all_memories_performance_reasonable(test_stack_seeded):
         ), f"search_all_memories took {latest_duration:.1f}ms, should be <600ms"
 
         # Verify our instrumentation timing matches server timing roughly
-        server_time_ms = data["metadata"]["search_time_ms"]
         timing_diff = abs(latest_duration - server_time_ms)
         # Allow for some timing differences between client and server measurement
         assert timing_diff < 100, f"Timing difference too large: {timing_diff:.1f}ms"
@@ -342,19 +358,30 @@ async def test_search_all_memories_respects_limits(test_stack_seeded):
         result = await time_mcp_call(
             client, "search_all_memories", {"query": "Alpha", "limit": 3}
         )
-        data = json.loads(result.content[0].text)
+        response_text = result.content[0].text
 
-        assert data["success"] is True
-        assert len(data["results"]) <= 3
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Alpha"' in response_text
+
+        # Count results in prose format (numbered list)
+        import re
+
+        results_count = len(re.findall(r"^\d+\.", response_text, re.MULTILINE))
+        assert results_count <= 3
 
         # Search with larger limit should potentially return more results
         result2 = await time_mcp_call(
             client, "search_all_memories", {"query": "Alpha", "limit": 10}
         )
-        data2 = json.loads(result2.content[0].text)
+        response_text2 = result2.content[0].text
 
-        assert data2["success"] is True
-        assert len(data2["results"]) >= len(data["results"])
+        assert "Found" in response_text2
+        assert "memories across all systems" in response_text2
+        assert 'query: "Alpha"' in response_text2
+
+        results_count2 = len(re.findall(r"^\d+\.", response_text2, re.MULTILINE))
+        assert results_count2 >= results_count
 
         # Assert fast performance with warm models (check both calls)
         from tests.e2e.fixtures.performance import collector

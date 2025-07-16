@@ -463,7 +463,7 @@ async def test_longterm_memory_cross_system_consistency(test_stack_seeded):
         unified_result = await time_mcp_call(
             client, "search_all_memories", {"query": "Alpha development"}
         )
-        unified_data = json.loads(unified_result.content[0].text)
+        unified_response_text = unified_result.content[0].text
 
         # Search LTM specifically for Alpha
         ltm_result = await time_mcp_call(
@@ -472,18 +472,21 @@ async def test_longterm_memory_cross_system_consistency(test_stack_seeded):
         ltm_data = json.loads(ltm_result.content[0].text)
 
         # Both should be successful
-        assert unified_data["success"] is True
+        assert "Found" in unified_response_text
+        assert "memories across all systems" in unified_response_text
+        assert 'query: "Alpha development"' in unified_response_text
+        assert "No matching memories found" not in unified_response_text
+
         assert ltm_data["success"] is True
 
         # Unified search should include LTM results
-        unified_sources = {r["source"] for r in unified_data["results"]}
-        assert "LTM" in unified_sources or "ENTITY" in unified_sources
+        assert (
+            "**LTM**" in unified_response_text or "**ENTITY**" in unified_response_text
+        )
 
         # Should find consistent references to Alpha
-        unified_text = " ".join([r["content"] for r in unified_data["results"]])
+        assert "Alpha" in unified_response_text
         ltm_text = " ".join([r["observation"] for r in ltm_data["observations"]])
-
-        assert "Alpha" in unified_text
         assert "Alpha" in ltm_text
 
         # Assert fast performance for both searches

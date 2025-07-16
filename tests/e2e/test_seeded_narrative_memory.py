@@ -383,24 +383,21 @@ async def test_narrative_memory_cross_system_consistency(test_stack_seeded):
             "search_all_memories",
             {"query": "Cross-system Test Marker Story unique narrative", "limit": 10},
         )
-        unified_data = json.loads(unified_result.content[0].text)
+        unified_response_text = unified_result.content[0].text
 
-        assert unified_data["success"] is True
-        assert len(unified_data["results"]) > 0
+        assert "Found" in unified_response_text
+        assert "memories across all systems" in unified_response_text
+        assert (
+            'query: "Cross-system Test Marker Story unique narrative"'
+            in unified_response_text
+        )
+        assert "No matching memories found" not in unified_response_text
 
         # Should find our narrative memory in unified results
-        narrative_sources = [r for r in unified_data["results"] if r["source"] == "NM"]
-        assert (
-            len(narrative_sources) > 0
-        ), "Should find narrative results in unified search"
+        assert "**NM**" in unified_response_text
 
         # Verify content matches
-        found_content = False
-        for result in unified_data["results"]:
-            if "Cross-system Test Marker" in result["content"]:
-                found_content = True
-                break
-        assert found_content, "Should find our test content in unified search"
+        assert "Cross-system Test Marker" in unified_response_text
 
         # Assert performance for both operations
         from tests.e2e.fixtures.performance import collector

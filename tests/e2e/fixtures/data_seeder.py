@@ -75,8 +75,14 @@ class TestDataSeeder:
                 "remember_shortterm", {"content": memory["content"]}
             )
 
-            response_data = json.loads(result.content[0].text)
-            memory_id = response_data["memory_id"]
+            # remember_shortterm returns prose format, not JSON
+            response_text = result.content[0].text
+            # Verify memory was stored successfully
+            if "Memory stored successfully" not in response_text:
+                raise ValueError(f"Memory storage failed: {response_text}")
+
+            # Generate a substitute memory ID for tracking purposes
+            memory_id = f"seed_stm_{len(memory_ids)}"
             memory_ids.append(memory_id)
 
             # Track by category for targeted testing
