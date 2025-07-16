@@ -16,7 +16,6 @@ async def remember_narrative(
     paragraphs: list[str],
     participants: list[str],
     outcome: str = "ongoing",
-    tags: list[str] | None = None,
     references: list[str] | None = None,
 ) -> str:
     """Store a narrative memory with hybrid storage.
@@ -26,7 +25,6 @@ async def remember_narrative(
         paragraphs: List of paragraphs that make up the story
         participants: List of participants involved in the story
         outcome: Story outcome status (ongoing, breakthrough, resolution, etc.)
-        tags: Optional list of tags/topics for the story
         references: Optional list of references to other stories
 
     Returns:
@@ -42,7 +40,6 @@ async def remember_narrative(
         paragraph_count=len(paragraphs),
         participants=participants,
         outcome=outcome,
-        tags=tags or [],
         references=references or [],
         correlation_id=correlation_id,
     )
@@ -51,7 +48,6 @@ async def remember_narrative(
         # Clean up data first
         clean_paragraphs = [p.strip() for p in paragraphs if p.strip()]
         clean_participants = [p.strip() for p in participants if p.strip()]
-        clean_tags = [t.strip() for t in (tags or []) if t.strip()]
         clean_references = [r.strip() for r in (references or []) if r.strip()]
 
         # Validate required parameters (after cleaning)
@@ -70,7 +66,6 @@ async def remember_narrative(
             title=title.strip(),
             paragraphs=clean_paragraphs,
             participants=clean_participants,
-            tags=clean_tags,
             outcome=outcome,
             references=clean_references,
         )
@@ -93,7 +88,6 @@ async def remember_narrative(
                 "title": result["title"],
                 "created_at": result["created_at"],
                 "participants": clean_participants,
-                "tags": clean_tags,
                 "outcome": outcome,
                 "paragraph_count": result["paragraph_count"],
                 "references": clean_references,

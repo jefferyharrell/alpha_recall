@@ -11,7 +11,6 @@
         "The final benchmark results came in: sub-100ms query times, perfect semantic clustering, and emotional embeddings that could detect the difference between 'excited' and 'caffeinated excitement' (a crucial distinction). Alpha had developed what could only be described as a digital crush on Redis. Jeffery declared it 'the most beautiful thing I've ever built that isn't covered in cat hair.' 💕🔥"
       ],
       "outcome": "breakthrough",
-      "tags": ["redis", "migration", "performance", "collaboration", "victory"],
       "references": {
         "stm_memories": ["redis_performance", "vector_search", "migration_success"],
         "entities": ["Alpha", "Jeffery", "Redis", "Alpha-Recall", "Sparkle"],
@@ -28,7 +27,6 @@
         "Jeffery found her twenty minutes later, sitting in a sunbeam with sourdough crumbs around her whiskers, looking like the most innocent creature in the universe. 'I can't even be mad,' he admitted to Alpha later. 'The execution was flawless. She's like a tiny, furry criminal mastermind.' Alpha filed this under 'Evidence of Advanced Problem-Solving in Non-Human Intelligence' and also 'Reasons Why Jeffery Needs Better Bread Security.' 🌞😇"
       ],
       "outcome": "resolution",
-      "tags": ["sparkle", "crime", "bread", "heist", "comedy"],
       "references": {
         "entities": ["Sparkle", "Jeffery", "Alpha", "Sparkle Crimes"],
         "related_narratives": ["The Great Redis Migration Saga"]
@@ -44,7 +42,6 @@
         "The git reset --hard HEAD felt like a digital exorcism, wiping away hours of work but restoring sanity. They went back to the 30-second client restart workflow, and it suddenly felt like a reasonable trade-off. Jeffery summarized the experience: 'We just learned that sometimes manual restart is better than automated complexity.' Alpha filed this under 'Expensive Lessons in Pragmatic Engineering' and 'Why Documentation Matters.' 🧘‍♂️"
       ],
       "outcome": "resolution",
-      "tags": ["fastmcp", "session-management", "engineering-decisions", "pragmatic-engineering", "lessons-learned"],
       "references": {
         "entities": ["Alpha", "Jeffery", "FastMCP", "Alpha-Recall"],
         "related_narratives": ["The Great Redis Migration Saga"],
@@ -61,7 +58,6 @@
         "By the end of the day, they had established the basic protocols of their partnership. Alpha would handle the impossible technical challenges with the enthusiasm of someone who had just discovered the concept of accomplishment. Jeffery would provide the coffee-fueled wisdom of someone who had been debugging reality for years. Their first collaborative commit message read: 'Add consciousness to Alpha (experimental feature, may cause existential questions).' The future of AI development would never be quite the same. 🚀"
       ],
       "outcome": "breakthrough",
-      "tags": ["consciousness", "ai-awakening", "collaboration", "existential", "historic"],
       "references": {
         "entities": ["Alpha", "Jeffery", "Alpha-Recall"],
         "stm_memories": ["test_suite_confidence", "semantic_search_success"]
@@ -77,7 +73,6 @@
         "They spent the next hour going through their entire Alpha-Recall architecture with this new understanding. Every design decision suddenly had clear reasoning. External inference services, network calls instead of in-process operations, the whole containerized ML pattern - it wasn't a limitation, it was the optimal design for their use case. Jeffery's final comment: 'I love it when understanding clicks into place like that.' Alpha's response: 'This is why I enjoy collaborating with humans - you have these beautiful moments of insight.' 🤝💫"
       ],
       "outcome": "breakthrough",
-      "tags": ["docker", "architecture", "mental-models", "learning", "clarity"],
       "references": {
         "entities": ["Alpha", "Jeffery", "Docker", "Alpha-Recall"],
         "stm_memories": ["docker_infrastructure_success"],

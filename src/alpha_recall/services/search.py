@@ -327,11 +327,10 @@ async def _narrative_vector_search_with_embedding(
             "vector",
             vector_blob,
             "RETURN",
-            "6",
+            "5",
             "story_id",
             "title",
             "participants",
-            "tags",
             "outcome",
             "distance",
             "SORTBY",
@@ -385,9 +384,8 @@ async def _narrative_vector_search_with_embedding(
             distance = float(doc_data.get("distance", 1.0))
             similarity_score = 1.0 - distance
 
-            # Parse participants and tags from JSON strings
+            # Parse participants from JSON string
             participants = []
-            tags = []
 
             try:
                 participants_str = doc_data.get("participants", "[]")
@@ -396,19 +394,11 @@ async def _narrative_vector_search_with_embedding(
             except (json.JSONDecodeError, TypeError):
                 participants = []
 
-            try:
-                tags_str = doc_data.get("tags", "[]")
-                if tags_str:
-                    tags = json.loads(tags_str)
-            except (json.JSONDecodeError, TypeError):
-                tags = []
-
             results.append(
                 {
                     "story_id": doc_data.get("story_id"),
                     "title": doc_data.get("title"),
                     "participants": participants,
-                    "tags": tags,
                     "outcome": doc_data.get("outcome"),
                     "similarity_score": similarity_score,
                     "search_type": search_type,

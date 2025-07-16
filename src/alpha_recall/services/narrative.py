@@ -39,7 +39,6 @@ class NarrativeService:
         "title": "Story Title",
         "created_at": "2025-06-21T21:49:39.312479+00:00",
         "participants": ["Alpha", "Jeffery"],
-        "tags": ["debugging", "breakthrough"],
         "paragraphs": "[{\"text\": \"...\", \"order\": 0}, ...]",
         "full_semantic_vector": "<768D binary blob>",
         "full_emotional_vector": "<1024D binary blob>",
@@ -104,7 +103,6 @@ class NarrativeService:
         title: str,
         paragraphs: list[str],
         participants: list[str],
-        tags: list[str] | None = None,
         outcome: str = "ongoing",
         references: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -115,7 +113,6 @@ class NarrativeService:
             title: Story title
             paragraphs: List of paragraph texts
             participants: List of participant names (e.g., ["Alpha", "Jeffery"])
-            tags: Optional list of tags/topics
             outcome: Story outcome ("breakthrough", "resolution", "ongoing")
             references: Optional list of story_ids this story references
 
@@ -131,7 +128,6 @@ class NarrativeService:
             paragraph_count=len(paragraphs),
             participants=participants,
             outcome=outcome,
-            tags=tags or [],
             references=references or [],
             correlation_id=correlation_id,
         )
@@ -186,7 +182,6 @@ class NarrativeService:
                 "title": title,
                 "created_at": created_at,
                 "participants": json.dumps(participants),
-                "tags": json.dumps(tags or []),
                 "outcome": outcome,
                 "paragraphs": json.dumps(paragraph_objects),
                 "full_semantic_vector": story_semantic.tobytes(),
@@ -215,7 +210,6 @@ class NarrativeService:
                 story_id=story_id,
                 title=title,
                 participants=participants,
-                tags=tags or [],
                 outcome=outcome,
                 correlation_id=correlation_id,
             )
@@ -420,7 +414,7 @@ class NarrativeService:
                     value = value.decode("utf-8")
 
                 # Parse JSON fields
-                if key in ["participants", "tags", "paragraphs"]:
+                if key in ["participants", "paragraphs"]:
                     try:
                         result[key] = json.loads(value)
                     except json.JSONDecodeError:
@@ -458,7 +452,6 @@ class NarrativeService:
         offset: int = 0,
         since: str | None = None,
         participants: list[str] | None = None,
-        tags: list[str] | None = None,
         outcome: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -469,7 +462,6 @@ class NarrativeService:
             offset: Number of stories to skip (for pagination)
             since: Time window filter (e.g., "2d", "1w", "1m")
             participants: Filter by participants (AND logic)
-            tags: Filter by tags (AND logic)
             outcome: Filter by outcome type
 
         Returns:
@@ -484,7 +476,6 @@ class NarrativeService:
             offset=offset,
             since=since,
             participants=participants,
-            tags=tags,
             outcome=outcome,
             correlation_id=correlation_id,
         )
@@ -530,7 +521,6 @@ class NarrativeService:
                         "title",
                         "created_at",
                         "participants",
-                        "tags",
                         "outcome",
                     )
 
@@ -541,7 +531,6 @@ class NarrativeService:
                             "title",
                             "created_at",
                             "participants",
-                            "tags",
                             "outcome",
                         ]
 
@@ -552,7 +541,7 @@ class NarrativeService:
                                     value = value.decode("utf-8")
 
                                 # Parse JSON fields
-                                if field_name in ["participants", "tags"]:
+                                if field_name == "participants":
                                     try:
                                         metadata[field_name] = json.loads(value)
                                     except json.JSONDecodeError:
@@ -561,9 +550,7 @@ class NarrativeService:
                                     metadata[field_name] = value
                             else:
                                 metadata[field_name] = (
-                                    []
-                                    if field_name in ["participants", "tags"]
-                                    else None
+                                    [] if field_name == "participants" else None
                                 )
 
                         stories_metadata.append(metadata)
@@ -577,7 +564,7 @@ class NarrativeService:
 
             # Apply filters (same logic as 0.1.0)
             filtered_stories = self._apply_story_filters(
-                stories_metadata, since, participants, tags, outcome, correlation_id
+                stories_metadata, since, participants, outcome, correlation_id
             )
 
             # Sort by created_at descending (most recent first)
@@ -627,7 +614,6 @@ class NarrativeService:
         stories: list[dict[str, Any]],
         since: str | None,
         participants: list[str] | None,
-        tags: list[str] | None,
         outcome: str | None,
         correlation_id: str,
     ) -> list[dict[str, Any]]:
@@ -672,12 +658,6 @@ class NarrativeService:
             if participants:
                 story_participants = story.get("participants", [])
                 if not all(p in story_participants for p in participants):
-                    continue
-
-            # Tags filter (AND logic)
-            if tags:
-                story_tags = story.get("tags", [])
-                if not all(t in story_tags for t in tags):
                     continue
 
             # Outcome filter
@@ -779,10 +759,6 @@ class NarrativeService:
                     "TAG",
                     "SEPARATOR",
                     ",",
-                    "tags",
-                    "TAG",
-                    "SEPARATOR",
-                    ",",
                     "outcome",
                     "TAG",
                 ]
@@ -838,11 +814,10 @@ class NarrativeService:
                 "vector",
                 vector_blob,
                 "RETURN",
-                "6",
+                "5",
                 "story_id",
                 "title",
                 "participants",
-                "tags",
                 "outcome",
                 "distance",
                 "SORTBY",
@@ -906,12 +881,6 @@ class NarrativeService:
                 if "participants" in doc_data:
                     try:
                         doc_data["participants"] = json.loads(doc_data["participants"])
-                    except json.JSONDecodeError:
-                        pass
-
-                if "tags" in doc_data:
-                    try:
-                        doc_data["tags"] = json.loads(doc_data["tags"])
                     except json.JSONDecodeError:
                         pass
 

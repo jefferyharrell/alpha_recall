@@ -60,7 +60,7 @@ class TestRememberNarrative(unittest.TestCase):
         self.assertEqual(story["participants"], participants)
         self.assertEqual(story["paragraph_count"], len(paragraphs))
         self.assertEqual(story["outcome"], "ongoing")  # default
-        self.assertEqual(story["tags"], [])  # default
+        # tags removed from narrative memory
         self.assertEqual(story["references"], [])  # default
         self.assertIn("story_id", story)
         self.assertIn("created_at", story)
@@ -99,7 +99,6 @@ class TestRememberNarrative(unittest.TestCase):
         ]
         participants = ["Alpha", "Jeffery", "Kylee"]
         outcome = "breakthrough"
-        tags = ["memory", "architecture", "collaboration"]
         references = ["story_123456_abc", "story_789012_def"]
 
         result = asyncio.run(
@@ -108,7 +107,6 @@ class TestRememberNarrative(unittest.TestCase):
                 paragraphs=paragraphs,
                 participants=participants,
                 outcome=outcome,
-                tags=tags,
                 references=references,
             )
         )
@@ -117,7 +115,7 @@ class TestRememberNarrative(unittest.TestCase):
         # Verify all optional parameters are preserved
         story = response_data["story"]
         self.assertEqual(story["outcome"], outcome)
-        self.assertEqual(story["tags"], tags)
+        # tags removed from narrative memory
         self.assertEqual(story["references"], references)
         self.assertEqual(story["participants"], participants)
 
@@ -150,11 +148,6 @@ class TestRememberNarrative(unittest.TestCase):
             "",  # Empty participant should be filtered out
             "Jeffery",
         ]
-        tags = [
-            "  tag1  ",
-            "",  # Empty tag should be filtered out
-            "tag2",
-        ]
         references = [
             "  ref1  ",
             "",  # Empty reference should be filtered out
@@ -166,7 +159,6 @@ class TestRememberNarrative(unittest.TestCase):
                 title=title,
                 paragraphs=paragraphs,
                 participants=participants,
-                tags=tags,
                 references=references,
             )
         )
@@ -184,9 +176,6 @@ class TestRememberNarrative(unittest.TestCase):
 
         # Cleaned participants
         self.assertEqual(story["participants"], ["Alpha", "Jeffery"])
-
-        # Cleaned tags
-        self.assertEqual(story["tags"], ["tag1", "tag2"])
 
         # Cleaned references
         self.assertEqual(story["references"], ["ref1", "ref2"])
@@ -473,7 +462,6 @@ class TestRecallNarrative(unittest.TestCase):
             "title": "Test Story",
             "created_at": "2025-07-09T08:00:00+00:00",
             "participants": ["Alpha", "Jeffery"],
-            "tags": ["test", "example"],
             "outcome": "ongoing",
             "references": [],
             "paragraphs": [
@@ -504,7 +492,7 @@ class TestRecallNarrative(unittest.TestCase):
         self.assertIn("title", story)
         self.assertIn("created_at", story)
         self.assertIn("participants", story)
-        self.assertIn("tags", story)
+        # tags removed from narrative memory
         self.assertIn("outcome", story)
         self.assertIn("references", story)
         self.assertIn("paragraphs", story)
@@ -596,7 +584,6 @@ class TestBrowseNarrative(unittest.TestCase):
                 offset=10,
                 since="7d",
                 participants=["Alpha", "Jeffery"],
-                tags=["breakthrough", "memory"],
                 outcome="resolution",
             )
         )
@@ -613,7 +600,7 @@ class TestBrowseNarrative(unittest.TestCase):
         filters = browse_data["filters"]
         self.assertEqual(filters["since"], "7d")
         self.assertEqual(filters["participants"], ["Alpha", "Jeffery"])
-        self.assertEqual(filters["tags"], ["breakthrough", "memory"])
+        # tags removed from narrative memory
         self.assertEqual(filters["outcome"], "resolution")
 
     def test_browse_narrative_parameter_cleaning(self):
@@ -621,7 +608,6 @@ class TestBrowseNarrative(unittest.TestCase):
         result = asyncio.run(
             browse_narrative(
                 participants=["  Alpha  ", "", "Jeffery"],
-                tags=["  tag1  ", "", "tag2"],
                 outcome="  resolution  ",
             )
         )
@@ -631,9 +617,6 @@ class TestBrowseNarrative(unittest.TestCase):
 
         # Verify cleaned participants
         self.assertEqual(filters["participants"], ["Alpha", "Jeffery"])
-
-        # Verify cleaned tags
-        self.assertEqual(filters["tags"], ["tag1", "tag2"])
 
         # Verify cleaned outcome
         self.assertEqual(filters["outcome"], "resolution")

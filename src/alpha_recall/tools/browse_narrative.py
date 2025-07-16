@@ -17,7 +17,6 @@ async def browse_narrative(
     offset: int = 0,
     since: str | None = None,
     participants: list[str] | None = None,
-    tags: list[str] | None = None,
     outcome: str | None = None,
 ) -> str:
     """List narrative stories chronologically with optional filtering.
@@ -27,7 +26,6 @@ async def browse_narrative(
         offset: Number of stories to skip for pagination (default: 0)
         since: Time duration to look back (e.g., "6h", "2d", "1w")
         participants: Filter by participants involved in stories
-        tags: Filter by story tags
         outcome: Filter by story outcome status
 
     Returns:
@@ -43,7 +41,6 @@ async def browse_narrative(
         offset=offset,
         since=since,
         participants=participants,
-        tags=tags,
         outcome=outcome,
         correlation_id=correlation_id,
     )
@@ -58,7 +55,6 @@ async def browse_narrative(
 
         # Clean up filter parameters
         clean_participants = [p.strip() for p in (participants or []) if p.strip()]
-        clean_tags = [t.strip() for t in (tags or []) if t.strip()]
         clean_outcome = outcome.strip() if outcome else None
 
         # Perform the actual browse using NarrativeService
@@ -71,7 +67,6 @@ async def browse_narrative(
             offset=offset,
             since=since,
             participants=clean_participants,
-            tags=clean_tags,
             outcome=clean_outcome,
         )
         query_time_ms = int((time.time() - start_time) * 1000)
@@ -90,7 +85,6 @@ async def browse_narrative(
                 "filters": {
                     "since": since,
                     "participants": clean_participants,
-                    "tags": clean_tags,
                     "outcome": clean_outcome,
                 },
                 "metadata": {

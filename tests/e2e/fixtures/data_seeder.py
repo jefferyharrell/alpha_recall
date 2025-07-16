@@ -204,11 +204,18 @@ class TestDataSeeder:
                     "paragraphs": narrative["paragraphs"],
                     "participants": narrative["participants"],
                     "outcome": narrative["outcome"],
-                    "tags": narrative.get("tags", []),
                 },
             )
 
             response_data = json.loads(result.content[0].text)
+
+            # Debug: print the response to see what's wrong
+            if not response_data.get("success", False):
+                print(f"ERROR storing narrative: {response_data}")
+                raise ValueError(
+                    f"Failed to store narrative: {response_data.get('error', 'Unknown error')}"
+                )
+
             story_id = response_data["story"]["story_id"]
             story_ids.append(story_id)
 

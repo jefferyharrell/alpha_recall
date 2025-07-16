@@ -63,7 +63,6 @@ async def recall_narrative(story_id: str) -> str:
                 "title": story_data["title"],
                 "created_at": story_data["created_at"],
                 "participants": story_data["participants"],
-                "tags": story_data["tags"],
                 "outcome": story_data["outcome"],
                 "references": story_data.get("references", []),
                 "paragraphs": story_data["paragraphs"],

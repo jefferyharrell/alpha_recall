@@ -31,7 +31,6 @@ async def test_remember_narrative_creates_story_with_embeddings(test_stack_seede
                 ],
                 "participants": ["Alpha", "Jeffery"],
                 "outcome": "breakthrough",
-                "tags": ["performance", "testing", "engineering"],
                 "references": [],
             },
         )
@@ -371,7 +370,6 @@ async def test_narrative_memory_cross_system_consistency(test_stack_seeded):
                 ],
                 "participants": ["Alpha", "TestSystem"],
                 "outcome": "testing",
-                "tags": ["cross-system", "validation", "testing"],
             },
         )
         store_data = json.loads(store_result.content[0].text)
@@ -456,7 +454,6 @@ async def test_narrative_memory_performance_comprehensive(test_stack_seeded):
                 ],
                 "participants": ["Alpha", "PerformanceTest"],
                 "outcome": "ongoing",
-                "tags": ["performance", "testing", "comprehensive"],
             },
         )
 
