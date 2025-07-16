@@ -32,15 +32,17 @@ async def test_00_warm_up_embedding_models(test_stack):
             client, "search_all_memories", {"query": "Sparkle"}
         )
 
-        data = json.loads(result.content[0].text)
+        # search_all_memories returns prose format, not JSON
+        response_text = result.content[0].text
 
         # Should complete successfully even with model loading
-        assert data["success"] is True
-        assert isinstance(data["results"], list)
+        assert "Found" in response_text
+        assert "memories across all systems" in response_text
+        assert 'query: "Sparkle"' in response_text
 
         # Should return no results on fresh database
-        assert data["metadata"]["total_found"] == 0
-        assert len(data["results"]) == 0
+        assert "Found 0 memories" in response_text
+        assert "No matching memories found" in response_text
 
         # The important assertion: model loading should complete within reasonable time
         # This includes both semantic and emotional model loading

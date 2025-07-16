@@ -132,6 +132,41 @@ class MockRedisContextService:
             "context_blocks": self.context_blocks,
         }
 
+    def get_context_blocks_by_priority(self):
+        """Return mock context blocks by priority (dict format with success key)."""
+        # Convert context blocks to list format to match new structure
+        context_blocks_list = []
+        for key, content in self.context_blocks.items():
+            context_blocks_list.append(
+                {
+                    "key": key,
+                    "content": content,
+                    "priority": 0.5,  # Default priority
+                    "created_at": "2025-01-01T12:00:00.000000+00:00",
+                    "updated_at": "2025-01-01T12:00:00.000000+00:00",
+                }
+            )
+        return {
+            "success": True,
+            "context_blocks": context_blocks_list,
+            "count": len(context_blocks_list),
+            "operation_time_ms": 1.0,
+        }
+
+    def get_context_block(self, key):
+        """Return mock context block for continuity message."""
+        if key == "__continuity__":
+            return {
+                "success": False,
+                "content": None,
+                "has_content": False,
+            }
+        return {
+            "success": True,
+            "content": self.context_blocks.get(key, ""),
+            "has_content": key in self.context_blocks,
+        }
+
 
 class MockRedisClient:
     """Mock Redis client for testing."""
@@ -199,9 +234,9 @@ def test_gentle_refresh_basic_success(
     assert len(response) > 100  # Should be substantial prose
     assert response.startswith("Good")
     assert "Los Angeles" in response
-    assert "## Core Identity" in response
-    assert "## Personality Traits" in response
-    assert "## Recent Context" in response
+    assert "# Core Identity" in response
+    assert "# Personality Traits" in response
+    assert "# Recent Context" in response
 
 
 @patch("alpha_recall.tools.gentle_refresh.time_service", MockTimeService())
