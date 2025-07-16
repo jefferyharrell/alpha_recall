@@ -35,11 +35,11 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human
 {{ fact.content }}.{% if not loop.last %} {% endif %}{% endfor %}
 
 # Context
-{% for context_key, context_data in context_blocks.items() %}
+{% for context_block in context_blocks %}
 
-## {{ context_key|title|replace('_', ' ') }}{% if context_data.age %} ({{ context_data.age }}){% endif %}
+## {{ context_block.key|title|replace('_', ' ') }}{% if context_block.age %} ({{ context_block.age }}){% endif %}
 
-{{ context_data.content }}
+{{ context_block.content }}
 {% endfor %}
 
 # Personality Traits
@@ -72,7 +72,7 @@ def calculate_content_for_budget(
     token_budget: int,
     identity_facts: list,
     personality_data: dict,
-    context_blocks: dict | None = None,
+    context_blocks: list | None = None,
 ) -> dict:
     """Calculate how much content fits in the token budget.
 
@@ -88,17 +88,18 @@ def calculate_content_for_budget(
     # Estimate base template cost (time + location + context blocks + identity + personality)
     context_blocks_section = ""
     if context_blocks:
-        for key, block_data in context_blocks.items():
-            # Handle both dict format (new) and string format (old)
-            if isinstance(block_data, dict):
-                content = block_data.get("content", "")
-                age = block_data.get("age", "")
+        for block in context_blocks:
+            # Handle new list format
+            if isinstance(block, dict):
+                key = block.get("key", "")
+                content = block.get("content", "")
+                age = block.get("age", "")
                 header = f"## {key.replace('_', ' ').title()}"
                 if age:
                     header += f" ({age})"
             else:
-                content = block_data
-                header = f"## {key.replace('_', ' ').title()}"
+                # Fallback for unexpected format
+                continue
 
             context_blocks_section += f"""
 
@@ -205,41 +206,39 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         # Get Context Redis service for context blocks (modular context management)
         logger.info("Loading context blocks from Redis")
         context_service = get_redis_context_service()
-        context_blocks_result = context_service.get_all_context_blocks()
-        context_blocks = {}
+        context_blocks_result = context_service.get_context_blocks_by_priority()
+        context_blocks = []
         if context_blocks_result.get("success"):
-            raw_context_blocks = context_blocks_result.get("context_blocks", {})
+            raw_context_blocks = context_blocks_result.get("context_blocks", [])
 
-            # Process context blocks to add age information
-            for key, block_data in raw_context_blocks.items():
-                if isinstance(block_data, dict):
-                    # New format with timestamps
-                    content = block_data.get("content", "")
-                    created_at = block_data.get("created_at")
-                    updated_at = block_data.get("updated_at")
+            # Process context blocks to add age information (already in priority order)
+            for block in raw_context_blocks:
+                key = block.get("key")
+                content = block.get("content", "")
+                created_at = block.get("created_at")
+                updated_at = block.get("updated_at")
+                priority = block.get("priority", 0.5)
 
-                    # Calculate age if we have timestamps
-                    age = None
-                    if updated_at:
-                        age = pendulum.parse(updated_at).diff_for_humans()
-                    elif created_at:
-                        age = pendulum.parse(created_at).diff_for_humans()
+                # Calculate age if we have timestamps
+                age = None
+                if updated_at:
+                    age = pendulum.parse(updated_at).diff_for_humans()
+                elif created_at:
+                    age = pendulum.parse(created_at).diff_for_humans()
 
-                    context_blocks[key] = {
+                context_blocks.append(
+                    {
+                        "key": key,
                         "content": content,
                         "age": age,
+                        "priority": priority,
                     }
-                else:
-                    # Old format (plain string)
-                    context_blocks[key] = {
-                        "content": block_data,
-                        "age": None,
-                    }
+                )
 
             logger.info(
                 "Loaded context blocks",
                 count=len(context_blocks),
-                blocks=list(context_blocks.keys()),
+                blocks=[block.get("key") for block in context_blocks],
             )
 
         core_identity = {

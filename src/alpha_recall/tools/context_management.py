@@ -23,7 +23,7 @@ __all__ = [
 ]
 
 
-async def set_context_block(key: str, content: str) -> str:
+async def set_context_block(key: str, content: str, priority: float = 0.5) -> str:
     """
     Set a context block for modular self-prompt management.
 
@@ -33,6 +33,7 @@ async def set_context_block(key: str, content: str) -> str:
     Args:
         key: The context block key (e.g., 'autobiography', 'current_project', 'system_prompt_experiment')
         content: The Markdown content to store. Use empty string to remove the block.
+        priority: Priority for ordering (higher = earlier in output, default 0.5)
 
     Returns:
         JSON string with operation result
@@ -50,7 +51,7 @@ async def set_context_block(key: str, content: str) -> str:
         )
 
         context_service = get_redis_context_service()
-        result = context_service.set_context_block(key, content)
+        result = context_service.set_context_block(key, content, priority)
 
         logger.info(
             "Context block operation completed",

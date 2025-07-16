@@ -19,13 +19,16 @@ logger = get_logger("services.redis_context")
 class RedisContextService(RedisBaseService):
     """Service for managing modular context blocks in Redis."""
 
-    def set_context_block(self, key: str, content: str) -> dict[str, Any]:
+    def set_context_block(
+        self, key: str, content: str, priority: float = 0.5
+    ) -> dict[str, Any]:
         """
         Set a context block for modular self-prompt management.
 
         Args:
             key: The context block key (e.g., 'autobiography', 'current_project')
             content: The content to store
+            priority: Priority for ordering (higher = earlier in output, default 0.5)
 
         Returns:
             Dict with success status and operation metadata
@@ -41,6 +44,8 @@ class RedisContextService(RedisBaseService):
             if content.strip() == "":
                 # Empty content means remove the context block
                 result = self.client.delete(context_key)
+                # Also remove from sorted set
+                self.client.zrem("alpha:context_blocks_by_priority", key)
                 operation = "removed"
                 logger.info(
                     "Context block removed",
@@ -66,14 +71,19 @@ class RedisContextService(RedisBaseService):
                     # New context block
                     created_at = now.isoformat()
 
-                # Store as JSON with timestamps
+                # Store as JSON with timestamps and priority
                 context_data = {
                     "content": content,
                     "created_at": created_at,
                     "updated_at": now.isoformat(),
+                    "priority": priority,
                 }
 
                 self.client.set(context_key, json.dumps(context_data))
+
+                # Update sorted set for priority-based ordering
+                # Higher priority = earlier in output (reverse order)
+                self.client.zadd("alpha:context_blocks_by_priority", {key: priority})
                 operation = "stored"
                 logger.info(
                     "Context block stored",
@@ -149,11 +159,13 @@ class RedisContextService(RedisBaseService):
                 content = content_data.get("content", content_str)
                 created_at = content_data.get("created_at")
                 updated_at = content_data.get("updated_at", created_at)
+                priority = content_data.get("priority", 0.5)
             except json.JSONDecodeError:
                 # Old format (plain string) - treat as content with no timestamps
                 content = content_str
                 created_at = None
                 updated_at = None
+                priority = 0.5
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -174,6 +186,7 @@ class RedisContextService(RedisBaseService):
                 "content": content,
                 "created_at": created_at,
                 "updated_at": updated_at,
+                "priority": priority if "priority" in locals() else 0.5,
                 "has_content": content is not None,
                 "operation_time_ms": operation_time_ms,
             }
@@ -280,6 +293,8 @@ class RedisContextService(RedisBaseService):
 
             # Delete the context block
             result = self.client.delete(context_key)
+            # Also remove from sorted set
+            self.client.zrem("alpha:context_blocks_by_priority", key)
             key_existed = bool(result)
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -343,6 +358,7 @@ class RedisContextService(RedisBaseService):
                         "content": content_result["content"],
                         "created_at": content_result.get("created_at"),
                         "updated_at": content_result.get("updated_at"),
+                        "priority": content_result.get("priority", 0.5),
                     }
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
@@ -374,4 +390,76 @@ class RedisContextService(RedisBaseService):
             return {
                 "success": False,
                 "error": f"Failed to retrieve all context blocks: {e}",
+            }
+
+    def get_context_blocks_by_priority(self) -> dict[str, Any]:
+        """
+        Get all context blocks ordered by priority (highest first).
+
+        Returns:
+            Dict with success status and ordered context blocks
+        """
+        correlation_id = get_correlation_id() or create_child_correlation_id(
+            "get_context_blocks_by_priority"
+        )
+        start_time = time.perf_counter()
+
+        try:
+            # Get context block keys in priority order (highest priority first)
+            # ZREVRANGE returns items in descending order by score
+            ordered_keys = self.client.zrevrange(
+                "alpha:context_blocks_by_priority", 0, -1
+            )
+
+            # Convert bytes to strings
+            ordered_keys = [
+                key.decode("utf-8") if isinstance(key, bytes) else key
+                for key in ordered_keys
+            ]
+
+            context_blocks = []
+
+            # Get content for each context block in priority order
+            for key in ordered_keys:
+                content_result = self.get_context_block(key)
+                if content_result.get("success") and content_result.get("content"):
+                    context_blocks.append(
+                        {
+                            "key": key,
+                            "content": content_result["content"],
+                            "created_at": content_result.get("created_at"),
+                            "updated_at": content_result.get("updated_at"),
+                            "priority": content_result.get("priority", 0.5),
+                        }
+                    )
+
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+
+            logger.debug(
+                "Context blocks retrieved in priority order",
+                count=len(context_blocks),
+                ordered_keys=ordered_keys,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+
+            return {
+                "success": True,
+                "context_blocks": context_blocks,
+                "count": len(context_blocks),
+                "operation_time_ms": operation_time_ms,
+            }
+
+        except Exception as e:
+            operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+            logger.error(
+                "Error retrieving context blocks by priority",
+                error=str(e),
+                error_type=type(e).__name__,
+                operation_time_ms=operation_time_ms,
+                correlation_id=correlation_id,
+            )
+            return {
+                "success": False,
+                "error": f"Failed to retrieve context blocks by priority: {e}",
             }
