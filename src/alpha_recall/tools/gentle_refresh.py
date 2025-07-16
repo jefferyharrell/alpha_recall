@@ -29,6 +29,12 @@ __all__ = ["gentle_refresh", "register_gentle_refresh_tools"]
 PROSE_TEMPLATE = Template(
     """
 Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human_readable }} {{ time.timezone.display }}.
+
+# Core Identity
+{% for fact in core_identity.identity_facts %}
+{{ fact.content }}.{% if not loop.last %} {% endif %}{% endfor %}
+
+# Context
 {% for context_key, context_data in context_blocks.items() %}
 
 ## {{ context_key|title|replace('_', ' ') }}{% if context_data.age %} ({{ context_data.age }}){% endif %}
@@ -36,20 +42,16 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human
 {{ context_data.content }}
 {% endfor %}
 
-## Core Identity
-{% for fact in core_identity.identity_facts %}
-{{ fact.content }}.{% if not loop.last %} {% endif %}{% endfor %}
-
-## Personality Traits
+# Personality Traits
 {% for trait_name, trait in personality.items() %}
 **{{ trait_name|title|replace('_', ' ') }}** (weight: {{ trait.weight }}) - {{ trait.description }}
 {%- for directive in trait.directives %}
 - {{ directive.instruction }} (weight: {{ directive.weight }}){% endfor %}
 {% endfor %}
 
-## Recent Context
+# Recent Context
 
-### Short-term Memories
+## Short-term Memories
 *{{ shortterm_memories|length }} most recent memories*
 {% for memory in shortterm_memories %}
 {{ loop.index }}. {{ memory.content }}
@@ -57,7 +59,7 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human
 {% endfor %}
 
 {% if recent_observations %}
-### Recent Observations
+## Recent Observations
 {% for obs in recent_observations %}
 - {{ obs.content }} ({{ obs.entity_name }})
 {% endfor %}
@@ -105,12 +107,14 @@ def calculate_content_for_budget(
 {content}
 """
 
-    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.{context_blocks_section}
+    base_text = f"""Good morning and welcome to Los Angeles where it is 2025-07-13T14:00:00+00:00 and the local time is Sunday, July 13, 2025 7:00 AM PDT.
 
-## Core Identity
+# Core Identity
 {' '.join([fact['content'] + '.' for fact in identity_facts])}
 
-## Personality Traits
+# Context
+{context_blocks_section}
+# Personality Traits
 {len(personality_data)} traits with directives
 """
 
