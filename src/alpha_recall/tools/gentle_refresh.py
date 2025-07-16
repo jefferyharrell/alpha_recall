@@ -64,6 +64,14 @@ Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human
 - {{ obs.content }} ({{ obs.entity_name }})
 {% endfor %}
 {% endif %}
+
+{% if continuity_message %}
+# Continuity
+
+{{ continuity_message.content }}
+
+*{{ continuity_message.age }}*
+{% endif %}
 """.strip()
 )
 
@@ -443,6 +451,36 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             final_obs_count=len(recent_observations),
         )
 
+        # Get continuity message for session handoffs
+        continuity_message = None
+        try:
+            continuity_result = context_service.get_context_block("__continuity__")
+            if continuity_result.get("success") and continuity_result.get("content"):
+                created_at = continuity_result.get("created_at")
+                updated_at = continuity_result.get("updated_at")
+
+                # Calculate age if we have timestamps
+                age = None
+                if updated_at:
+                    age = pendulum.parse(updated_at).diff_for_humans()
+                elif created_at:
+                    age = pendulum.parse(created_at).diff_for_humans()
+
+                continuity_message = {
+                    "content": continuity_result["content"],
+                    "age": age,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                }
+
+                logger.info(
+                    "Continuity message retrieved for gentle_refresh",
+                    has_age=age is not None,
+                )
+        except Exception as e:
+            logger.error("Error retrieving continuity message", error=str(e))
+            continuity_message = None
+
         # Render the template
         prose_output = PROSE_TEMPLATE.render(
             time=time_data,
@@ -453,6 +491,7 @@ async def gentle_refresh(tokens: int | None = None) -> str:
             personality=personality_data,
             shortterm_memories=shortterm_memories,
             recent_observations=recent_observations,
+            continuity_message=continuity_message,
         )
 
         logger.info(

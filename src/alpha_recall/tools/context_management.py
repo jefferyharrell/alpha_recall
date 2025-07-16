@@ -19,6 +19,8 @@ __all__ = [
     "get_context_block",
     "list_context_blocks",
     "delete_context_block",
+    "set_continuity_message",
+    "get_continuity_message",
     "register_context_management_tools",
 ]
 
@@ -193,6 +195,95 @@ async def delete_context_block(key: str) -> str:
         )
 
 
+async def set_continuity_message(content: str) -> str:
+    """
+    Set a continuity message for session handoffs.
+
+    Continuity messages provide contextual handoff between sessions, capturing
+    the emotional temperature, momentum, and current thread of conversation.
+    They appear at the end of gentle_refresh with age indicators.
+
+    Args:
+        content: The prose continuity message. Use empty string to remove.
+
+    Returns:
+        JSON string with operation result
+    """
+    logger = get_logger("tools.set_continuity_message")
+    correlation_id = generate_correlation_id("set_continuity_message")
+    set_correlation_id(correlation_id)
+
+    try:
+        logger.info(
+            "Setting continuity message",
+            content_length=len(content),
+            correlation_id=correlation_id,
+        )
+
+        context_service = get_redis_context_service()
+
+        # Store continuity message as a special context block with reserved key
+        result = context_service.set_context_block(
+            "__continuity__", content, priority=0.0
+        )
+
+        logger.info(
+            "Continuity message operation completed",
+            success=result.get("success"),
+            operation=result.get("operation", "unknown"),
+            correlation_id=correlation_id,
+        )
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        logger.error(
+            "Error in set_continuity_message tool",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        return json.dumps(
+            {"success": False, "error": f"Tool execution failed: {e}"}, indent=2
+        )
+
+
+async def get_continuity_message() -> str:
+    """
+    Get the current continuity message.
+
+    Returns:
+        JSON string with continuity message content
+    """
+    logger = get_logger("tools.get_continuity_message")
+    correlation_id = generate_correlation_id("get_continuity_message")
+    set_correlation_id(correlation_id)
+
+    try:
+        logger.info("Getting continuity message", correlation_id=correlation_id)
+
+        context_service = get_redis_context_service()
+        result = context_service.get_context_block("__continuity__")
+
+        logger.info(
+            "Continuity message retrieved",
+            success=result.get("success"),
+            has_content=result.get("has_content"),
+            correlation_id=correlation_id,
+        )
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        logger.error(
+            "Error in get_continuity_message tool",
+            error=str(e),
+            correlation_id=correlation_id,
+        )
+        return json.dumps(
+            {"success": False, "error": f"Tool execution failed: {e}"}, indent=2
+        )
+
+
 def register_context_management_tools(mcp: FastMCP) -> None:
     """Register all context management tools with the MCP server."""
     logger = get_logger("tools.context_management")
@@ -201,5 +292,7 @@ def register_context_management_tools(mcp: FastMCP) -> None:
     mcp.tool(get_context_block)
     mcp.tool(list_context_blocks)
     mcp.tool(delete_context_block)
+    mcp.tool(set_continuity_message)
+    mcp.tool(get_continuity_message)
 
     logger.info("Context management tools registered successfully")
