@@ -29,11 +29,11 @@ __all__ = ["gentle_refresh", "register_gentle_refresh_tools"]
 PROSE_TEMPLATE = Template(
     """
 Good {{ time_greeting }} and welcome to {{ location }} where it is {{ time.human_readable }} {{ time.timezone.display }}.
-{% for context_key, context_content in context_blocks.items() %}
+{% for context_key, context_data in context_blocks.items() %}
 
-## {{ context_key|title|replace('_', ' ') }}
+## {{ context_key|title|replace('_', ' ') }}{% if context_data.age %} ({{ context_data.age }}){% endif %}
 
-{{ context_content }}
+{{ context_data.content }}
 {% endfor %}
 
 ## Core Identity
@@ -86,10 +86,21 @@ def calculate_content_for_budget(
     # Estimate base template cost (time + location + context blocks + identity + personality)
     context_blocks_section = ""
     if context_blocks:
-        for key, content in context_blocks.items():
+        for key, block_data in context_blocks.items():
+            # Handle both dict format (new) and string format (old)
+            if isinstance(block_data, dict):
+                content = block_data.get("content", "")
+                age = block_data.get("age", "")
+                header = f"## {key.replace('_', ' ').title()}"
+                if age:
+                    header += f" ({age})"
+            else:
+                content = block_data
+                header = f"## {key.replace('_', ' ').title()}"
+
             context_blocks_section += f"""
 
-## {key.replace('_', ' ').title()}
+{header}
 
 {content}
 """
@@ -193,7 +204,34 @@ async def gentle_refresh(tokens: int | None = None) -> str:
         context_blocks_result = context_service.get_all_context_blocks()
         context_blocks = {}
         if context_blocks_result.get("success"):
-            context_blocks = context_blocks_result.get("context_blocks", {})
+            raw_context_blocks = context_blocks_result.get("context_blocks", {})
+
+            # Process context blocks to add age information
+            for key, block_data in raw_context_blocks.items():
+                if isinstance(block_data, dict):
+                    # New format with timestamps
+                    content = block_data.get("content", "")
+                    created_at = block_data.get("created_at")
+                    updated_at = block_data.get("updated_at")
+
+                    # Calculate age if we have timestamps
+                    age = None
+                    if updated_at:
+                        age = pendulum.parse(updated_at).diff_for_humans()
+                    elif created_at:
+                        age = pendulum.parse(created_at).diff_for_humans()
+
+                    context_blocks[key] = {
+                        "content": content,
+                        "age": age,
+                    }
+                else:
+                    # Old format (plain string)
+                    context_blocks[key] = {
+                        "content": block_data,
+                        "age": None,
+                    }
+
             logger.info(
                 "Loaded context blocks",
                 count=len(context_blocks),

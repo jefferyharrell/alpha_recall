@@ -1,7 +1,10 @@
 """Redis service for context block management."""
 
+import json
 import time
 from typing import Any
+
+import pendulum
 
 from ..logging import get_logger
 from ..utils.correlation import (
@@ -47,14 +50,38 @@ class RedisContextService(RedisBaseService):
                     correlation_id=correlation_id,
                 )
             else:
-                # Store the context block content
-                self.client.set(context_key, content)
+                # Check if we're updating an existing block
+                existing_data = self.client.get(context_key)
+                now = pendulum.now("UTC")
+
+                if existing_data:
+                    # Try to parse as JSON to get the original created_at
+                    try:
+                        existing_json = json.loads(existing_data.decode("utf-8"))
+                        created_at = existing_json.get("created_at", now.isoformat())
+                    except (json.JSONDecodeError, AttributeError):
+                        # Old format (plain string) - use now as created_at
+                        created_at = now.isoformat()
+                else:
+                    # New context block
+                    created_at = now.isoformat()
+
+                # Store as JSON with timestamps
+                context_data = {
+                    "content": content,
+                    "created_at": created_at,
+                    "updated_at": now.isoformat(),
+                }
+
+                self.client.set(context_key, json.dumps(context_data))
                 operation = "stored"
                 logger.info(
                     "Context block stored",
                     key=key,
                     context_key=context_key,
                     content_length=len(content),
+                    created_at=created_at,
+                    updated_at=context_data["updated_at"],
                     correlation_id=correlation_id,
                 )
 
@@ -103,7 +130,30 @@ class RedisContextService(RedisBaseService):
 
             # Get the context block content
             content_bytes = self.client.get(context_key)
-            content = content_bytes.decode("utf-8") if content_bytes else None
+
+            if not content_bytes:
+                operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+                return {
+                    "success": True,
+                    "key": key,
+                    "content": None,
+                    "has_content": False,
+                    "operation_time_ms": operation_time_ms,
+                }
+
+            content_str = content_bytes.decode("utf-8")
+
+            # Try to parse as JSON (new format)
+            try:
+                content_data = json.loads(content_str)
+                content = content_data.get("content", content_str)
+                created_at = content_data.get("created_at")
+                updated_at = content_data.get("updated_at", created_at)
+            except json.JSONDecodeError:
+                # Old format (plain string) - treat as content with no timestamps
+                content = content_str
+                created_at = None
+                updated_at = None
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -113,6 +163,7 @@ class RedisContextService(RedisBaseService):
                 context_key=context_key,
                 has_content=content is not None,
                 content_length=len(content) if content else 0,
+                has_timestamps=created_at is not None,
                 operation_time_ms=operation_time_ms,
                 correlation_id=correlation_id,
             )
@@ -121,6 +172,8 @@ class RedisContextService(RedisBaseService):
                 "success": True,
                 "key": key,
                 "content": content,
+                "created_at": created_at,
+                "updated_at": updated_at,
                 "has_content": content is not None,
                 "operation_time_ms": operation_time_ms,
             }
@@ -286,7 +339,11 @@ class RedisContextService(RedisBaseService):
             for key in list_result.get("context_blocks", []):
                 content_result = self.get_context_block(key)
                 if content_result.get("success") and content_result.get("content"):
-                    context_blocks[key] = content_result["content"]
+                    context_blocks[key] = {
+                        "content": content_result["content"],
+                        "created_at": content_result.get("created_at"),
+                        "updated_at": content_result.get("updated_at"),
+                    }
 
             operation_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
